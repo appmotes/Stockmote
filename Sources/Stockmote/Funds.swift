@@ -73,12 +73,16 @@ struct FundHoldings: Codable {
     var holdings: [Holding]
     /// Number of stocks in the fund before trimming.
     var total: Int
-    /// Where the holdings came from: "iShares", "SSGA", "Invesco" or "index".
+    /// Where the holdings came from: "iShares", "Vanguard", "Xtrackers", "Amundi",
+    /// "SSGA", "Invesco" or "index".
     var source: String
     /// When the fund's own holdings aren't available: the ETF or index that
     /// tracks the same index ("URTH", "dax").
     var proxy: String?
     var fetched: Date
+    /// The date the provider's holdings are from, when it says so. Vanguard
+    /// publishes its holdings monthly, a few weeks after month end.
+    var asOf: Date? = nil
     /// Name and sector for stocks the app doesn't otherwise know (Japanese,
     /// Canadian …), looked up in Yahoo's search.
     var stocks: [StockInfo]
@@ -98,14 +102,25 @@ struct FundSearchResult: Identifiable, Hashable {
 enum FundError: LocalizedError {
     case noSource(String)
     case empty(String)
+    /// A bond, money market or multi-asset fund: its holdings aren't stocks.
+    case notEquity(String)
+    /// A swap-based (synthetic) ETF: it holds a substitute basket, not the
+    /// index, and no fund on the same index was found.
+    case swap(String)
 
     var errorDescription: String? {
         switch self {
         case .noSource(let name):
-            return tr("Kunne ikke hente beholdningen for \(name). Fulde beholdninger findes for iShares-, SPDR- og Invesco-ETF'er og for fonde der følger et kendt indeks.",
-                      "Could not load the holdings for \(name). Full holdings are available for iShares, SPDR and Invesco ETFs and for funds that track a well-known index.")
+            return tr("Kunne ikke hente beholdningen for \(name). Fulde beholdninger findes for ETF'er fra iShares, Vanguard, Xtrackers, Amundi, SPDR og Invesco og for fonde der følger et kendt indeks.",
+                      "Could not load the holdings for \(name). Full holdings are available for iShares, Vanguard, Xtrackers, Amundi, SPDR and Invesco ETFs and for funds that track a well-known index.")
         case .empty(let name):
             return tr("Kunne ikke hente beholdningen for \(name).", "Could not load the holdings for \(name).")
+        case .notEquity(let name):
+            return tr("\(name) ejer ikke aktier (obligationer, pengemarked eller andre fonde), så den kan ikke vises som et aktiekort.",
+                      "\(name) doesn't hold stocks (bonds, money market or other funds), so it can't be shown as a stock map.")
+        case .swap(let name):
+            return tr("\(name) er en swap-baseret ETF: den ejer en erstatningskurv i stedet for indeksets aktier, og der blev ikke fundet en fond på samme indeks.",
+                      "\(name) is a swap-based ETF: it holds a substitute basket instead of the index's stocks, and no fund on the same index was found.")
         }
     }
 }
@@ -234,6 +249,15 @@ final class FundStore: ObservableObject {
         } else if let proxy = loaded.proxy {
             parts.append(tr("Beholdning fra \(proxy) (\(loaded.source)), der følger et tilsvarende indeks",
                             "Holdings of \(proxy) (\(loaded.source)), which tracks a similar index"))
+        } else if let asOf = loaded.asOf {
+            // "30. sep." / "Sep 30"; with the year when it isn't this year.
+            let formatter = DateFormatter()
+            formatter.locale = Lang.locale
+            formatter.timeZone = TimeZone(identifier: "UTC")
+            let thisYear = Calendar.current.isDate(asOf, equalTo: Date(), toGranularity: .year)
+            formatter.setLocalizedDateFormatFromTemplate(thisYear ? "dMMM" : "dMMMyyyy")
+            let date = formatter.string(from: asOf)
+            parts.append(tr("Beholdning fra \(loaded.source) pr. \(date)", "Holdings from \(loaded.source) as of \(date)"))
         } else {
             parts.append(tr("Beholdning fra \(loaded.source)", "Holdings from \(loaded.source)"))
         }
@@ -303,11 +327,13 @@ final class FundStore: ObservableObject {
     }
 
     /// Stored holdings are fresh for a week — except holdings borrowed from
-    /// a similar fund or index for an iShares fund. Those were stored before
-    /// iShares became a source, and the fund's own holdings can now be loaded.
+    /// a similar fund or index for a fund whose provider is now a source
+    /// (iShares, Vanguard …). Those were stored before the provider became a
+    /// source, and the fund's own holdings can now be loaded.
     private func isFresh(_ fund: Fund) -> Bool {
         guard let loaded = holdings[fund.symbol] else { return false }
-        if loaded.proxy != nil, IShares.isIShares(fund.name) { return false }
+        if loaded.proxy != nil, FundSources.hasOwnSource(fund.name),
+           loaded.fetched < FundSources.issuersAdded { return false }
         return Date().timeIntervalSince(loaded.fetched) < Self.maxAge
     }
 
@@ -361,11 +387,20 @@ final class FundStore: ObservableObject {
 
     // MARK: Loading
 
-    /// The fund's own holdings from the provider (iShares, SSGA, Invesco); otherwise
-    /// a fund or index that tracks the same index (see `FundProxy`).
+    /// The fund's own holdings from the provider (iShares, Vanguard, Xtrackers,
+    /// Amundi, SSGA, Invesco); otherwise a fund or index that tracks the same
+    /// index (see `FundProxy`). A bond or multi-asset fund stops right away with
+    /// a message; a swap-based ETF tries the proxy first.
     private func buildHoldings(_ fund: Fund, report: @escaping @MainActor (String) -> Void) async throws -> FundHoldings {
-        if let found = await FundSources.holdings(fund.symbol, name: fund.name) {
-            return try await fromRows(found.rows, source: found.source, fund: fund, proxy: nil, report: report)
+        var swapError: Error?
+        do {
+            if let found = try await FundSources.holdings(fund.symbol, name: fund.name) {
+                var loaded = try await fromRows(found.rows, source: found.source, fund: fund, proxy: nil, report: report)
+                loaded.asOf = found.asOf
+                return loaded
+            }
+        } catch FundError.swap(let name) {
+            swapError = FundError.swap(name)
         }
         switch FundProxy.match(fund.name) {
         case .index(let id)?:
@@ -374,12 +409,12 @@ final class FundStore: ObservableObject {
                                 total: index.symbols.count, source: "index", proxy: id, fetched: Date(), stocks: [])
         case .etf(let etf)?:
             report(tr("Henter beholdningen fra \(etf)…", "Loading holdings from \(etf)…"))
-            guard let found = await FundSources.holdings(etf) else { break }
+            guard let found = try? await FundSources.holdings(etf) else { break }
             return try await fromRows(found.rows, source: found.source, fund: fund, proxy: etf, report: report)
         case nil:
             break
         }
-        throw FundError.noSource(fund.name)
+        throw swapError ?? FundError.noSource(fund.name)
     }
 
     private func fromRows(_ rows: [FundSources.Row], source: String, fund: Fund, proxy: String?,
@@ -387,7 +422,7 @@ final class FundStore: ObservableObject {
         let market = MarketStore.shared
         let universe = UniverseStore.shared
         // Cash, futures, money market funds and the like are not stocks.
-        var stocks = rows.filter { $0.weight > 0 && !FundSources.isNonEquity($0.name, ticker: $0.ticker) }
+        var stocks = rows.filter { $0.weight > 0 && !FundSources.isNonEquity($0.name, ticker: $0.ticker.isEmpty ? $0.isin ?? "" : $0.ticker) }
         stocks.sort { $0.weight > $1.weight }
         let total = stocks.count
         stocks = Array(stocks.prefix(Self.maxHoldings))
@@ -479,8 +514,10 @@ final class FundStore: ObservableObject {
     }
 
     /// Name and currency: the same name can be two companies on two exchanges.
+    /// The ISIN when the provider writes it — it is unique.
     nonisolated private static func nameKey(_ row: FundSources.Row) -> String {
-        "\(row.name.uppercased())|\(row.currency)"
+        if let isin = row.isin, !isin.isEmpty { return "ISIN|\(isin)" }
+        return "\(row.name.uppercased())|\(row.currency)"
     }
 
     /// A European stock in one of the app's indices: same symbol as the guess,
@@ -524,9 +561,11 @@ final class FundStore: ObservableObject {
         // First the guessed symbol ("RY.TO") — then Yahoo answers with exactly that
         // stock. Otherwise the name, and finally the first two words: the search
         // finds nothing for "ROYAL BANK CANADA", but something for "ROYAL BANK".
+        // An ISIN finds exactly the company, and Yahoo answers with its primary
+        // listing first (Vanguard, Xtrackers and Amundi write ISINs).
         let words = nameWords(row.name)
         var queries: [String] = []
-        for query in [row.yahooGuess ?? "", words.prefix(4).joined(separator: " "), words.prefix(2).joined(separator: " ")] {
+        for query in [row.isin ?? "", row.yahooGuess ?? "", words.prefix(4).joined(separator: " "), words.prefix(2).joined(separator: " ")] {
             if !query.isEmpty, !queries.contains(query) { queries.append(query) }
         }
         var answered = false
@@ -538,6 +577,8 @@ final class FundStore: ObservableObject {
             // If Yahoo doesn't know the guessed symbol, its other answers are
             // other companies with a similar ticker — look up the name instead.
             if query == row.yahooGuess, !guessKnown { continue }
+            // The ISIN's answers are all the same company.
+            if query == row.isin, !quotes.contains(where: { $0.quoteType == "EQUITY" }) { continue }
             if let match = pick(quotes, for: row, guessKnown: guessKnown) { return match }
         }
         // If Yahoo didn't answer at all, try again later (nil). If it answered
@@ -560,6 +601,9 @@ final class FundStore: ObservableObject {
             if !ticker.isEmpty, base == ticker || base.hasPrefix(ticker) { points += 10 }
             if quote.exchange == "PNK" || YahooSearch.secondarySuffixes.contains(suffix) { points -= 20 }
             if suffix.isEmpty { points += 2 } else if YahooSearch.primarySuffixes.contains(suffix) { points += 4 }
+            // The exchange the provider's data points to: a US ISIN is the New York
+            // listing, not a Canadian depositary receipt (GOOG.TO).
+            if let expected = row.suffix, suffix == expected { points += 8 }
             return points
         }
         guard let best = equities.enumerated().max(by: { a, b in
@@ -573,7 +617,9 @@ final class FundStore: ObservableObject {
         // Roche as "ROP", Yahoo has "ROG.SW".
         // US class shares are written with a dot internally ("BRK.B").
         func suffix(_ symbol: String) -> String { symbol.contains(".") ? String(symbol.split(separator: ".").last!) : "" }
-        let replaceGuess = guess.map { !guessKnown && suffix($0) == suffix(best.symbol) } ?? true
+        // A guess from the ISIN's country is only a guess: Linde has an Irish ISIN
+        // but trades in New York.
+        let replaceGuess = guess.map { !guessKnown && (row.softGuess || suffix($0) == suffix(best.symbol)) } ?? true
         let symbol = guess.flatMap { replaceGuess ? nil : $0 } ?? (best.symbol.contains(".") && Symbols.isForeign(best.symbol)
             ? best.symbol
             : best.symbol.replacingOccurrences(of: "-", with: "."))
@@ -612,8 +658,11 @@ final class FundStore: ObservableObject {
 
     // MARK: Files
 
+    /// `~/Library/Application Support/Stockmote/Funds/` — in snapshot mode
+    /// `…/Stockmote/Snapshot/Funds/`, so test runs don't touch the app's own cache.
     nonisolated static var folder: URL {
-        UniverseStore.userOverrideURL.deletingLastPathComponent().appendingPathComponent("Funds")
+        let base = UniverseStore.userOverrideURL.deletingLastPathComponent()
+        return (AppDefaults.isSnapshot ? base.appendingPathComponent("Snapshot") : base).appendingPathComponent("Funds")
     }
 
     nonisolated private static func cacheURL(_ symbol: String) -> URL {
@@ -652,8 +701,10 @@ final class FundStore: ObservableObject {
 ///   SPDR ETFs (SPY, XLK, SPGM …), updated daily.
 /// - **Invesco**: JSON with the full holdings (QQQ, RSP …).
 ///
-/// Vanguard doesn't answer without a browser, and Zacks and stockanalysis.com
-/// reject anything but browsers — those aren't used.
+/// - **Vanguard**, **Xtrackers (DWS)** and **Amundi**: JSON behind the funds'
+///   pages, see FundIssuers.swift.
+///
+/// Zacks and stockanalysis.com reject anything but browsers — those aren't used.
 enum FundSources {
     struct Row: Sendable {
         let name: String
@@ -670,17 +721,36 @@ enum FundSources {
         var exchange: String? = nil
         /// The GICS sector as the provider writes it, for stocks Yahoo doesn't know.
         var sector: String? = nil
+        /// The ISIN, when the provider writes it. Stocks are then looked up by ISIN.
+        var isin: String? = nil
+        /// The Yahoo suffix when the provider says exactly where the stock trades
+        /// (Amundi writes Bloomberg tickers: "ASML NA" → "AS").
+        var listing: String? = nil
+        /// The country the stock trades in, as ISO code, when the provider
+        /// writes neither exchange nor a currency with one exchange. Usually the
+        /// ISIN's country; for companies registered in Ireland, the Cayman
+        /// Islands and the like, the provider's country of risk.
+        var country: String? = nil
 
         /// The Yahoo suffix for the stock's exchange, "" for the US: from the exchange when
         /// the provider writes it, otherwise from the currency when it has only one
-        /// exchange. nil when it can't be determined (euro without exchange, Thailand …) —
-        /// then the stock is looked up by name.
+        /// exchange, otherwise from the country. nil when it can't be determined
+        /// (euro without exchange, Thailand …) — then the stock is looked up by name.
         var suffix: String? {
+            if let listing { return listing }
             if let exchange, let known = FundSources.suffix(exchange: exchange) { return known }
-            return FundSources.suffix(currency: currency)
+            if let known = FundSources.suffix(currency: currency) { return known }
+            return country.flatMap { FundSources.suffix(country: $0, ticker: ticker) }
         }
 
-        var isUS: Bool { suffix == "" }
+        /// The exchange is only guessed from the country: if Yahoo doesn't know the
+        /// guess, its search decides.
+        var softGuess: Bool {
+            listing == nil && (exchange.flatMap(FundSources.suffix(exchange:))) == nil
+                && FundSources.suffix(currency: currency) == nil && country != nil
+        }
+
+        var isUS: Bool { suffix == "" && !softGuess }
 
         /// The Yahoo symbol from ticker and exchange. Each exchange writes tickers
         /// its own way on Yahoo: class shares with a dot in the US and
@@ -750,6 +820,108 @@ enum FundSources {
         }
     }
 
+    /// Countries with one main exchange, as Yahoo suffix. China has two: Shanghai
+    /// tickers start with 6, Shenzhen tickers with 0 or 3, and short tickers are
+    /// H shares in Hong Kong.
+    static func suffix(country: String, ticker: String) -> String? {
+        let numeric = !ticker.isEmpty && ticker.allSatisfy(\.isNumber)
+        switch country {
+        case "US": return ""
+        case "CN":
+            guard ticker.count == 6 else { return "HK" }
+            return ticker.hasPrefix("6") ? "SS" : "SZ"
+        case "HK", "MO": return "HK"
+        case "JP": return "T"
+        case "GB", "IM", "GG", "JE": return numeric ? nil : "L"
+        case "CA": return "TO"
+        case "AU": return "AX"
+        case "NZ": return "NZ"
+        case "CH": return "SW"
+        case "DE": return "DE"
+        case "FR": return "PA"
+        case "NL": return "AS"
+        case "BE": return "BR"
+        case "IT": return "MI"
+        case "ES": return "MC"
+        case "PT": return "LS"
+        case "AT": return "VI"
+        case "FI": return "HE"
+        case "IE": return "IR"
+        case "DK": return "CO"
+        case "SE": return "ST"
+        case "NO": return "OL"
+        case "PL": return "WA"
+        case "GR": return "AT"
+        case "TR": return "IS"
+        case "IL": return "TA"
+        case "ZA": return "JO"
+        case "KR": return "KS"
+        case "TW": return "TW"
+        case "IN": return "NS"
+        case "SG": return "SI"
+        case "BR": return "SA"
+        case "MX": return "MX"
+        case "TH": return "BK"
+        case "ID": return "JK"
+        case "MY": return "KL"
+        case "SA": return "SR"
+        case "QA": return "QA"
+        case "CL": return "SN"
+        // Companies registered in tax havens: numbers are Hong Kong, letters
+        // usually New York.
+        case "KY", "BM", "VG": return numeric ? "HK" : ""
+        default: return nil
+        }
+    }
+
+    /// Bloomberg's exchange codes ("AAPL UW", "ASML NA") as Yahoo suffix.
+    static func suffix(bloomberg code: String) -> String? {
+        switch code {
+        case "US", "UN", "UW", "UQ", "UR", "UA", "UF", "UP", "UV": return ""
+        case "LN": return "L"
+        case "FP": return "PA"
+        case "NA": return "AS"
+        case "BB": return "BR"
+        case "GY", "GR", "GF": return "DE"
+        case "IM": return "MI"
+        case "SM", "SQ": return "MC"
+        case "PL": return "LS"
+        case "ID": return "IR"
+        case "AV": return "VI"
+        case "FH": return "HE"
+        case "DC": return "CO"
+        case "SS": return "ST"
+        case "NO": return "OL"
+        case "SE", "VX", "SW": return "SW"
+        case "JT", "JP": return "T"
+        case "HK": return "HK"
+        case "CT", "CN": return "TO"
+        case "AT", "AU": return "AX"
+        case "NZ": return "NZ"
+        case "SP": return "SI"
+        case "IT": return "TA"
+        case "KS": return "KS"
+        case "KQ": return "KQ"
+        case "TT": return "TW"
+        case "IS", "IN": return "NS"
+        case "IB": return "BO"
+        case "C1", "CG": return "SS"
+        case "C2", "CS": return "SZ"
+        case "BZ": return "SA"
+        case "SJ": return "JO"
+        case "MM": return "MX"
+        case "PW": return "WA"
+        case "TI": return "IS"
+        case "GA": return "AT"
+        case "TB": return "BK"
+        case "IJ": return "JK"
+        case "MK": return "KL"
+        case "AB": return "SR"
+        case "CI": return "SN"
+        default: return nil
+        }
+    }
+
     /// Exchanges as iShares writes them, as Yahoo suffix. The first match
     /// wins, so "Nasdaq Omx Helsinki" comes before "Nasdaq", and "Nyse Euronext
     /// - Euronext Paris" before "Nyse". Exchanges not listed here (Thailand,
@@ -781,18 +953,62 @@ enum FundSources {
             .contains { upper.contains($0) }
     }
 
+    /// What a provider found: the stocks, its name, and the date they're from.
+    struct Found {
+        var rows: [Row]
+        var source: String
+        var asOf: Date? = nil
+    }
+
+    /// When the funds of Vanguard, Xtrackers and Amundi became sources: their
+    /// holdings stored earlier were borrowed from a similar fund and are loaded again.
+    static let issuersAdded = Date(timeIntervalSince1970: 1_794_096_000) // 2026-11-08
+
+    /// The fund's provider is one of the sources that are found by name.
+    static func hasOwnSource(_ name: String) -> Bool {
+        IShares.isIShares(name) || Vanguard.isVanguard(name) || Xtrackers.isXtrackers(name) || Amundi.isAmundi(name)
+    }
+
     /// Tries the providers in turn. nil: none of them knows the fund.
     ///
-    /// iShares first: it also knows European funds, and it is skipped
-    /// without a single call when the name isn't an iShares fund. SSGA and
-    /// Invesco only know US tickers.
-    static func holdings(_ symbol: String, name: String? = nil) async -> (rows: [Row], source: String)? {
-        if let name, let rows = try? await IShares.holdings(symbol: symbol, name: name), !rows.isEmpty {
-            return (rows, "iShares")
+    /// iShares, Vanguard, Xtrackers and Amundi are found by the fund's name, and
+    /// are skipped without a single call when the name isn't theirs. They also know
+    /// European funds. SSGA and Invesco only know US tickers.
+    ///
+    /// Network errors make a provider count as not knowing the fund; a bond fund
+    /// (`FundError.notEquity`) or a swap ETF (`FundError.swap`) is thrown on.
+    static func holdings(_ symbol: String, name: String? = nil) async throws -> Found? {
+        func attempt(_ load: () async throws -> Found?) async throws -> Found? {
+            do {
+                guard let found = try await load(), !found.rows.isEmpty else { return nil }
+                return found
+            } catch let error as FundError {
+                throw error
+            } catch {
+                return nil
+            }
+        }
+        if let name {
+            if IShares.isIShares(name),
+               let found = try await attempt({ Found(rows: try await IShares.holdings(symbol: symbol, name: name), source: "iShares") }) {
+                return found
+            }
+            if Vanguard.isVanguard(name),
+               let found = try await attempt({ try await Vanguard.holdings(symbol: symbol, name: name) }) {
+                return found
+            }
+            if Xtrackers.isXtrackers(name),
+               let found = try await attempt({ try await Xtrackers.holdings(symbol: symbol, name: name) }) {
+                return found
+            }
+            if Amundi.isAmundi(name),
+               let found = try await attempt({ try await Amundi.holdings(symbol: symbol, name: name) }) {
+                return found
+            }
         }
         guard !symbol.contains(".") else { return nil }
-        if let rows = try? await ssga(symbol), !rows.isEmpty { return (rows, "SSGA") }
-        if let rows = try? await invesco(symbol), !rows.isEmpty { return (rows, "Invesco") }
+        if let found = try await attempt({ Found(rows: try await ssga(symbol), source: "SSGA") }) { return found }
+        if let found = try await attempt({ Found(rows: try await invesco(symbol), source: "Invesco") }) { return found }
         return nil
     }
 

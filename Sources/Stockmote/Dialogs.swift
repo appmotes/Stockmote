@@ -273,10 +273,10 @@ private struct FundPickerStatus: View {
                 case .ready(let loaded):
                     icon("checkmark.circle.fill", .green)
                     lines(funds.preview(loaded), funds.sourceNote(for: loaded))
-                case .failed:
+                case .failed(let reason):
                     icon("exclamationmark.triangle.fill", .orange)
-                    lines(tr("Kunne ikke finde beholdningen for \(selected.name). Fonden kan ikke vises.",
-                             "Couldn't find the holdings for \(selected.name). The fund can't be shown."), nil)
+                    lines(reason ?? tr("Kunne ikke finde beholdningen for \(selected.name). Fonden kan ikke vises.",
+                                       "Couldn't find the holdings for \(selected.name). The fund can't be shown."), nil)
                 case .idle:
                     if picker.isAdded {
                         icon("checkmark.circle", .secondary)
@@ -356,7 +356,8 @@ final class FundPicker: ObservableObject {
         case idle
         case loading(String)
         case ready(FundHoldings)
-        case failed
+        /// With a message when the fund is known but can't be shown (a bond fund).
+        case failed(String?)
     }
 
     @Published var query = ""
@@ -422,7 +423,10 @@ final class FundPicker: ObservableObject {
                 self.phase = .ready(loaded)
             } catch {
                 guard let self, !Task.isCancelled, self.selected == result else { return }
-                self.phase = .failed
+                switch error {
+                case FundError.notEquity, FundError.swap: self.phase = .failed(error.localizedDescription)
+                default: self.phase = .failed(nil)
+                }
             }
         }
     }

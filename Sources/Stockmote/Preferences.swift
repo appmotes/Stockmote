@@ -141,8 +141,11 @@ final class Preferences: ObservableObject {
 /// domain is used, so a picture of "Nasdaq 100, 1M, small panel" doesn't
 /// change what the app itself shows next time.
 enum AppDefaults {
+    /// Snapshot mode: separate settings and a separate fund cache.
+    static let isSnapshot = CommandLine.arguments.contains("--snapshot")
+
     static let store: UserDefaults = {
-        guard CommandLine.arguments.contains("--snapshot") else { return .standard }
+        guard isSnapshot else { return .standard }
         let name = "dk.stockmote.snapshot"
         let defaults = UserDefaults(suiteName: name) ?? .standard
         defaults.removePersistentDomain(forName: name)
