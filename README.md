@@ -25,11 +25,11 @@ later.
 ## Disclaimer
 
 Not investment advice. The app shows public quotes as they are. It is not made by or affiliated with Nasdaq, Yahoo,
-S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, State Street, Invesco or any other exchange, index
+S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, Vanguard, DWS, Amundi, State Street, Invesco or any other exchange, index
 or fund provider.
 
-Quotes come from public endpoints at Yahoo Finance and Nasdaq, fund holdings from BlackRock (iShares), State Street
-and Invesco, none of which need an account or API key. None of them is a
+Quotes come from public endpoints at Yahoo Finance and Nasdaq, fund holdings from BlackRock (iShares), Vanguard,
+DWS (Xtrackers), Amundi, State Street and Invesco, none of which need an account or API key. None of them is a
 documented, promised API. Any of them can change or close without notice, and then the map goes grey and the status
 line says which source failed. No analytics and no tracking.
 
@@ -38,14 +38,15 @@ line says which source failed. No analytics and no tracking.
 - **13 indices.** United States: S&P 500, Nasdaq 100, Dow Jones. Europe: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50,
   🇬🇧 FTSE 100, 🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI and 🇳🇱 AEX. ⌘1 … ⌘9 jump to the first nine.
 - **Funds.** + next to **Funds** in the sidebar opens a dialog in the middle of the panel: type the name or ticker of
-  an ETF or index fund (`SPY`, `SEC0`, `iShares Core MSCI World`, `SPIC25`) and pick a result. Its holdings are loaded
+  an ETF or index fund (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`) and pick a result. Its holdings are loaded
   right there, with a preview such as "237 stocks · largest: Taiwan Semiconductor 8.81%", and only a fund whose
-  holdings could be found can be added — otherwise the dialog says so and **Add** stays off. Return adds and opens
+  holdings could be found can be added — otherwise the dialog says so and **Add** stays off. A bond, money market
+  or multi-asset fund gets a message saying it holds no stocks, instead of an empty map. Return adds and opens
   it; Esc cancels without closing the panel. The fund is shown
   exactly like an index — sector → industry → stock, zoom, hover, list, replay, full screen, widget — but each tile's
   size is the stock's **weight in the fund**, not its market value. The title shows the fund's own name and its own
   price change. Hover shows the weight, the list has a weight column, and the status line says where the holdings
-  come from. Large funds (iShares Core MSCI World: ~1,200 stocks) are cut to the 500 largest by weight, and the status
+  come from, and for Vanguard, which publishes monthly, their date ("Holdings from Vanguard as of Sep 30"). Large funds (iShares Core MSCI World: ~1,200 stocks) are cut to the 500 largest by weight, and the status
   line says so. Funds are remembered across restarts; right-click to reload the holdings or remove the fund.
 - **Six time ranges** in the segmented control at the top: 1D, 1U/1W (week), 1M, 3M, ÅTD/YTD and 1Å/1Y. The colour
   scale follows the range: full colour at ±3 % for a day, ±35 % for a year.
@@ -131,6 +132,11 @@ The widget appears in the gallery once the app is in `/Applications` and has bee
 | Fund holdings: iShares ETFs, US and European (SOXX, IVV, SEC0, EUNL, CSPX …) | iShares' product lists (the ones the product screener on ishares.com loads, for the US, UK and German sites) and each fund's `latest-holdings.csv` | When the fund is added, then at most weekly; the product lists weekly |
 | Fund holdings: SPDR ETFs (SPY, XLK, SPGM …) | State Street's daily spreadsheet (`holdings-daily-us-en-<ticker>.xlsx`) | When the fund is added, then at most weekly |
 | Fund holdings: Invesco ETFs (QQQ, RSP …) | Invesco's JSON (`dng-api.invesco.com`) | As above |
+| Fund holdings: Vanguard US funds (VOO, VTI, VT …) | The JSON behind investor.vanguard.com's fund pages (`irr/funds/profile/<ticker>-AdditionalFundData`) | As above; Vanguard updates monthly, a few weeks after month end |
+| Fund holdings: Vanguard UCITS ETFs (VWRL, VWCE, VUSA …) | vanguard.co.uk: the fund ids from the product page's model (`product.model.json`), names, ISINs and tickers of every listing, and the holdings from its GraphQL service (`gpx/graphql`) | As above; the product list weekly |
+| Fund holdings: Xtrackers ETFs (XDWD, XMME, XDAX …) | etf.dws.com: the fund pages in the sitemaps (ISIN and name) and the holdings JSON behind each page (`api/pdp/en-gb/etf/<ISIN>/holdings`) | As above; the sitemaps weekly |
+| Fund holdings: Amundi and ex-Lyxor ETFs (MWRD, CW8, PANX …) | amundietf.co.uk's product API (`mapi/ProductAPI/getProductsData`): the product list (UK and French sites) and each fund's composition | As above; the product list weekly |
+| Stock symbols for funds that write ISINs (Vanguard, Xtrackers, Amundi) | Yahoo Finance `v1/finance/search` with the ISIN | Once per new stock |
 
 **Nasdaq's screener lags.** Measured on a Friday afternoon it still showed Thursday's close, so it is used only for
 size and search, and the market value is scaled by Yahoo's current price. Yahoo allows 20 symbols per call, so the
@@ -151,11 +157,15 @@ index shares one vocabulary; their industries keep Yahoo's names (`Drug Manufact
 
 **Funds.** No open source has the holdings of every fund. The app tries, in this order:
 
-1. **The fund's own holdings** at iShares (US and European iShares ETFs), State Street (every SPDR ETF) or Invesco.
+1. **The fund's own holdings** at iShares (US and European iShares ETFs), Vanguard (US funds and UCITS ETFs),
+   Xtrackers, Amundi (including the former Lyxor funds), State Street (every SPDR ETF) or Invesco.
    An iShares fund is found in iShares' own product lists by ticker — any listing: `SEC0` on Xetra, `SEMI` in
    London — or else by name, since the lists have one ticker per country (`IWDA` in Amsterdam is found as "iShares
    Core MSCI World UCITS ETF", the same fund as `SWDA` and `EUNL`). All three publish the full holdings with weight,
-   ticker and trading currency; iShares also gives the exchange and the sector.
+   ticker and trading currency; iShares also gives the exchange and the sector. Vanguard's UCITS funds are found by
+   any listing's ticker (`VWRL`, `VWRA`, `VWCE` are all the same product list), Amundi's by ticker or name, and
+   Xtrackers' by name, since DWS publishes no tickers. Vanguard and Amundi write ISIN and ticker (Amundi as Bloomberg
+   tickers with the exchange: `ASML NA` → `ASML.AS`), Xtrackers only the ISIN.
 2. **One of the app's own indices**, if the fund's name says it tracks one: `iShares Core DAX`, `Sparindex INDEX OMX
    C25 KL`, `Vanguard 500 Index Admiral`. The holdings are then the index members, and tiles are sized by market value.
 3. **A SPDR fund on a similar index**: MSCI World, MSCI ACWI and FTSE All-World → SPGM (MSCI ACWI IMI); emerging
@@ -164,17 +174,33 @@ index shares one vocabulary; their industries keep Yahoo's names (`Drug Manufact
    largest stocks are the same.
 4. Otherwise: "Could not load the holdings for …".
 
+Bond, money market and multi-asset funds (by the provider's asset class, or because their holdings contain no
+stocks) stop with a message instead: they cannot be drawn as a stock map. Swap-based ETFs (Amundi's `CW8`, `500`,
+`ANX` …) hold a substitute basket of other stocks, not the index, so the app skips their basket and goes on to step 2
+and 3; without a stand-in it says the fund is swap-based.
+
+| Provider | Supported | Why / how |
+|---|---|---|
+| iShares, Vanguard, Xtrackers, Amundi/Lyxor, SPDR (US), Invesco (US) | Yes | Full holdings, see above |
+| SPDR Europe (UCITS), WisdomTree, VanEck, HSBC, J.P. Morgan, Franklin Templeton, Global X, Schwab, First Trust, Fidelity | Not yet | Not researched yet; funds on a known index get a stand-in |
+| Sparindex, Danske Invest, Nordnet index funds | Via stand-in | Funds that track C25, MSCI World, S&P 500 etc. get the app's own index or a fund on the same index |
+
 Funds with a twist in the name — sector, factor, ESG, leverage, bonds — do not track the broad index and get no
-stand-in. Vanguard, Zacks and stockanalysis.com were tried and left out: they turn away anything but a browser.
+stand-in. Zacks and stockanalysis.com were tried and left out: they turn away anything but a browser.
 
 Foreign stocks in a fund get their Yahoo symbol from ticker and exchange where the provider names the exchange, as
 iShares does (`ASML` on Euronext Amsterdam → `ASML.AS`, `000660` on the Korea Exchange → `000660.KS`), and otherwise
 from ticker and currency (`7203` + JPY → `7203.T`, `700` + HKD → `0700.HK`, `SHEL` + GBP → `SHEL.L`). Euro stocks
 without an exchange cannot be guessed (Paris, Frankfurt, Milan …) and are looked up by name, and so are stocks whose
-guessed symbol Yahoo does not know (iShares writes Roche as `ROP`; Yahoo has `ROG.SW`). Sector and industry come from
+guessed symbol Yahoo does not know. When the provider writes the ISIN, Yahoo's search is asked for the ISIN first,
+which finds exactly the company and its primary listing. Without exchange or currency, the ISIN's country gives the
+exchange (`JP…` → Tokyo, `KR…` → Korea, `CN…` → Shanghai, Shenzhen or Hong Kong by ticker); for companies registered
+in Ireland, the Cayman Islands and the like, the provider's country of risk does (Linde → New York, Tencent → Hong
+Kong). Sector and industry come from
 `Indices.json` if the stock is there, otherwise from Yahoo's search, mapped to the GICS sector names, and as a last
 resort from the fund's own file. The lookups are stored in `~/Library/Application Support/Stockmote/Funds/Names.json`,
-iShares' product lists in `iShares.json` and the holdings in the same folder, so a fund only costs Yahoo calls the
+the providers' product lists in `iShares.json`, `Vanguard.json`, `Xtrackers.json` and `Amundi.json`, and the
+holdings in the same folder, so a fund only costs Yahoo calls the
 first time. Yahoo answers 429 when asked too much;
 the app then waits, and retries the lookups that failed one at a time.
 
@@ -236,6 +262,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/Stockmote/MarketData.swift](Sources/Stockmote/MarketData.swift) | Quotes, exchange rates, refresh loop, Nasdaq screener |
 | [Sources/Stockmote/Universe.swift](Sources/Stockmote/Universe.swift) | Loading `Indices.json` |
 | [Sources/Stockmote/Funds.swift](Sources/Stockmote/Funds.swift) | Funds: search, holdings from iShares, State Street and Invesco, stand-in indices, foreign stock lookup, cache, .xlsx and CSV readers |
+| [Sources/Stockmote/FundIssuers.swift](Sources/Stockmote/FundIssuers.swift) | Fund holdings from Vanguard, Xtrackers and Amundi, product lists, ISIN rows |
 | [Sources/Stockmote/Lists.swift](Sources/Stockmote/Lists.swift) | Favourites and watchlists |
 | [Sources/Stockmote/Preferences.swift](Sources/Stockmote/Preferences.swift) | Settings |
 | [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | What is selected, drill-down, zoom and the open dialog |
@@ -257,7 +284,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 ## Screenshots
 
 `./Scripts/make-screenshots.sh` renders them with live data. The app has a snapshot mode for it, which keeps its
-settings apart from the real app's:
+settings apart from the real app's, and its fund cache in `~/Library/Application Support/Stockmote/Snapshot/Funds/`:
 
 ```bash
 .build/release/Stockmote --snapshot out.png --index c25 --period 1M --theme light --lang en

@@ -25,11 +25,11 @@ eller nyere.
 ## Ansvarsfraskrivelse
 
 Ikke investeringsrådgivning. Appen viser offentlige kurser som de er. Den er ikke lavet af eller forbundet med Nasdaq,
-Yahoo, S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, State Street, Invesco eller nogen anden børs,
+Yahoo, S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, Vanguard, DWS, Amundi, State Street, Invesco eller nogen anden børs,
 indeks- eller fondsudbyder.
 
 Kurserne kommer fra offentlige adresser hos Yahoo Finance og Nasdaq, fondenes beholdninger fra BlackRock (iShares),
-State Street og Invesco, alle uden konto eller API-nøgle. Ingen af
+Vanguard, DWS (Xtrackers), Amundi, State Street og Invesco, alle uden konto eller API-nøgle. Ingen af
 dem er et dokumenteret, lovet API. De kan alle ændre sig eller lukke uden varsel; så bliver kortet gråt, og
 statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 
@@ -38,13 +38,15 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 - **13 indekser.** USA: S&P 500, Nasdaq 100, Dow Jones. Europa: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50, 🇬🇧 FTSE 100,
   🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI og 🇳🇱 AEX. ⌘1 … ⌘9 hopper til de første ni.
 - **Fonde.** + ved **Fonde** i sidebjælken åbner en dialog midt i panelet: skriv navn eller ticker på en ETF eller
-  indeksfond (`SPY`, `SEC0`, `iShares Core MSCI World`, `SPIC25`) og vælg et resultat. Beholdningen hentes med det
+  indeksfond (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`) og vælg et resultat. Beholdningen hentes med det
   samme, med en smagsprøve som "237 aktier · største: Taiwan Semiconductor 8,81%", og kun en fond hvis beholdning
-  kunne findes, kan tilføjes — ellers siger dialogen det, og **Tilføj** forbliver slået fra. Retur tilføjer og åbner
+  kunne findes, kan tilføjes — ellers siger dialogen det, og **Tilføj** forbliver slået fra. En obligations-, pengemarkeds-
+  eller blandet fond får en besked om at den ikke ejer aktier, i stedet for et tomt kort. Retur tilføjer og åbner
   den; Esc annullerer uden at lukke panelet. Fonden vises
   præcis som et indeks — sektor → branche → aktie, zoom, hover, liste, afspilning, fuld skærm, widget — men hvert
   felts størrelse er aktiens **vægt i fonden**, ikke dens markedsværdi. Titlen viser fondens eget navn og dens egen
-  kursændring. Hover viser vægten, listen har en vægt-kolonne, og statuslinjen siger hvor beholdningen kommer fra.
+  kursændring. Hover viser vægten, listen har en vægt-kolonne, og statuslinjen siger hvor beholdningen kommer fra — og for
+  Vanguard, der offentliggør månedligt, hvilken dato den er fra ("Beholdning fra Vanguard pr. 30. sep.").
   Store fonde (iShares Core MSCI World: ~1200 aktier) beskæres til de 500 største efter vægt, og det står i
   statuslinjen.
   Fondene huskes på tværs af genstart; højreklik for at hente beholdningen igen eller fjerne fonden.
@@ -134,6 +136,11 @@ skrivebordet → **Rediger widgets** → søg efter Stockmote.
 | Fondes beholdning: iShares-ETF'er, amerikanske og europæiske (SOXX, IVV, SEC0, EUNL, CSPX …) | iShares' produktlister (dem produktsøgningen på ishares.com henter, for det amerikanske, britiske og tyske site) og hver fonds `latest-holdings.csv` | Når fonden tilføjes, og derefter højst ugentligt; produktlisterne ugentligt |
 | Fondes beholdning: SPDR-ETF'er (SPY, XLK, SPGM …) | State Streets daglige regneark (`holdings-daily-us-en-<ticker>.xlsx`) | Når fonden tilføjes, og derefter højst ugentligt |
 | Fondes beholdning: Invesco-ETF'er (QQQ, RSP …) | Invescos JSON (`dng-api.invesco.com`) | Som ovenfor |
+| Fondes beholdning: Vanguards amerikanske fonde (VOO, VTI, VT …) | JSON'en bag fondssiderne på investor.vanguard.com (`irr/funds/profile/<ticker>-AdditionalFundData`) | Som ovenfor; Vanguard opdaterer månedligt, nogle uger efter månedens udgang |
+| Fondes beholdning: Vanguards UCITS-ETF'er (VWRL, VWCE, VUSA …) | vanguard.co.uk: fondenes id'er fra produktsidens model (`product.model.json`), navne, ISIN og alle noteringers tickere, og beholdningen fra sitets GraphQL-tjeneste (`gpx/graphql`) | Som ovenfor; produktlisten ugentligt |
+| Fondes beholdning: Xtrackers-ETF'er (XDWD, XMME, XDAX …) | etf.dws.com: fondssiderne i sitemaps (ISIN og navn) og beholdnings-JSON'en bag hver side (`api/pdp/en-gb/etf/<ISIN>/holdings`) | Som ovenfor; sitemaps ugentligt |
+| Fondes beholdning: Amundi- og tidligere Lyxor-ETF'er (MWRD, CW8, PANX …) | amundietf.co.uk's produkt-API (`mapi/ProductAPI/getProductsData`): produktlisten (britisk og fransk site) og hver fonds sammensætning | Som ovenfor; produktlisten ugentligt |
+| Aktiesymboler for fonde der skriver ISIN (Vanguard, Xtrackers, Amundi) | Yahoo Finance `v1/finance/search` med ISIN | Én gang pr. ny aktie |
 
 **Nasdaq's screener halter.** Målt en fredag eftermiddag viste den stadig torsdagens lukkekurs, så den bruges kun til
 størrelse og søgning, og markedsværdien skaleres med Yahoo's aktuelle kurs. Yahoo tillader 20 symboler pr. kald, så
@@ -154,11 +161,14 @@ sektornavne, så alle indekser deler sprog; brancherne beholder Yahoo's navne (`
 
 **Fonde.** Ingen åben kilde har beholdningen for alle fonde. Appen prøver i denne rækkefølge:
 
-1. **Fondens egen beholdning** hos iShares (amerikanske og europæiske iShares-ETF'er), State Street (alle
-   SPDR-ETF'er) eller Invesco. En iShares-fond findes i iShares' egne produktlister på ticker — enhver notering:
+1. **Fondens egen beholdning** hos iShares (amerikanske og europæiske iShares-ETF'er), Vanguard (amerikanske fonde
+   og UCITS-ETF'er), Xtrackers, Amundi (også de tidligere Lyxor-fonde), State Street (alle SPDR-ETF'er) eller Invesco. En iShares-fond findes i iShares' egne produktlister på ticker — enhver notering:
    `SEC0` på Xetra, `SEMI` i London — eller ellers på navnet, for listerne har én ticker pr. land (`IWDA` i Amsterdam
    findes som "iShares Core MSCI World UCITS ETF", samme fond som `SWDA` og `EUNL`). Alle tre lægger hele
-   beholdningen frem, med vægt, ticker og handelsvaluta; iShares også med børs og sektor.
+   beholdningen frem, med vægt, ticker og handelsvaluta; iShares også med børs og sektor. Vanguards UCITS-fonde
+   findes på enhver noterings ticker (`VWRL`, `VWRA`, `VWCE` står alle i produktlisten), Amundis på ticker eller
+   navn, og Xtrackers' på navn, da DWS ikke offentliggør tickere. Vanguard og Amundi skriver ISIN og ticker (Amundi
+   som Bloomberg-tickere med børs: `ASML NA` → `ASML.AS`), Xtrackers kun ISIN.
 2. **Et af appens egne indekser**, hvis fondens navn siger at den følger det: `iShares Core DAX`, `Sparindex INDEX OMX
    C25 KL`, `Vanguard 500 Index Admiral`. Så er beholdningen indeksets medlemmer, og felterne får markedsværdi.
 3. **En SPDR-fond på et tilsvarende indeks**: MSCI World, MSCI ACWI og FTSE All-World → SPGM (MSCI ACWI IMI);
@@ -167,17 +177,31 @@ sektornavne, så alle indekser deler sprog; brancherne beholder Yahoo's navne (`
    er en tilnærmelse — de største aktier er de samme.
 4. Ellers: "Kunne ikke hente beholdningen for …".
 
+Obligations-, pengemarkeds- og blandede fonde (efter udbyderens aktivklasse, eller fordi beholdningen ikke har
+aktier) stopper i stedet med en besked: de kan ikke tegnes som et aktiekort. Swap-baserede ETF'er (Amundis `CW8`,
+`500`, `ANX` …) ejer en erstatningskurv af andre aktier, ikke indekset, så appen springer kurven over og går videre til
+trin 2 og 3; uden erstatning siger den at fonden er swap-baseret.
+
+| Udbyder | Understøttet | Hvorfor / hvordan |
+|---|---|---|
+| iShares, Vanguard, Xtrackers, Amundi/Lyxor, SPDR (USA), Invesco (USA) | Ja | Fuld beholdning, se ovenfor |
+| SPDR Europe (UCITS), WisdomTree, VanEck, HSBC, J.P. Morgan, Franklin Templeton, Global X, Schwab, First Trust, Fidelity | Ikke endnu | Ikke undersøgt endnu; fonde på et kendt indeks får en erstatning |
+| Sparindex, Danske Invest, Nordnet indeksfonde | Via erstatning | Fonde der følger C25, MSCI World, S&P 500 osv. får appens eget indeks eller en fond på samme indeks |
+
 Fonde med en drejning i navnet — sektor, faktor, ESG, gearing, obligationer — følger ikke det brede indeks og får
-ingen erstatning. Vanguard, Zacks og stockanalysis.com blev prøvet og fravalgt: de afviser alt andet end en browser.
+ingen erstatning. Zacks og stockanalysis.com blev prøvet og fravalgt: de afviser alt andet end en browser.
 
 Udenlandske aktier i en fond får Yahoo-symbol ud fra ticker og børs, når udbyderen skriver børsen, som iShares gør
 (`ASML` på Euronext Amsterdam → `ASML.AS`, `000660` på Korea Exchange → `000660.KS`), og ellers ud fra ticker og
 valuta (`7203` + JPY → `7203.T`, `700` + HKD → `0700.HK`, `SHEL` + GBP → `SHEL.L`). Euro-aktier uden børs kan ikke
 gættes (Paris, Frankfurt, Milano …) og slås op på navnet, og det gør aktier hvis gættede symbol Yahoo ikke kender,
-også (iShares skriver Roche som `ROP`; Yahoo har `ROG.SW`). Sektor og branche kommer fra `Indices.json` hvis aktien
+også. Når udbyderen skriver ISIN, spørges Yahoo's søgning først om ISIN, som finder præcis selskabet og dets
+primære notering. Uden børs og valuta giver ISIN'ens land børsen (`JP…` → Tokyo, `KR…` → Korea, `CN…` → Shanghai,
+Shenzhen eller Hongkong efter ticker); for selskaber registreret i Irland, på Caymanøerne og lignende gør udbyderens
+risikoland (Linde → New York, Tencent → Hongkong). Sektor og branche kommer fra `Indices.json` hvis aktien
 står der, ellers fra Yahoo's søgning, oversat til GICS' sektornavne, og som sidste udvej fra fondens egen fil.
-Opslagene gemmes i `~/Library/Application Support/Stockmote/Funds/Names.json`, iShares' produktlister i
-`iShares.json` og beholdningerne i samme mappe, så en fond kun koster Yahoo-kald første gang. Yahoo svarer 429 hvis der spørges for meget; så ventes der, og
+Opslagene gemmes i `~/Library/Application Support/Stockmote/Funds/Names.json`, udbydernes produktlister i
+`iShares.json`, `Vanguard.json`, `Xtrackers.json` og `Amundi.json`, og beholdningerne i samme mappe, så en fond kun koster Yahoo-kald første gang. Yahoo svarer 429 hvis der spørges for meget; så ventes der, og
 de opslag der fejlede, prøves igen ét ad gangen.
 
 **Åbningstider** følger hver børs og vises i din lokale tid i statuslinjen: `Lukket · åbner man. 09.00`. Helligdage
@@ -239,6 +263,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/Stockmote/MarketData.swift](Sources/Stockmote/MarketData.swift) | Kurser, valutakurser, opdateringsløkke, Nasdaq's screener |
 | [Sources/Stockmote/Universe.swift](Sources/Stockmote/Universe.swift) | Indlæsning af `Indices.json` |
 | [Sources/Stockmote/Funds.swift](Sources/Stockmote/Funds.swift) | Fonde: søgning, beholdninger fra iShares, State Street og Invesco, erstatningsindekser, opslag af udenlandske aktier, cache, .xlsx- og CSV-læsere |
+| [Sources/Stockmote/FundIssuers.swift](Sources/Stockmote/FundIssuers.swift) | Fondes beholdning fra Vanguard, Xtrackers og Amundi, produktlister, ISIN-rækker |
 | [Sources/Stockmote/Lists.swift](Sources/Stockmote/Lists.swift) | Favoritter og watchlister |
 | [Sources/Stockmote/Preferences.swift](Sources/Stockmote/Preferences.swift) | Indstillinger |
 | [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | Hvad der er valgt, sektor/branche, zoom og den åbne dialog |
@@ -260,7 +285,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 ## Skærmbilleder
 
 `./Scripts/make-screenshots.sh` renderer dem med rigtige data. Appen har en snapshot-tilstand til det, som holder
-sine indstillinger adskilt fra den rigtige apps:
+sine indstillinger adskilt fra den rigtige apps, og sin fond-cache i `~/Library/Application Support/Stockmote/Snapshot/Funds/`:
 
 ```bash
 .build/release/Stockmote --snapshot ud.png --index c25 --period 1M --theme light --lang en
