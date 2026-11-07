@@ -27,6 +27,8 @@ public enum Symbols {
 
     /// What's shown on the tile: "NOVO B" rather than "NOVO-B.CO".
     public static func display(_ symbol: String) -> String {
+        // A fund priced by its daily NAV (see FundNAV) has no ticker.
+        if symbol.hasPrefix("NAV:") { return "NAV" }
         guard isForeign(symbol), let dot = symbol.lastIndex(of: ".") else { return symbol }
         return String(symbol[..<dot]).replacingOccurrences(of: "-", with: " ")
     }

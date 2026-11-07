@@ -14,6 +14,9 @@ struct Fund: Codable, Hashable, Identifiable {
     /// funds are often listed as stocks).
     var kind: String
     var exchange: String?
+    /// Nordnet's instrument id, for funds found in Nordnet's search: their
+    /// holdings come from Nordnet (see Nordnet.swift).
+    var nordnet: Int? = nil
 
     var id: String { FundStore.id(symbol) }
     var displaySymbol: String { Symbols.display(symbol) }
@@ -41,6 +44,8 @@ struct Fund: Codable, Hashable, Identifiable {
     /// The fund's exchange, from the symbol's suffix. Used for "Open · closes …"
     /// and for how often to refresh.
     var hours: MarketHours {
+        // Funds priced by NAV are Nordnet's Danish funds.
+        if FundNAV.isNAV(symbol) { return MarketHours(timezone: "Europe/Copenhagen", open: "09:00", close: "17:00") }
         let suffix = symbol.split(separator: ".").last.map(String.init) ?? ""
         switch symbol.contains(".") ? suffix : "" {
         case "CO": return MarketHours(timezone: "Europe/Copenhagen", open: "09:00", close: "17:00")
@@ -94,9 +99,11 @@ struct FundSearchResult: Identifiable, Hashable {
     let name: String
     let kind: String
     let exchange: String
+    /// Nordnet's instrument id, when Nordnet's search found the fund.
+    var nordnet: Int? = nil
     var id: String { symbol }
 
-    var fund: Fund { Fund(symbol: symbol, name: name, kind: kind, exchange: exchange) }
+    var fund: Fund { Fund(symbol: symbol, name: name, kind: kind, exchange: exchange, nordnet: nordnet) }
 }
 
 enum FundError: LocalizedError {
@@ -393,6 +400,17 @@ final class FundStore: ObservableObject {
     /// a message; a swap-based ETF tries the proxy first.
     private func buildHoldings(_ fund: Fund, report: @escaping @MainActor (String) -> Void) async throws -> FundHoldings {
         var swapError: Error?
+        // Danish funds and Nordnet's own: Nordnet's holdings. When they are only
+        // the largest 25, a fund or index on the same index is preferred.
+        var partial: FundSources.Found?
+        if let id = await nordnetID(fund), let found = try await FundSources.nordnet(id, name: fund.name) {
+            if !found.partial || FundProxy.match(fund.name) == nil {
+                var loaded = try await fromRows(found.rows, source: found.source, fund: fund, proxy: nil, report: report)
+                loaded.asOf = found.asOf
+                return loaded
+            }
+            partial = found
+        }
         do {
             if let found = try await FundSources.holdings(fund.symbol, name: fund.name) {
                 var loaded = try await fromRows(found.rows, source: found.source, fund: fund, proxy: nil, report: report)
@@ -414,7 +432,20 @@ final class FundStore: ObservableObject {
         case nil:
             break
         }
+        if let partial {
+            var loaded = try await fromRows(partial.rows, source: partial.source, fund: fund, proxy: nil, report: report)
+            loaded.asOf = partial.asOf
+            return loaded
+        }
         throw swapError ?? FundError.noSource(fund.name)
+    }
+
+    /// Nordnet's id: from Nordnet's search, or looked up for a fund listed
+    /// in Copenhagen that was found in Yahoo's search.
+    private func nordnetID(_ fund: Fund) async -> Int? {
+        if let id = fund.nordnet { return id }
+        guard fund.symbol.hasSuffix(".CO") else { return nil }
+        return await Nordnet.instrumentID(forCopenhagen: fund.symbol)
     }
 
     private func fromRows(_ rows: [FundSources.Row], source: String, fund: Fund, proxy: String?,
@@ -636,10 +667,31 @@ final class FundStore: ObservableObject {
 
     // MARK: Search
 
-    /// ETFs and funds that match the text.
+    /// ETFs and funds that match the text: Yahoo's search, and Nordnet's for
+    /// the Danish funds Yahoo doesn't know. A fund both know is shown once, with
+    /// Yahoo's symbol and Nordnet's id (for the holdings).
     nonisolated static func search(_ text: String) async -> [FundSearchResult] {
         let query = text.trimmingCharacters(in: .whitespaces)
-        guard query.count >= 2, let quotes = await YahooSearch.quotes(query, count: 15) else { return [] }
+        guard query.count >= 2 else { return [] }
+        async let yahoo = yahooSearch(query)
+        async let nordnet = Nordnet.search(query)
+        var results = await yahoo
+        let fromNordnet = await nordnet
+        // The same fund: the same symbol, or the same name (Yahoo knows some of
+        // Nordnet's funds by Morningstar id, "0P000134KA.CO").
+        func same(_ a: FundSearchResult, _ b: FundSearchResult) -> Bool {
+            a.symbol == b.symbol || a.name.lowercased() == b.name.lowercased()
+        }
+        for (i, result) in results.enumerated() {
+            if let match = fromNordnet.first(where: { same($0, result) }) { results[i].nordnet = match.nordnet }
+        }
+        let extra = fromNordnet.filter { found in !results.contains { same($0, found) } }
+        // Room for Nordnet's results among the eight the dialog shows.
+        return Array(results.prefix(extra.isEmpty ? 15 : max(3, 8 - extra.count))) + extra
+    }
+
+    nonisolated private static func yahooSearch(_ query: String) async -> [FundSearchResult] {
+        guard let quotes = await YahooSearch.quotes(query, count: 15) else { return [] }
         return quotes.compactMap { quote in
             let isFund = quote.quoteType == "ETF" || quote.quoteType == "MUTUALFUND"
                 || (quote.quoteType == "EQUITY" && looksLikeFund(quote.name))
@@ -958,6 +1010,8 @@ enum FundSources {
         var rows: [Row]
         var source: String
         var asOf: Date? = nil
+        /// Only the largest holdings (Nordnet publishes 25).
+        var partial = false
     }
 
     /// When the funds of Vanguard, Xtrackers and Amundi became sources: their
@@ -977,6 +1031,18 @@ enum FundSources {
     ///
     /// Network errors make a provider count as not knowing the fund; a bond fund
     /// (`FundError.notEquity`) or a swap ETF (`FundError.swap`) is thrown on.
+    /// Nordnet's holdings (see Nordnet.swift). Network errors count as not knowing the fund.
+    static func nordnet(_ id: Int, name: String) async throws -> Found? {
+        do {
+            guard let found = try await Nordnet.holdings(id: id, name: name), !found.rows.isEmpty else { return nil }
+            return found
+        } catch let error as FundError {
+            throw error
+        } catch {
+            return nil
+        }
+    }
+
     static func holdings(_ symbol: String, name: String? = nil) async throws -> Found? {
         func attempt(_ load: () async throws -> Found?) async throws -> Found? {
             do {

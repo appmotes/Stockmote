@@ -41,6 +41,9 @@ public enum Yahoo {
 
     /// Price and percentage change per symbol. Four calls at a time.
     public static func fetch(_ symbols: [String], period: Period, concurrency: Int = 4) async -> [String: Value] {
+        let navs = symbols.filter(FundNAV.isNAV)
+        let symbols = symbols.filter { !FundNAV.isNAV($0) }
+        let navValues = navs.isEmpty ? [:] : await FundNAV.values(navs, period: period)
         let chunks = stride(from: 0, to: symbols.count, by: 20).map {
             Array(symbols[$0..<min($0 + 20, symbols.count)])
         }
@@ -58,7 +61,7 @@ public enum Yahoo {
                 }
             }
         }
-        return result
+        return result.merging(navValues) { _, nav in nav }
     }
 
     private static func fetchChunk(_ symbols: [String], period: Period, attempt: Int = 0) async -> [String: Value] {
@@ -147,6 +150,9 @@ extension Yahoo {
 
     /// Series for many symbols, 20 per call, three at a time.
     public static func fetchSeries(_ symbols: [String], period: Period) async -> [String: Series] {
+        let navs = symbols.filter(FundNAV.isNAV)
+        let symbols = symbols.filter { !FundNAV.isNAV($0) }
+        let navSeries = navs.isEmpty ? [:] : await FundNAV.allSeries(navs, period: period)
         let chunks = stride(from: 0, to: symbols.count, by: 20).map {
             Array(symbols[$0..<min($0 + 20, symbols.count)])
         }
@@ -164,7 +170,7 @@ extension Yahoo {
                 }
             }
         }
-        return result
+        return result.merging(navSeries) { _, nav in nav }
     }
 
     private static func fetchSeriesChunk(_ symbols: [String], period: Period, attempt: Int = 0) async -> [String: Series] {
@@ -198,6 +204,90 @@ extension Yahoo {
         } catch {
             if attempt < 1 { return await fetchSeriesChunk(symbols, period: period, attempt: attempt + 1) }
             return [:]
+        }
+    }
+}
+
+// MARK: - Daily NAV for funds Yahoo doesn't know
+
+/// Funds sold through Nordnet that aren't listed anywhere (Nordnet Danmark
+/// Indeks, Nordnet Global Indeks …) have no Yahoo quote — only a daily NAV.
+/// Their symbol is "NAV:<Morningstar id>:<currency>" ("NAV:F00000TH8X:DKK"),
+/// and `Yahoo.fetch` and `Yahoo.fetchSeries` take the NAV from Morningstar's
+/// public time series (the one behind the funds' pages) instead of asking Yahoo.
+///
+/// There is no NAV for today until the evening, so the day's change is left
+/// out: the app then derives it from the holdings' own prices, weighted.
+public enum FundNAV {
+    public static let prefix = "NAV:"
+
+    public static func isNAV(_ symbol: String) -> Bool { symbol.hasPrefix(prefix) }
+
+    /// The start of the period; nil for the day.
+    static func start(of period: Period, now: Date = Date()) -> Date? {
+        let calendar = Calendar(identifier: .gregorian)
+        switch period {
+        case .day: return nil
+        case .week: return calendar.date(byAdding: .day, value: -7, to: now)
+        case .month: return calendar.date(byAdding: .month, value: -1, to: now)
+        case .quarter: return calendar.date(byAdding: .month, value: -3, to: now)
+        case .ytd: return calendar.date(from: calendar.dateComponents([.year], from: now))
+        case .year: return calendar.date(byAdding: .year, value: -1, to: now)
+        }
+    }
+
+    /// Daily NAV over the period: the points in it, and the NAV just before it
+    /// as the previous close.
+    public static func series(_ symbol: String, period: Period) async -> Yahoo.Series? {
+        guard let start = start(of: period) else { return nil }
+        let parts = symbol.dropFirst(prefix.count).split(separator: ":").map(String.init)
+        guard let id = parts.first, !id.isEmpty else { return nil }
+        let currency = parts.count > 1 ? parts[1] : "DKK"
+        let from = start.addingTimeInterval(-14 * 86_400)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let query = "id=\(id)%5D2%5D0%5DFOESP%24%24ALL&idtype=Morningstar&currencyId=\(currency)&frequency=daily"
+            + "&startDate=\(formatter.string(from: from))&outputType=COMPACTJSON"
+        guard let url = URL(string: "https://lt.morningstar.com/api/rest.svc/timeseries_price/t92wz0sj7c?\(query)"),
+              let (data, response) = try? await Net.session.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let points = try? JSONDecoder().decode([[Double]].self, from: data) else { return nil }
+        let cut = start.timeIntervalSince1970
+        var previous: Double?
+        var stamps: [Int] = [], closes: [Double?] = []
+        for point in points where point.count >= 2 {
+            let time = point[0] / 1000
+            if time < cut { previous = point[1] } else { stamps.append(Int(time)); closes.append(point[1]) }
+        }
+        guard let previous, previous > 0, !stamps.isEmpty else { return nil }
+        return Yahoo.Series(timestamps: stamps, closes: closes, previousClose: previous)
+    }
+
+    /// Price and change over the period, from the NAV.
+    static func value(_ symbol: String, period: Period) async -> Yahoo.Value? {
+        guard let series = await series(symbol, period: period),
+              let last = series.closes.last(where: { $0 != nil }) ?? nil else { return nil }
+        return Yahoo.Value(price: last, change: (last / series.previousClose - 1) * 100)
+    }
+
+    /// NAV symbols in the list, fetched in parallel.
+    static func values(_ symbols: [String], period: Period) async -> [String: Yahoo.Value] {
+        await withTaskGroup(of: (String, Yahoo.Value?).self) { group in
+            for symbol in symbols { group.addTask { (symbol, await value(symbol, period: period)) } }
+            var result: [String: Yahoo.Value] = [:]
+            for await (symbol, value) in group { if let value { result[symbol] = value } }
+            return result
+        }
+    }
+
+    static func allSeries(_ symbols: [String], period: Period) async -> [String: Yahoo.Series] {
+        await withTaskGroup(of: (String, Yahoo.Series?).self) { group in
+            for symbol in symbols { group.addTask { (symbol, await series(symbol, period: period)) } }
+            var result: [String: Yahoo.Series] = [:]
+            for await (symbol, series) in group { if let series { result[symbol] = series } }
+            return result
         }
     }
 }

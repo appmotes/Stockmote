@@ -208,14 +208,19 @@ final class ReplayStore: ObservableObject {
             prices[symbol] = priceRow
         }
 
-        // The curve: the index itself, otherwise an equal-weighted average of the list.
+        // The curve: the index itself, otherwise an average of the list —
+        // weighted by the index's weights when it has them. A fund priced by its
+        // daily NAV has no intraday series, so the day is played from its
+        // holdings' own prices, weighted as in the fund.
         var curve: [Double]
         if let benchmark, let row = changes[benchmark] {
             curve = row
         } else {
-            let rows = symbols.compactMap { changes[$0] }
+            let index = benchmark == nil ? nil : UniverseStore.shared.index(withID: AppState.shared.indexID)
+            let rows = symbols.compactMap { symbol in changes[symbol].map { ($0, index?.weight(symbol) ?? 1) } }
+            let total = rows.reduce(0) { $0 + $1.1 }
             curve = (0..<sorted.count).map { i in
-                rows.isEmpty ? 0 : rows.reduce(0) { $0 + $1[i] } / Double(rows.count)
+                total > 0 ? rows.reduce(0) { $0 + $1.0[i] * $1.1 } / total : 0
             }
         }
 
