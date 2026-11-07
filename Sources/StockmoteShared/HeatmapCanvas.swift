@@ -1,11 +1,11 @@
 import SwiftUI
 
-// MARK: - Tegning
+// MARK: - Drawing
 
-/// Felterne tegnet i én Canvas — bruges af både panelet, fuldskærm og widget'en.
+/// The tiles drawn in a single Canvas — used by the panel, full screen and the widget.
 ///
-/// Equatable, så hover — som ændrer sig ved hver musebevægelse — ikke tegner
-/// alle felter igen. Kun layout, panorering, farver og tema gør.
+/// Equatable, so hover — which changes on every mouse move — doesn't redraw
+/// every tile. Only layout, panning, colours and theme do.
 public struct HeatmapCanvas: View, Equatable {
     let layout: HeatmapLayout
     let offset: CGPoint
@@ -32,8 +32,8 @@ public struct HeatmapCanvas: View, Equatable {
                 let rect = tile.rect.insetBy(dx: 0.5, dy: 0.5)
                 guard rect.width > 0, rect.height > 0 else { continue }
                 context.fill(Path(rect), with: .color(Heat.color(tile.item.change, scale: scale, style: style, theme: theme)))
-                // Når der er zoomet ind, centreres teksten i den synlige del af
-                // feltet, så et stort felt ikke kun viser halve bogstaver.
+                // When zoomed in, the text is centred in the visible part of the
+                // tile, so a large tile doesn't show only half its letters.
                 let ink = Heat.label(on: tile.item.change, scale: scale, style: style, theme: theme)
                 Self.drawLabel(in: &context, tile: tile, rect: rect.intersection(visible), ink: ink)
             }
@@ -68,7 +68,7 @@ public struct HeatmapCanvas: View, Equatable {
         )
     }
 
-    /// Symbol og procent, skaleret efter feltet — store felter får store bogstaver.
+    /// Symbol and percentage, scaled to the tile — big tiles get big letters.
     public static func drawLabel(in context: inout GraphicsContext, tile: Tile, rect: CGRect, ink: Color = .white) {
         let symbol = Symbols.display(tile.item.symbol)
         let chars = CGFloat(max(symbol.count, 3))

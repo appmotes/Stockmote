@@ -1,14 +1,14 @@
 import Foundation
 import StockmoteShared
 
-/// En navngiven liste af aktier.
+/// A named list of stocks.
 struct Watchlist: Codable, Hashable, Identifiable {
     var id: UUID
     var name: String
     var symbols: [String]
 }
 
-/// Favoritter og watchlister. Gemmes som JSON i UserDefaults.
+/// Favourites and watchlists. Stored as JSON in UserDefaults.
 @MainActor
 final class ListsStore: ObservableObject {
     static let shared = ListsStore()
@@ -33,7 +33,7 @@ final class ListsStore: ObservableObject {
         if let saved = defaults.stringArray(forKey: Keys.favorites) {
             favorites = saved
         } else {
-            // Første start: et par store navne, så fanen ikke står tom.
+            // First launch: a few big names, so the tab isn't empty.
             favorites = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO"]
         }
         if let data = defaults.data(forKey: Keys.watchlists),
@@ -61,7 +61,7 @@ final class ListsStore: ObservableObject {
         Set(favorites).union(watchlists.flatMap(\.symbols))
     }
 
-    // MARK: Favoritter
+    // MARK: Favourites
 
     func isFavorite(_ symbol: String) -> Bool { favorites.contains(symbol) }
 
@@ -78,7 +78,7 @@ final class ListsStore: ObservableObject {
         favorites.removeAll { $0 == symbol }
     }
 
-    // MARK: Watchlister
+    // MARK: Watchlists
 
     func watchlist(_ id: UUID?) -> Watchlist? {
         guard let id else { return nil }
@@ -129,7 +129,7 @@ final class ListsStore: ObservableObject {
         watchlists[index].symbols.removeAll { $0 == symbol }
     }
 
-    /// En ny aktie udenfor indekserne har ingen Yahoo-data for 1U … 1Å endnu.
+    /// A new stock outside the indices has no Yahoo data for 1U … 1Å yet.
     private func fetchIfNeeded() {
         let market = MarketStore.shared
         guard market.period != .day else { return }

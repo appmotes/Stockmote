@@ -6,7 +6,7 @@ public enum Net {
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.timeoutIntervalForRequest = 30
         config.httpAdditionalHeaders = [
-            // Nasdaq's API svarer ikke på en anonym CFNetwork-agent.
+            // Nasdaq's API doesn't answer an anonymous CFNetwork user agent.
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
             "Accept": "application/json"
         ]
@@ -14,11 +14,11 @@ public enum Net {
     }()
 }
 
-/// Yahoo Finance's spark-endpoint. Ingen nøgle, højst 20 symboler pr. kald.
+/// Yahoo Finance's spark endpoint. No key, at most 20 symbols per call.
 ///
-/// `chartPreviousClose` er lukkekursen lige før tidsrummet, så ændringen er
-/// `regularMarketPrice / chartPreviousClose − 1`. Med `range=1d` er det
-/// gårsdagens lukkekurs, altså dagens ændring.
+/// `chartPreviousClose` is the close just before the time range, so the change is
+/// `regularMarketPrice / chartPreviousClose − 1`. With `range=1d` that's
+/// yesterday's close, i.e. today's change.
 public enum Yahoo {
     public struct Value: Sendable {
         public let price: Double
@@ -39,7 +39,7 @@ public enum Yahoo {
         }
     }
 
-    /// Kurs og ændring i procent pr. symbol. Fire kald ad gangen.
+    /// Price and percentage change per symbol. Four calls at a time.
     public static func fetch(_ symbols: [String], period: Period, concurrency: Int = 4) async -> [String: Value] {
         let chunks = stride(from: 0, to: symbols.count, by: 20).map {
             Array(symbols[$0..<min($0 + 20, symbols.count)])
@@ -62,12 +62,12 @@ public enum Yahoo {
     }
 
     private static func fetchChunk(_ symbols: [String], period: Period, attempt: Int = 0) async -> [String: Value] {
-        // Yahoo skriver amerikanske klasse-aktier med bindestreg ("BRK-B");
-        // europæiske ("NOVO-B.CO"), indekser ("^GSPC") og valuta
-        // ("EURUSD=X") står som de er. Svaret slås op tilbage via tabellen.
+        // Yahoo writes US share classes with a hyphen ("BRK-B"); European
+        // stocks ("NOVO-B.CO"), indices ("^GSPC") and currencies ("EURUSD=X")
+        // stay as they are. The response is mapped back via the table.
         var lookup: [String: String] = [:]
         for symbol in symbols { lookup[Symbols.yahoo(symbol)] = symbol }
-        // "^" og "=" skal kodes, ellers læser Yahoo dem som en del af URL'en.
+        // "^" and "=" must be encoded, or Yahoo reads them as part of the URL.
         var allowed = CharacterSet.alphanumerics
         allowed.insert(charactersIn: "-._,")
         let joined = lookup.keys.joined(separator: ",")
@@ -80,7 +80,7 @@ public enum Yahoo {
             let (data, response) = try await Net.session.data(from: url)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 429 || status >= 500, attempt < 3 {
-                // Yahoo smider 429 ud i ryk. Vent lidt og prøv den anden host.
+                // Yahoo throws 429s in bursts. Wait a little and try the other host.
                 try? await Task.sleep(for: .seconds(1.2 * Double(attempt + 1)))
                 return await fetchChunk(symbols, period: period, attempt: attempt + 1)
             }
@@ -104,11 +104,11 @@ public enum Yahoo {
     }
 }
 
-// MARK: - Kursforløb til "Afspil dagen"
+// MARK: - Price series for "Afspil dagen" (Replay the day)
 
 extension Period {
-    /// Opløsningen for afspilning: 5 minutter for en dag, en halv time for en
-    /// uge, dage for måneder og uger for et år.
+    /// Resolution for playback: 5 minutes for a day, half an hour for a
+    /// week, days for months and weeks for a year.
     public var replayInterval: String {
         switch self {
         case .day: return "5m"
@@ -120,8 +120,8 @@ extension Period {
 }
 
 extension Yahoo {
-    /// Et symbols forløb: tidspunkter (Unix-sekunder) og lukkekurser, samt
-    /// kursen før tidsrummet, som ændringen regnes fra.
+    /// A symbol's series: timestamps (Unix seconds) and closing prices, plus
+    /// the price before the time range, which the change is measured from.
     public struct Series: Sendable {
         public let timestamps: [Int]
         public let closes: [Double?]
@@ -145,7 +145,7 @@ extension Yahoo {
         struct Quote: Decodable { let close: [Double?]? }
     }
 
-    /// Forløb for mange symboler, 20 pr. kald, tre ad gangen.
+    /// Series for many symbols, 20 per call, three at a time.
     public static func fetchSeries(_ symbols: [String], period: Period) async -> [String: Series] {
         let chunks = stride(from: 0, to: symbols.count, by: 20).map {
             Array(symbols[$0..<min($0 + 20, symbols.count)])

@@ -1,11 +1,11 @@
 #!/usr/bin/env swift
-// make-icon.swift — tegner app-ikonet som en .iconset-mappe.
+// make-icon.swift — draws the app icon as an .iconset folder.
 //
-// Kør via Scripts/make-icon.sh. Ikonet tegnes i kode frem for at ligge som en
-// binær fil, så det kan rettes og regenereres.
+// Run via Scripts/make-icon.sh. The icon is drawn in code rather than kept as
+// a binary file, so it can be tweaked and regenerated.
 //
-// Motivet er et lille heatmap: et stort grønt felt, et mellemstort rødt og
-// en række mindre i begge retninger, på en sort squircle — appens kort i
+// The motif is a small heatmap: one large green tile, a medium red one and a
+// row of smaller ones going both ways, on a black squircle — the app's map in
 // miniature.
 
 import AppKit
@@ -13,8 +13,8 @@ import Foundation
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Resources"
 
-/// macOS-ikoner har en squircle-silhuet med luft omkring. Apple bruger cirka
-/// 824/1024 til motivet; resten er gennemsigtig margin.
+/// macOS icons have a squircle silhouette with space around it. Apple uses about
+/// 824/1024 for the artwork; the rest is transparent margin.
 let contentRatio: CGFloat = 824.0 / 1024.0
 let cornerRatio: CGFloat = 185.0 / 824.0
 
@@ -32,7 +32,7 @@ let dimRed = color(0x8b444e)
 let midRed = color(0xbf4045)
 let red = color(0xf63538)
 
-/// Felter i enhedskvadratet (0…1, y nedad) med farve.
+/// Tiles in the unit square (0…1, y pointing down) with a colour.
 let tiles: [(CGRect, NSColor)] = [
     (CGRect(x: 0.00, y: 0.00, width: 0.56, height: 0.58), green),
     (CGRect(x: 0.56, y: 0.00, width: 0.44, height: 0.34), midRed),
@@ -63,7 +63,7 @@ func drawIcon(size: CGFloat) -> NSImage {
     squircle.fill()
     squircle.addClip()
 
-    // Felterne fylder squircle'n med en tynd sort fuge — som i appen.
+    // The tiles fill the squircle with a thin black gap — as in the app.
     let gap = max(content * 0.018, 1)
     for (unit, fill) in tiles {
         let frame = NSRect(
@@ -76,11 +76,11 @@ func drawIcon(size: CGFloat) -> NSImage {
         NSBezierPath(rect: frame).fill()
     }
 
-    // Blødt lys øverst, så fladen ikke virker helt flad.
+    // Soft light at the top, so the surface doesn't look completely flat.
     NSGradient(colors: [NSColor(white: 1, alpha: 0.16), NSColor(white: 1, alpha: 0)])?
         .draw(in: NSRect(x: rect.minX, y: rect.midY, width: rect.width, height: rect.height / 2), angle: -90)
 
-    // Pil op i det store grønne felt: tal går op.
+    // Up arrow in the big green tile: numbers going up.
     if size >= 64 {
         let big = tiles[0].0
         let center = NSPoint(x: rect.minX + big.midX * content, y: rect.maxY - big.midY * content)

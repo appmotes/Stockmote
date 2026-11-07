@@ -2,11 +2,11 @@ import AppKit
 import StockmoteShared
 import Foundation
 
-// MARK: - Kurser
+// MARK: - Quotes
 
-/// Én aktie fra Nasdaq's screener. Kurs og ændring herfra kan være en dag
-/// gamle — screeneren opdateres ikke løbende — så de bruges kun indtil Yahoo
-/// har svaret.
+/// One stock from Nasdaq's screener. Its price and change can be a day old —
+/// the screener isn't updated continuously — so they're only used until Yahoo
+/// has answered.
 struct Quote: Hashable {
     let symbol: String
     let name: String
@@ -35,17 +35,17 @@ enum MarketError: LocalizedError {
     }
 }
 
-/// Henter kurser.
+/// Fetches quotes.
 ///
-/// To kilder, begge uden API-nøgle:
+/// Two sources, neither needs an API key:
 ///
-/// - **Yahoo's spark** giver kurs og ændring for alle tidsrum, også 1D, og
-///   indeksernes egne tal. Højst 20 symboler pr. kald, så S&P 500 koster 26
-///   kald. Fire ad gangen.
-/// - **Nasdaq's screener** giver alle ~7000 amerikanske aktier i ét kald (2 MB)
-///   med navn, sektor og markedsværdi. Den bruges til feltstørrelse og søgning,
-///   og hentes kun hver halve time. Dens kurser halter: målt en fredag viste
-///   den torsdagens lukning. Markedsværdien skaleres derfor med Yahoo's kurs.
+/// - **Yahoo's spark** gives price and change for every time range, 1D included,
+///   plus the indices' own figures. At most 20 symbols per call, so the S&P 500
+///   costs 26 calls. Four at a time.
+/// - **Nasdaq's screener** gives all ~7000 US stocks in one call (2 MB) with
+///   name, sector and market cap. It's used for tile size and search, and is
+///   only fetched every half hour. Its prices lag: checked on a Friday, it
+///   showed Thursday's close. So the market cap is scaled by Yahoo's price.
 @MainActor
 final class MarketStore: ObservableObject {
     static let shared = MarketStore()
@@ -59,18 +59,18 @@ final class MarketStore: ObservableObject {
     }
 
     @Published private(set) var quotes: [String: Quote] = [:]
-    /// Seneste kurs fra Yahoo, uanset tidsrum.
+    /// Latest price from Yahoo, whatever the time range.
     @Published private(set) var livePrices: [String: Double] = [:]
     @Published private(set) var snapshots: [Period: PeriodSnapshot] = [:]
     @Published private(set) var isLoading = false
     @Published private(set) var loadingPeriod: Period?
     @Published private(set) var lastUpdated: Date?
     @Published private(set) var errorMessage: String?
-    /// Tælles op ved hver ændring i data, så visninger kan genberegne layout.
+    /// Bumped on every data change, so views can recompute their layout.
     @Published private(set) var version = 0
 
-    /// Sat af MenuBarPanel. Mens panelet er åbent og markedet er åbent,
-    /// opdateres der oftere.
+    /// Set by MenuBarPanel. While the panel is open and the market is open,
+    /// we refresh more often.
     var panelVisible = false {
         didSet {
             guard panelVisible != oldValue else { return }
@@ -91,7 +91,7 @@ final class MarketStore: ObservableObject {
         period = Period(rawValue: defaults.string(forKey: Keys.period) ?? "") ?? .day
     }
 
-    // MARK: Opslag
+    // MARK: Lookup
 
     func quote(_ symbol: String) -> Quote? { quotes[symbol] }
 
@@ -99,11 +99,11 @@ final class MarketStore: ObservableObject {
         livePrices[symbol] ?? quotes[symbol]?.price
     }
 
-    /// Markedsværdi i dollar, skaleret med kursændringen siden kilden.
+    /// Market cap in dollars, scaled by the price change since the source.
     ///
-    /// Amerikanske aktier: Nasdaq's screener. Europæiske: tallet fra
-    /// Indices.json i lokal valuta, omregnet med dagens valutakurs — så en
-    /// watchliste med både Novo og Apple får rigtige størrelser.
+    /// US stocks: Nasdaq's screener. European ones: the figure from
+    /// Indices.json in local currency, converted at today's exchange rate — so a
+    /// watchlist with both Novo and Apple gets the right sizes.
     func marketCap(_ symbol: String) -> Double? {
         if let quote = quotes[symbol], let cap = quote.marketCap {
             if let live = livePrices[symbol], let old = quote.price, old > 0 {
@@ -123,18 +123,18 @@ final class MarketStore: ObservableObject {
         UniverseStore.shared.info[symbol]?.currency ?? FundStore.shared.info[symbol]?.currency ?? "USD"
     }
 
-    /// Ændringen i procent for et symbol (også "^GSPC") i et tidsrum.
+    /// The percentage change for a symbol (also "^GSPC") over a time range.
     func change(_ symbol: String, _ period: Period) -> Double? {
         if let value = snapshots[period]?.changes[symbol] { return value }
-        // Kun indtil Yahoo har svaret første gang: screenerens tal kan være
-        // fra i går.
+        // Only until Yahoo has answered the first time: the screener's figures may
+        // be from yesterday.
         if period == .day, snapshots[.day] == nil { return quotes[symbol]?.change1D }
         return nil
     }
 
-    /// Indeksets egen ændring. Yahoo's tal hvis vi har det, ellers et vægtet
-    /// gennemsnit af medlemmerne — tæt på, men ikke det officielle tal. For
-    /// en fond er det fondens egen kurs.
+    /// The index's own change. Yahoo's figure if we have it, otherwise a weighted
+    /// average of the members — close, but not the official figure. For a fund
+    /// it's the fund's own price.
     func indexChange(_ index: MarketIndex, _ period: Period) -> Double? {
         if let value = snapshots[period]?.changes[index.benchmark] { return value }
         var sum = 0.0, weight = 0.0
@@ -146,9 +146,9 @@ final class MarketStore: ObservableObject {
         return weight > 0 ? sum / weight : nil
     }
 
-    /// Navn og klassifikation. Indices.json vinder; aktier udenfor indekserne
-    /// (fx tilføjet til en watchliste) får Nasdaq's egen sektor, og
-    /// udenlandske aktier i en fond den Yahoo's søgning gav.
+    /// Name and classification. Indices.json wins; stocks outside the indices
+    /// (e.g. added to a watchlist) get Nasdaq's own sector, and foreign stocks
+    /// in a fund the one Yahoo's search returned.
     func info(_ symbol: String) -> StockInfo {
         if let info = UniverseStore.shared.info[symbol] { return info }
         if let quote = quotes[symbol] {
@@ -159,14 +159,14 @@ final class MarketStore: ObservableObject {
         return StockInfo(symbol: symbol, name: symbol, sector: tr("Øvrige", "Other"), industry: tr("Øvrige", "Other"))
     }
 
-    /// Søgning til "Tilføj aktie": symboler der starter med teksten først,
-    /// derefter navne der indeholder den.
+    /// Search for adding a stock: symbols starting with the text first, then
+    /// names containing it.
     func search(_ text: String, limit: Int = 8) -> [StockInfo] {
         let query = text.trimmingCharacters(in: .whitespaces).uppercased()
         guard !query.isEmpty else { return [] }
         var exact: [StockInfo] = [], prefix: [StockInfo] = [], named: [StockInfo] = []
         func consider(_ symbol: String, _ name: String) {
-            // "NOVO B" og "NOVO-B.CO" skal begge finde Novo.
+            // "NOVO B" and "NOVO-B.CO" should both find Novo.
             let display = Symbols.display(symbol).uppercased()
             if symbol == query || display == query {
                 exact.append(info(symbol))
@@ -177,7 +177,7 @@ final class MarketStore: ObservableObject {
             }
         }
         for (symbol, quote) in quotes { consider(symbol, quote.name) }
-        // Europæiske aktier findes kun i Indices.json.
+        // European stocks only exist in Indices.json.
         for (symbol, info) in UniverseStore.shared.info where quotes[symbol] == nil {
             consider(symbol, info.name)
         }
@@ -187,7 +187,7 @@ final class MarketStore: ObservableObject {
         return Array((exact + prefix.sorted(by: byCap) + named.sorted(by: byCap)).prefix(limit))
     }
 
-    // MARK: Opdatering
+    // MARK: Refresh
 
     func start() {
         guard loop == nil else { return }
@@ -217,14 +217,14 @@ final class MarketStore: ObservableObject {
         return Date().timeIntervalSince(lastUpdated) > seconds
     }
 
-    /// Hyppigt mens markedet er åbent og panelet er fremme; sjældent ellers.
-    /// Lukket marked ændrer sig ikke, så der er ingen grund til at hamre løs.
+    /// Often while the market is open and the panel is showing; rarely otherwise.
+    /// A closed market doesn't change, so there's no reason to hammer away.
     private var nextInterval: TimeInterval {
         guard MarketClock.anyOpen() else { return 1800 }
         return panelVisible ? Double(Preferences.shared.refreshSeconds) : 300
     }
 
-    /// Henter alt for det valgte tidsrum. Kaldes af løkken og af ⟳-knappen.
+    /// Fetches everything for the chosen time range. Called by the loop and the ⟳ button.
     func refresh() async {
         guard !isLoading else { return }
         isLoading = true
@@ -252,8 +252,8 @@ final class MarketStore: ObservableObject {
         version += 1
     }
 
-    /// Henter Yahoo-data for et tidsrum, hvis de mangler eller er forældede.
-    /// Returnerer en fejlbesked, eller nil.
+    /// Fetches Yahoo data for a time range if it's missing or stale.
+    /// Returns an error message, or nil.
     @discardableResult
     func loadPeriod(_ period: Period, force: Bool) async -> String? {
         let wanted = wantedSymbols(for: period)
@@ -284,28 +284,28 @@ final class MarketStore: ObservableObject {
         return nil
     }
 
-    /// Det valgte indeks, egne lister og indeksernes egne tal. De andre
-    /// indekser hentes først når man skifter til dem.
+    /// The chosen index, our own lists and the indices' own figures. The other
+    /// indices are only fetched when you switch to them.
     private func wantedSymbols(for period: Period) -> Set<String> {
         let universe = UniverseStore.shared
         var symbols = Set(universe.indices.map(\.benchmark))
-        // Fondenes egne kurser, til tallet i sidebjælken.
+        // The funds' own prices, for the figure in the sidebar.
         symbols.formUnion(FundStore.shared.funds.map(\.symbol))
-        // Valutakurser til at omregne europæiske markedsværdier til dollar.
+        // Exchange rates for converting European market caps to dollars.
         if period == .day { symbols.formUnion(Currency.yahooSymbols) }
         if let index = universe.index(withID: AppState.shared.indexID) {
             symbols.formUnion(index.symbols)
         }
         symbols.formUnion(ListsStore.shared.allSymbols)
-        // Behold det vi allerede har, så et skift frem og tilbage ikke smider
-        // data væk.
+        // Keep what we already have, so switching back and forth doesn't throw
+        // data away.
         if let existing = snapshots[period]?.symbols {
             symbols.formUnion(existing)
         }
         return symbols
     }
 
-    /// Fjerner Nasdaq's "Common Stock", "Class A Ordinary Shares" osv.
+    /// Strips Nasdaq's "Common Stock", "Class A Ordinary Shares" etc.
     static func cleanName(_ name: String) -> String {
         var result = name
         for suffix in [" Common Stock", " Class A", " Class B", " Class C", " Ordinary Shares",
@@ -318,7 +318,7 @@ final class MarketStore: ObservableObject {
         return result.trimmingCharacters(in: .whitespaces)
     }
 
-    // MARK: Netværk
+    // MARK: Network
 
     private struct NasdaqPayload: Decodable {
         let data: DataBlock?
@@ -345,7 +345,7 @@ final class MarketStore: ObservableObject {
         var quotes: [String: Quote] = [:]
         quotes.reserveCapacity(rows.count)
         for row in rows {
-            // Nasdaq skriver klasse-aktier som "BRK/B"; vi bruger "BRK.B".
+            // Nasdaq writes share classes as "BRK/B"; we use "BRK.B".
             let symbol = row.symbol.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "/", with: ".")
             guard !symbol.isEmpty, !symbol.contains("^") else { continue }
             quotes[symbol] = Quote(
@@ -384,19 +384,19 @@ final class MarketStore: ObservableObject {
 
 }
 
-// MARK: - Børsernes åbningstider
+// MARK: - Exchange opening hours
 
-/// Åbningstider for de indekser appen kender. Selve logikken bor i
-/// `MarketHours` i det fælles modul, så widget'en kan bruge den.
+/// Opening hours for the indices the app knows. The logic itself lives in
+/// `MarketHours` in the shared module, so the widget can use it.
 @MainActor
 enum MarketClock {
-    /// Er nogen af børserne åbne? Styrer hvor tit der opdateres i baggrunden.
+    /// Is any of the exchanges open? Controls how often we refresh in the background.
     static func anyOpen() -> Bool {
         let hours = Set(UniverseStore.shared.indices.map(\.hours))
         return hours.isEmpty ? MarketHours.newYork.isOpen() : hours.contains { $0.isOpen() }
     }
 
-    /// Børsen for det indeks man kigger på.
+    /// The exchange for the index you're looking at.
     static var current: MarketHours {
         UniverseStore.shared.index(withID: AppState.shared.indexID)?.hours ?? .newYork
     }

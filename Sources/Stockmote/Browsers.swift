@@ -2,41 +2,41 @@ import AppKit
 import StockmoteShared
 import Foundation
 
-/// En app der kan åbne et https-link.
+/// An app that can open an https link.
 struct Browser: Identifiable {
-    /// Bundle-id, fx "com.apple.Safari". Det er nøglen vi gemmer.
+    /// Bundle ID, e.g. "com.apple.Safari". This is the key we store.
     let id: String
     let name: String
     let appURL: URL
     let isSystemDefault: Bool
 
-    /// Appens eget ikon, hentet fra disken. Det slås op én gang ved refresh og
-    /// gemmes her — ikke i hver render af menuen.
+    /// The app's own icon, loaded from disk. It's looked up once on refresh and
+    /// kept here — not on every render of the menu.
     let icon: NSImage
 }
 
-// NSImage er ikke Hashable, så identiteten hænger på bundle-id'et.
+// NSImage isn't Hashable, so identity rests on the bundle ID.
 extension Browser: Hashable {
     static func == (lhs: Browser, rhs: Browser) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-/// Holder styr på hvilken browser aktiesiderne åbnes i.
+/// Keeps track of which browser stock pages open in.
 ///
-/// Samme løsning som i DRmote: nogle browsere (fx Mullvad Browser) åbner ikke
-/// alle links ordentligt, og er de systemets standard, ville et klik på en
-/// aktie bare fejle uden at man kunne gøre noget.
+/// Same approach as in DRmote: some browsers (e.g. Mullvad Browser) don't open
+/// every link properly, and if one of them is the system default, clicking a
+/// stock would simply fail with nothing you could do about it.
 @MainActor
 final class BrowserStore: ObservableObject {
     static let shared = BrowserStore()
 
-    /// Apps som macOS rapporterer kan åbne https. Listen filtreres ikke: det er
-    /// systemets eget svar, og et forsøg på at gætte "rigtige browsere" fra
-    /// Info.plist rammer forbi (Parallels Desktop registrerer fx både http og
-    /// https, præcis som browserne gør).
+    /// Apps that macOS reports as able to open https. The list isn't filtered: it's
+    /// the system's own answer, and trying to guess the "real browsers" from
+    /// Info.plist misses (Parallels Desktop, for one, registers both http and
+    /// https, exactly as browsers do).
     @Published private(set) var available: [Browser] = []
 
-    /// nil betyder "systemets standardbrowser".
+    /// nil means "the system default browser".
     @Published var selectedID: String? {
         didSet {
             if let selectedID {
@@ -59,8 +59,8 @@ final class BrowserStore: ObservableObject {
         refresh()
     }
 
-    /// Den valgte browser, eller nil hvis vi bruger systemets standard — eller
-    /// hvis den valgte er blevet afinstalleret siden sidst.
+    /// The chosen browser, or nil if we use the system default — or if the
+    /// chosen one has been uninstalled since last time.
     var selected: Browser? {
         guard let selectedID else { return nil }
         return available.first { $0.id == selectedID }
@@ -89,15 +89,15 @@ final class BrowserStore: ObservableObject {
                     isSystemDefault: id == defaultID, icon: icon
                 )
             }
-            // Standardbrowseren først, resten alfabetisk.
+            // Default browser first, the rest alphabetically.
             .sorted {
                 if $0.isSystemDefault != $1.isSystemDefault { return $0.isSystemDefault }
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
     }
 
-    /// Åbner linket i den valgte browser. Fejler den — fx fordi appen er væk —
-    /// falder vi tilbage på systemets standard, så knappen aldrig gør ingenting.
+    /// Opens the link in the chosen browser. If that fails — say, the app is gone —
+    /// we fall back to the system default, so the button never does nothing.
     func open(_ url: URL) {
         guard let browser = selected else {
             NSWorkspace.shared.open(url)

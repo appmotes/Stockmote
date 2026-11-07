@@ -18,7 +18,7 @@ enum PanelSize: String, CaseIterable, Identifiable {
 
     var size: CGSize {
         switch self {
-        // Bredere end før: sidebjælken tager ~190 pt.
+        // Wider than before: the sidebar takes ~190 pt.
         case .small: return CGSize(width: 720, height: 480)
         case .medium: return CGSize(width: 940, height: 600)
         case .large: return CGSize(width: 1140, height: 720)
@@ -27,7 +27,7 @@ enum PanelSize: String, CaseIterable, Identifiable {
     }
 }
 
-/// Hvor en aktie åbnes når man klikker på den.
+/// Where a stock opens when you click it.
 enum QuoteSite: String, CaseIterable, Identifiable {
     case yahoo, google, nasdaq, finviz
     var id: String { rawValue }
@@ -43,14 +43,14 @@ enum QuoteSite: String, CaseIterable, Identifiable {
 
     func url(for symbol: String) -> URL? {
         let dash = Symbols.yahoo(symbol)
-        // Nasdaq og Finviz kender kun amerikanske aktier.
+        // Nasdaq and Finviz only know US stocks.
         if Symbols.isForeign(symbol), self == .nasdaq || self == .finviz {
             return QuoteSite.yahoo.url(for: symbol)
         }
         switch self {
         case .yahoo: return URL(string: "https://finance.yahoo.com/quote/\(dash)")
-        // Google vil have børsen med i adressen ("AAPL:NASDAQ"), og den kender
-        // vi ikke. Søgningen lander på samme side.
+        // Google wants the exchange in the URL ("AAPL:NASDAQ"), and we don't
+        // know it. The search lands on the same page.
         case .google: return URL(string: "https://www.google.com/finance?q=\(dash)")
         case .nasdaq:
             return URL(string: "https://www.nasdaq.com/market-activity/stocks/\(symbol.lowercased().replacingOccurrences(of: ".", with: "/"))")
@@ -59,7 +59,7 @@ enum QuoteSite: String, CaseIterable, Identifiable {
     }
 }
 
-/// Indstillinger. Alt gemmes i UserDefaults.
+/// Settings. Everything is stored in UserDefaults.
 @MainActor
 final class Preferences: ObservableObject {
     static let shared = Preferences()
@@ -75,13 +75,13 @@ final class Preferences: ObservableObject {
         }
     }
     @Published var sidebarVisible: Bool { didSet { defaults.set(sidebarVisible, forKey: "sidebarVisible") } }
-    /// Indekset hvis tal står i menubaren. nil = kun ikonet.
+    /// The index whose figure is shown in the menu bar. nil = icon only.
     @Published var menuBarIndexID: String? {
         didSet { defaults.set(menuBarIndexID ?? "none", forKey: "menuBarIndex") }
     }
-    /// Sekunder mellem opdateringer mens panelet er åbent og markedet er åbent.
+    /// Seconds between refreshes while the panel is open and the market is open.
     @Published var refreshSeconds: Int { didSet { defaults.set(refreshSeconds, forKey: "refreshSeconds") } }
-    /// Favoritter og watchlister: ens felter, eller størrelse efter markedsværdi.
+    /// Favourites and watchlists: equal tiles, or sized by market cap.
     @Published var listsByMarketCap: Bool { didSet { defaults.set(listsByMarketCap, forKey: "listsByMarketCap") } }
 
     @Published private(set) var launchAtLogin = false
@@ -105,7 +105,7 @@ final class Preferences: ObservableObject {
         Lang.isEnglish = language.isEnglish
     }
 
-    /// Udseendet til panelets NSHostingView. nil følger systemet.
+    /// Appearance for the panel's NSHostingView. nil follows the system.
     var appearance: NSAppearance? {
         switch theme {
         case .system: return nil
@@ -114,7 +114,7 @@ final class Preferences: ObservableObject {
         }
     }
 
-    /// Kræver at appen kører fra en .app-bundle — ikke fra `swift run`.
+    /// Requires the app to run from an .app bundle — not from `swift run`.
     func setLaunchAtLogin(_ enabled: Bool) {
         do {
             if enabled {
@@ -137,9 +137,9 @@ final class Preferences: ObservableObject {
     }
 }
 
-/// Hvor indstillinger gemmes. I snapshot-tilstand (`--snapshot`) bruges et
-/// separat domæne, så et billede af "Nasdaq 100, 1M, lille panel" ikke
-/// ændrer hvad appen selv viser næste gang.
+/// Where settings are stored. In snapshot mode (`--snapshot`) a separate
+/// domain is used, so a picture of "Nasdaq 100, 1M, small panel" doesn't
+/// change what the app itself shows next time.
 enum AppDefaults {
     static let store: UserDefaults = {
         guard CommandLine.arguments.contains("--snapshot") else { return .standard }

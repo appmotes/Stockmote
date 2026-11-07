@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Hvad kortet viser: hele indekset, én sektor eller én branche.
+/// What the map shows: the whole index, one sector or one industry.
 public enum Focus: Hashable {
     case all
     case sector(String)
@@ -24,7 +24,7 @@ public enum Focus: Hashable {
     }
 }
 
-/// Én aktie klar til kortet.
+/// One stock, ready for the map.
 public struct HeatItem {
     public let symbol: String
     public let name: String
@@ -51,8 +51,8 @@ public struct Tile {
     public let rect: CGRect
 }
 
-/// En sektor- eller branchekasse. `header` er strimlen med navnet, som også
-/// er det man klikker på for at gå ind i den.
+/// A sector or industry box. `header` is the strip with the name, which is also
+/// what you click to drill into it.
 public struct HeatGroup {
     public let name: String
     public let rect: CGRect
@@ -85,15 +85,15 @@ public struct HeatmapLayout: Equatable {
 }
 
 public enum Grouping {
-    /// Sektor → branche → aktie, som indekskortet.
+    /// Sector → industry → stock, like the index map.
     case sectors
-    /// Bare aktierne, som favoritter og watchlister.
+    /// Just the stocks, like favourites and watchlists.
     case flat
 }
 
-/// Bygger kortet med squarified treemap (Bruls, Huizing & van Wijk): felterne
-/// lægges i rækker der holdes så tæt på kvadrater som muligt, så både store og
-/// små aktier kan læses.
+/// Builds the map as a squarified treemap (Bruls, Huizing & van Wijk): tiles
+/// are laid out in rows kept as close to square as possible, so both large and
+/// small stocks are readable.
 public enum TreemapBuilder {
     public static func build(items: [HeatItem], grouping: Grouping, focus: Focus, size: CGSize) -> HeatmapLayout {
         var layout = HeatmapLayout(size: size)
@@ -123,7 +123,7 @@ public enum TreemapBuilder {
         let groups = grouped(items, by: \.sector)
         let rects = squarify(groups.map(\.weight), in: rect)
         for (group, frame) in zip(groups, rects) {
-            // 2 pt sort luft mellem sektorerne.
+            // 2 pt of black space between sectors.
             let box = frame.insetBy(dx: 1, dy: 1)
             guard box.width > 1, box.height > 1 else { continue }
             var inner = box
@@ -171,7 +171,7 @@ public enum TreemapBuilder {
         let name: String
         let items: [HeatItem]
         let weight: Double
-        /// Vægtet gennemsnit — vises i tooltip for sektor og branche.
+        /// Weighted average — shown in the tooltip for sector and industry.
         let change: Double?
     }
 
@@ -188,7 +188,7 @@ public enum TreemapBuilder {
             .sorted { $0.weight > $1.weight }
     }
 
-    /// Squarified treemap. Værdierne skal være sorteret faldende.
+    /// Squarified treemap. Values must be sorted in descending order.
     public static func squarify(_ values: [Double], in rect: CGRect) -> [CGRect] {
         var result = [CGRect](repeating: .zero, count: values.count)
         let total = values.reduce(0, +)
@@ -205,7 +205,7 @@ public enum TreemapBuilder {
             var current = worst(sum: rowSum, max: areas[start], min: areas[start], side: side)
             while end < areas.count {
                 let sum = rowSum + areas[end]
-                let rowMax = areas[start]                 // faldende sortering
+                let rowMax = areas[start]                 // sorted descending
                 let candidate = worst(sum: sum, max: rowMax, min: areas[end], side: side)
                 guard candidate <= current else { break }
                 current = candidate
@@ -213,8 +213,8 @@ public enum TreemapBuilder {
                 end += 1
             }
 
-            // Sidste række tager resten, så afrundingsfejl ikke efterlader en
-            // tynd sort stribe i kanten.
+            // The last row takes the rest, so rounding errors don't leave a
+            // thin black stripe at the edge.
             let isLast = end == areas.count
             if remaining.width >= remaining.height {
                 let width = isLast ? remaining.width : CGFloat(rowSum / Double(remaining.height))

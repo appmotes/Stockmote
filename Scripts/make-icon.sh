@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# make-icon.sh — genererer Resources/AppIcon.icns fra Scripts/make-icon.swift.
+# make-icon.sh — generates Resources/AppIcon.icns from Scripts/make-icon.swift.
 #
-# Kør den hvis du har rettet i ikonets tegnekode. make-app.sh kalder den
-# automatisk hvis .icns-filen mangler.
+# Run it if you've changed the icon's drawing code. make-app.sh calls it
+# automatically if the .icns file is missing.
 
 set -euo pipefail
 
@@ -11,7 +11,7 @@ mkdir -p Resources
 
 swift Scripts/make-icon.swift Resources
 
-# iconutil er en del af macOS og pakker .iconset-mappen til én .icns.
+# iconutil ships with macOS and packs the .iconset folder into a single .icns.
 iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns
 rm -rf Resources/AppIcon.iconset
 

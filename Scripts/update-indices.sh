@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
-# update-indices.sh — bygger Sources/Stockmote/Resources/Indices.json.
+# update-indices.sh — builds Sources/Stockmote/Resources/Indices.json.
 #
-# Indeksernes medlemmer skifter et par gange om året. Listen ligger i data og
-# ikke i koden, så den kan opdateres uden at røre Swift:
+# Index membership changes a few times a year. The list lives in data rather
+# than in code, so it can be updated without touching Swift:
 #
-#   S&P 500     github.com/datasets/s-and-p-500-companies (GICS sektor + branche)
+#   S&P 500     github.com/datasets/s-and-p-500-companies (GICS sector + industry)
 #   Nasdaq 100  api.nasdaq.com/api/quote/list-type/nasdaq100
-#   Dow Jones   Wikipedia-skabelonen "Dow Jones Industrial Average companies"
-#   Europa      C25, DAX, Euro Stoxx 50, FTSE 100, CAC 40, OMXS30, OBX,
-#               OMXH25, SMI og AEX: medlemmer fra Wikipedia, sektor og
-#               markedsværdi fra Yahoo. Se Scripts/update-indices.py.
+#   Dow Jones   the Wikipedia template "Dow Jones Industrial Average companies"
+#   Europe      C25, DAX, Euro Stoxx 50, FTSE 100, CAC 40, OMXS30, OBX,
+#               OMXH25, SMI and AEX: members from Wikipedia, sector and
+#               market cap from Yahoo. See Scripts/update-indices.py.
 #
-# Nasdaq 100-selskaber der ikke er i S&P 500 (ASML, ARM, Shopify …) har ingen
-# GICS-klassifikation i nogen af de åbne kilder. De står i OVERRIDES nedenfor.
-# Dukker et nyt op, falder scriptet tilbage på Nasdaq's egen sektor og siger
-# det højt, så du kan tilføje det.
+# Nasdaq 100 companies that aren't in the S&P 500 (ASML, ARM, Shopify …) have
+# no GICS classification in any of the open sources. They're listed in
+# OVERRIDES in update-indices.py. If a new one turns up, the script falls back
+# to Nasdaq's own sector and says so loudly, so you can add it.
 #
-# Brug:
-#   ./Scripts/update-indices.sh            # skriv Indices.json
-#   ./Scripts/update-indices.sh --check    # vis forskellen, skriv intet
+# Usage:
+#   ./Scripts/update-indices.sh            # write Indices.json
+#   ./Scripts/update-indices.sh --check    # show the diff, write nothing
 
 set -euo pipefail
 cd "$(dirname "$0")/.."

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# make-app.sh — pakker de byggede binærer som en rigtig Stockmote.app med
-# widget-udvidelsen indeni.
+# make-app.sh — packages the built binaries as a proper Stockmote.app with
+# the widget extension inside.
 #
-# LSUIElement = true gør at appen ikke får dock-ikon og ikke optræder i
-# ⌘-Tab — den lever kun i menubaren.
+# LSUIElement = true means the app gets no Dock icon and doesn't show up in
+# ⌘-Tab — it lives only in the menu bar.
 #
-# Brug:
-#   ./Scripts/make-app.sh            # release-build, signeres ad-hoc
-#   ./Scripts/make-app.sh --debug    # brug debug-binærerne i stedet
-#   ./Scripts/make-app.sh --install  # kopiér til /Applications
-#   ./Scripts/make-app.sh --open     # åbn appen når den er bygget
+# Usage:
+#   ./Scripts/make-app.sh            # release build, ad hoc signed
+#   ./Scripts/make-app.sh --debug    # use the debug binaries instead
+#   ./Scripts/make-app.sh --install  # copy to /Applications
+#   ./Scripts/make-app.sh --open     # open the app once it's built
 
 set -euo pipefail
 
@@ -50,8 +50,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APPEX/Contents/MacOS"
 cp "$BUILD_DIR/Stockmote" "$APP/Contents/MacOS/$APP_NAME"
 cp "$BUILD_DIR/StockmoteWidget" "$APPEX/Contents/MacOS/StockmoteWidget"
 
-# Indices.json lægges i Contents/Resources, hvor UniverseStore leder først
-# (efter brugerens egen kopi i Application Support).
+# Indices.json goes in Contents/Resources, where UniverseStore looks first
+# (after the user's own copy in Application Support).
 cp Sources/Stockmote/Resources/Indices.json "$APP/Contents/Resources/Indices.json"
 
 if [ ! -f Resources/AppIcon.icns ]; then
@@ -79,10 +79,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIconName</key>              <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>        <string>14.0</string>
 
-    <!-- Ingen dock-ikon, intet ⌘-Tab: appen lever kun i menubaren. -->
+    <!-- No Dock icon, no ⌘-Tab: the app lives only in the menu bar. -->
     <key>LSUIElement</key>                   <true/>
 
-    <!-- stockmote://open?tab=… — et klik på widget'en åbner panelet. -->
+    <!-- stockmote://open?tab=… — a click on the widget opens the panel. -->
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
@@ -122,10 +122,10 @@ cat > "$APPEX/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# AppIntents-metadata: widget'ens konfiguration (indhold, indeks, sektor,
-# tidsrum) skal beskrives i Metadata.appintents, ellers kan systemet ikke vise
-# den. Xcode laver filen med appintentsmetadataprocessor ud fra compilerens
-# konstantværdier; Package.swift beder compileren om dem (se StockmoteWidget).
+# AppIntents metadata: the widget's configuration (content, index, sector,
+# time range) has to be described in Metadata.appintents, or the system can't
+# show it. Xcode produces the file with appintentsmetadataprocessor from the
+# compiler's constant values; Package.swift asks the compiler for them (see StockmoteWidget).
 echo "==> AppIntents-metadata"
 META="$(mktemp -d)"
 echo "$PWD/Sources/StockmoteWidget/StockmoteWidget.swift" > "$META/sources.txt"
@@ -146,8 +146,8 @@ xcrun appintentsmetadataprocessor \
 [ -d "$APPEX/Contents/Resources/Metadata.appintents" ] \
   || { echo "Metadata.appintents blev ikke lavet — widget'en kan ikke konfigureres" >&2; exit 1; }
 
-# Widget-udvidelser skal køre i sandbox. Netværk til Yahoo, og læseadgang til
-# netop den mappe hvor appen lægger Widget.json (se WidgetShare.swift).
+# Widget extensions must run in a sandbox. Network access for Yahoo, and read
+# access to exactly the folder where the app puts Widget.json (see WidgetShare.swift).
 ENTITLEMENTS="$(mktemp -d)/widget.entitlements"
 cat > "$ENTITLEMENTS" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -162,8 +162,8 @@ cat > "$ENTITLEMENTS" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc signering, indefra og ud: udvidelsen med sine entitlements, så
-# appen. Appen selv har ingen sandbox, så den har fri netværksadgang.
+# Ad hoc signing, inside out: the extension with its entitlements, then the
+# app. The app itself isn't sandboxed, so it has free network access.
 echo "==> Signerer ad-hoc"
 codesign --force --sign - --timestamp=none --entitlements "$ENTITLEMENTS" "$APPEX"
 codesign --force --sign - --timestamp=none "$APP"
@@ -172,12 +172,12 @@ codesign --verify --deep --verbose=1 "$APP" 2>&1 | sed 's/^/    /'
 echo "==> Færdig: $APP"
 
 if [ "$INSTALL" -eq 1 ]; then
-  # Den kørende kopi skal lukkes først, ellers ender vi med to ikoner i
-  # menubaren og en halvt overskrevet bundle.
+  # The running copy has to be quit first, or we end up with two icons in
+  # the menu bar and a half-overwritten bundle.
   pkill -f "$APP_NAME.app/Contents/MacOS/$APP_NAME" 2>/dev/null || true
   rm -rf "/Applications/$APP_NAME.app"
   cp -R "$APP" /Applications/
-  # Fortæl systemet om widget'en med det samme i stedet for ved næste scan.
+  # Tell the system about the widget right away instead of at the next scan.
   pluginkit -a "/Applications/$APP_NAME.app/Contents/PlugIns/StockmoteWidget.appex" 2>/dev/null || true
   echo "==> Installeret i /Applications/$APP_NAME.app"
   TARGET="/Applications/$APP_NAME.app"
@@ -188,8 +188,8 @@ fi
 
 if [ "$OPEN" -eq 1 ]; then
   echo "==> Åbner $TARGET"
-  # Lige efter at bundlen er udskiftet kan Launch Services stadig holde på den
-  # gamle og svare -600 (procNotFound). Et enkelt genforsøg er nok.
+  # Right after the bundle is replaced, Launch Services may still hold on to the
+  # old one and answer -600 (procNotFound). A single retry is enough.
   if ! open "$TARGET" 2>/dev/null; then
     sleep 2
     open "$TARGET"

@@ -1,39 +1,39 @@
 import Foundation
 
-/// Symboler. Internt bruges Yahoo's skrivemåde for europæiske aktier
-/// ("NOVO-B.CO") og Nasdaq's for amerikanske ("BRK.B").
+/// Symbols. Internally we use Yahoo's spelling for European stocks
+/// ("NOVO-B.CO") and Nasdaq's for US ones ("BRK.B").
 public enum Symbols {
-    /// Yahoo's børs-suffikser for de børser Stockmote kender: de europæiske
-    /// indeksers, og resten af verdens, som aktier i globale fonde står på
-    /// (Tokyo, Toronto, Sydney, Hongkong …).
+    /// Yahoo's exchange suffixes for the exchanges Stockmote knows: the European
+    /// indices', and those of the rest of the world where stocks in global funds
+    /// are listed (Tokyo, Toronto, Sydney, Hong Kong …).
     private static let exchangeSuffixes: Set<String> = [
         "CO", "DE", "F", "PA", "L", "ST", "OL", "HE", "SW", "AS", "MI", "MC", "BR", "VI", "IR", "LS",
         "T", "TO", "V", "AX", "HK", "KS", "KQ", "TW", "TWO", "SI", "NZ", "SA", "JO", "TA", "SS", "SZ",
         "NS", "BO", "WA", "IS", "PR", "AT", "MU", "DU", "BE", "SG", "HM", "HA", "MX", "BD", "XC", "XD", "AQ", "IL", "NE"
     ]
 
-    /// En aktie på en børs udenfor USA, kendt på suffikset.
+    /// A stock on an exchange outside the US, recognised by its suffix.
     public static func isForeign(_ symbol: String) -> Bool {
         guard let dot = symbol.lastIndex(of: ".") else { return false }
         return exchangeSuffixes.contains(String(symbol[symbol.index(after: dot)...]))
     }
 
-    /// Det Yahoo vil have: amerikanske klasse-aktier med bindestreg
-    /// ("BRK-B"), alt andet som det er.
+    /// What Yahoo wants: US share classes with a hyphen
+    /// ("BRK-B"), everything else as is.
     public static func yahoo(_ symbol: String) -> String {
         if symbol.hasPrefix("^") || symbol.contains("=") || isForeign(symbol) { return symbol }
         return symbol.replacingOccurrences(of: ".", with: "-")
     }
 
-    /// Det der står på feltet: "NOVO B" frem for "NOVO-B.CO".
+    /// What's shown on the tile: "NOVO B" rather than "NOVO-B.CO".
     public static func display(_ symbol: String) -> String {
         guard isForeign(symbol), let dot = symbol.lastIndex(of: ".") else { return symbol }
         return String(symbol[..<dot]).replacingOccurrences(of: "-", with: " ")
     }
 }
 
-/// En børs' åbningstid i dens egen tidszone. Helligdage kendes ikke — på dem
-/// tror appen at børsen er åben og opdaterer lidt for tit. Det er ufarligt.
+/// An exchange's trading hours in its own time zone. Holidays aren't known — on
+/// those the app thinks the exchange is open and refreshes a bit too often. That's harmless.
 public struct MarketHours: Hashable, Codable {
     public let timezone: String
     public let open: String
@@ -80,7 +80,7 @@ public struct MarketHours: Hashable, Codable {
         return nil
     }
 
-    /// "Åben · lukker 17.30" eller "Lukket · åbner man. 09.00", i lokal tid.
+    /// "Åben · lukker 17.30" or "Lukket · åbner man. 09.00", in local time.
     public var statusText: String {
         let formatter = DateFormatter()
         formatter.locale = Lang.locale
@@ -104,19 +104,19 @@ public struct MarketHours: Hashable, Codable {
     }
 }
 
-/// Valutaer: tegn til visning og Yahoo-symbol til omregning til dollar.
+/// Currencies: symbol for display and Yahoo symbol for conversion to dollars.
 public enum Currency {
-    /// Kurser der bruges indtil Yahoo har svaret. Kun til feltstørrelse, så
-    /// de behøver ikke være præcise.
+    /// Rates used until Yahoo has answered. Only for tile size, so they
+    /// needn't be precise.
     private static let fallback: [String: Double] = [
         "USD": 1, "EUR": 1.10, "DKK": 0.148, "GBP": 1.30, "SEK": 0.095,
         "NOK": 0.090, "CHF": 1.15
     ]
 
-    /// Yahoo-symbolerne for de valutaer der optræder.
+    /// The Yahoo symbols for the currencies that occur.
     public static let yahooSymbols = ["EURUSD=X", "DKKUSD=X", "GBPUSD=X", "SEKUSD=X", "NOKUSD=X", "CHFUSD=X"]
 
-    /// Hvor mange dollar én enhed er værd. GBp (pence) er en hundrededel pund.
+    /// How many dollars one unit is worth. GBp (pence) is a hundredth of a pound.
     public static func toUSD(_ currency: String?, rates: [String: Double]) -> Double {
         guard let currency else { return 1 }
         if currency == "GBp" || currency == "GBX" { return toUSD("GBP", rates: rates) / 100 }

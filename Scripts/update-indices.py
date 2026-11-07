@@ -1,21 +1,21 @@
-"""Bygger Sources/Stockmote/Resources/Indices.json.
+"""Builds Sources/Stockmote/Resources/Indices.json.
 
-Kaldes af update-indices.sh, som først henter de amerikanske kilder ned i en
-arbejdsmappe. Kør scriptet derfra, ikke direkte.
+Called by update-indices.sh, which first downloads the US sources into a
+working directory. Run it through that script, not directly.
 
-Amerikanske indekser
+US indices
     S&P 500     github.com/datasets/s-and-p-500-companies (GICS)
     Nasdaq 100  api.nasdaq.com/api/quote/list-type/nasdaq100
-    Dow Jones   Wikipedia-skabelonen over medlemmerne
-    Markedsværdi kommer i appen fra Nasdaq's screener og står ikke her.
+    Dow Jones   the Wikipedia template listing the members
+    Market cap comes from Nasdaq's screener inside the app, not from here.
 
-Europæiske indekser
-    Medlemmer   Wikipedia-artiklens tickertabel
-    Sektor      Yahoo's søgning (v1/finance/search), oversat til GICS-navne
-    Størrelse   Yahoo's fundamentals-tidsserie (trailingMarketCap) i lokal
-                valuta, plus kursen på samme tidspunkt, så appen kan skalere
-                markedsværdien med den aktuelle kurs.
-    Ingen af de to Yahoo-kald kræver crumb eller cookie.
+European indices
+    Members     the ticker table in the Wikipedia article
+    Sector      Yahoo's search (v1/finance/search), mapped to GICS names
+    Size        Yahoo's fundamentals time series (trailingMarketCap) in local
+                currency, plus the price at the same point, so the app can
+                scale the market cap by the current price.
+    Neither of the two Yahoo calls needs a crumb or cookie.
 """
 
 import concurrent.futures
@@ -36,10 +36,10 @@ UA = "Mozilla/5.0"
 warnings = []
 
 # ---------------------------------------------------------------------------
-# Netværk
+# Network
 
 def get(url, attempts=7):
-    # Yahoo svarer 429 i ryk når man spørger meget. Vent længere og længere.
+    # Yahoo answers 429 in bursts when you ask a lot. Back off longer each time.
     delay = 2.0
     for attempt in range(attempts):
         try:
@@ -66,7 +66,7 @@ def get_json(url):
 # ---------------------------------------------------------------------------
 # USA
 
-# GICS for Nasdaq 100-selskaber uden for S&P 500.
+# GICS for Nasdaq 100 companies outside the S&P 500.
 OVERRIDES = {
     "ASML": ("ASML Holding", "Information Technology", "Semiconductor Materials & Equipment"),
     "MSTR": ("Strategy", "Information Technology", "Application Software"),
@@ -85,7 +85,7 @@ OVERRIDES = {
     "SPCX": ("SpaceX", "Industrials", "Aerospace & Defense"),
 }
 
-# Wikipedia-skabelonen giver kun selskabsnavne. Navn -> ticker.
+# The Wikipedia template only gives company names. Name -> ticker.
 DOW = {
     "3M": "MMM", "Alphabet": "GOOGL", "Amazon": "AMZN", "American Express": "AXP",
     "Amgen": "AMGN", "Apple": "AAPL", "Boeing": "BA", "Caterpillar": "CAT",
@@ -134,7 +134,7 @@ for r in json.load(open(f"{work}/ndx.json"))["data"]["data"]["rows"]:
 
 text = json.load(open(f"{work}/dow.json"))["parse"]["text"]
 text = re.sub(r"<style.*?</style>", "", text, flags=re.S)
-# Skabelonens egen dokumentation står under navboksen og har også <li>'er.
+# The template's own documentation sits below the navbox and has <li>s too.
 text = text.split("Template documentation")[0]
 names = [re.sub(r"<[^>]+>", "", html.unescape(c)).strip() for c in re.findall(r"<li>(.*?)</li>", text, re.S)]
 dow = []
@@ -161,7 +161,7 @@ indices = [
 ]
 
 # ---------------------------------------------------------------------------
-# Europa
+# Europe
 
 def yahoo_plain(t):
     return t.strip()
@@ -176,7 +176,7 @@ def yahoo_suffix(suffix):
     return convert
 
 EUROPE = [
-    # id, navn, flag, Wikipedia-side, benchmark, tidszone, åbner, lukker, ticker-omregning
+    # id, name, flag, Wikipedia page, benchmark, time zone, opens, closes, ticker conversion
     ("c25", "C25", "🇩🇰", "OMX_Copenhagen_25", "^OMXC25", "Europe/Copenhagen", "09:00", "17:00", yahoo_suffix("CO")),
     ("dax", "DAX", "🇩🇪", "DAX", "^GDAXI", "Europe/Berlin", "09:00", "17:30", yahoo_plain),
     ("sx5e", "Euro Stoxx 50", "🇪🇺", "EURO_STOXX_50", "^STOXX50E", "Europe/Berlin", "09:00", "17:30", yahoo_plain),
@@ -189,7 +189,7 @@ EUROPE = [
     ("aex", "AEX", "🇳🇱", "AEX_index", "^AEX", "Europe/Amsterdam", "09:00", "17:30", yahoo_plain),
 ]
 
-# Yahoo's sektorer -> GICS-navnene, så alle indekser deler sprog.
+# Yahoo's sectors -> the GICS names, so all indices speak the same language.
 YAHOO_SECTOR = {
     "Technology": "Information Technology", "Healthcare": "Health Care",
     "Financial Services": "Financials", "Consumer Cyclical": "Consumer Discretionary",
@@ -230,7 +230,7 @@ def clean_industry(text):
 
 
 def profile(symbol):
-    """Navn, sektor og branche fra Yahoo's søgning."""
+    """Name, sector and industry from Yahoo's search."""
     q = urllib.parse.quote(symbol)
     data = get_json(f"https://query2.finance.yahoo.com/v1/finance/search?q={q}&quotesCount=5&newsCount=0")
     for quote in data.get("quotes", []):
@@ -240,7 +240,7 @@ def profile(symbol):
 
 
 def market_cap(symbol):
-    """Seneste trailingMarketCap i lokal valuta."""
+    """Latest trailingMarketCap in local currency."""
     q = urllib.parse.quote(symbol)
     start = int(time.time()) - 120 * 86400
     data = get_json("https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/"
@@ -254,7 +254,7 @@ def market_cap(symbol):
 
 
 def spark(symbols):
-    """Kurs og valuta for op til 20 symboler."""
+    """Price and currency for up to 20 symbols."""
     joined = urllib.parse.quote(",".join(symbols), safe=",")
     data = get_json(f"https://query2.finance.yahoo.com/v7/finance/spark?symbols={joined}&range=1d&interval=1d")
     out = {}
@@ -264,7 +264,7 @@ def spark(symbols):
     return out
 
 
-# Tickers hvor Wikipedia og Yahoo er uenige.
+# Tickers where Wikipedia and Yahoo disagree.
 YAHOO_RENAMES = {"NDA.CO": "NDA-DK.CO"}
 
 europe_members = {}
@@ -324,8 +324,8 @@ for symbol, p, cap, cap_currency in results:
         "capPrice": price,
     }
 
-# Klasse-aktier (MAERSK A/B o.l.) får hele selskabets markedsværdi hver. Del
-# den mellem dem, så selskabet ikke fylder dobbelt.
+# Share classes (MAERSK A/B etc.) each get the whole company's market cap.
+# Split it between them, so the company doesn't take up double the space.
 by_name = {}
 for symbol in european:
     if symbol in stocks:

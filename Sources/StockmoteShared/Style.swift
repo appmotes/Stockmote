@@ -1,10 +1,10 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Tidsrum
+// MARK: - Time ranges
 
 public enum Period: String, CaseIterable, Identifiable, Codable {
-    // rawValue er nøglen i UserDefaults og må ikke ændres. Teksten står i label.
+    // rawValue is the key in UserDefaults and must not change. The text lives in label.
     case day = "1D"
     case week = "1U"
     case month = "1M"
@@ -14,7 +14,7 @@ public enum Period: String, CaseIterable, Identifiable, Codable {
 
     public var id: String { rawValue }
 
-    /// Den korte etiket: "1U" på dansk, "1W" på engelsk.
+    /// The short label: "1U" in Danish, "1W" in English.
     public var label: String {
         switch self {
         case .day: return "1D"
@@ -37,8 +37,8 @@ public enum Period: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Yahoo's `range`. `chartPreviousClose` i svaret er lukkekursen lige før
-    /// tidsrummet starter, så ændringen er kurs / chartPreviousClose − 1.
+    /// Yahoo's `range`. `chartPreviousClose` in the response is the close just before
+    /// the range starts, so the change is price / chartPreviousClose − 1.
     public var yahooRange: String {
         switch self {
         case .day: return "1d"
@@ -50,7 +50,7 @@ public enum Period: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Vi læser kun `meta`, så intervallet vælges for at holde svaret lille.
+    /// We only read `meta`, so the interval is chosen to keep the response small.
     public var yahooInterval: String {
         switch self {
         case .day, .week, .month: return "1d"
@@ -58,8 +58,8 @@ public enum Period: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Den ændring i procent der giver fuld farve. 3 % er meget på en dag men
-    /// ingenting over et år, så skalaen følger tidsrummet.
+    /// The percentage change that gives full colour. 3 % is a lot in a day but
+    /// nothing over a year, so the scale follows the time range.
     public var colorScale: Double {
         switch self {
         case .day: return 3
@@ -83,7 +83,7 @@ public enum ColorStyle: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Tema
+// MARK: - Theme
 
 public enum ThemeMode: String, CaseIterable, Identifiable {
     case system, light, dark
@@ -97,12 +97,12 @@ public enum ThemeMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// Farverne på selve kortet. Panelets øvrige flader følger macOS' udseende via
-/// `Palette`; kortet tegnes i en Canvas og får temaet med eksplicit.
+/// The colours of the map itself. The panel's other surfaces follow macOS's
+/// appearance via `Palette`; the map is drawn in a Canvas and gets the theme explicitly.
 ///
-/// Det lyse tema er ikke det mørke vendt om. Fugerne er hvide, så felterne
-/// står som fliser på papir, og neutral er lysegrå med mørk tekst — hvid tekst
-/// på lysegrå kan ikke læses. Teksten vælges derfor efter feltets lyshed.
+/// The light theme isn't the dark one inverted. The gaps are white, so the
+/// tiles read like squares on paper, and neutral is light grey with dark text —
+/// white text on light grey is unreadable. So the text colour follows the tile's lightness.
 public struct Theme: Equatable {
     public typealias RGB = (r: Double, g: Double, b: Double)
 
@@ -115,7 +115,7 @@ public struct Theme: Equatable {
 
     public static func == (lhs: Theme, rhs: Theme) -> Bool { lhs.isDark == rhs.isDark }
 
-    /// Fugerne mellem felterne.
+    /// The gaps between the tiles.
     public var gap: Color { isDark ? .black : Color(white: 0.985) }
     public var sectorHeader: Color { isDark ? Color(white: 0.17) : Color(.sRGB, red: 0.88, green: 0.89, blue: 0.92) }
     public var sectorText: Color { isDark ? .white : Color(white: 0.08) }
@@ -130,21 +130,21 @@ public struct Theme: Equatable {
         switch (style, isDark) {
         case (.redGreen, true): return ((0.188, 0.800, 0.353), (0.965, 0.208, 0.220))
         case (.redGreen, false): return ((0.07, 0.66, 0.31), (0.90, 0.17, 0.20))
-        // Til rød-grøn farveblindhed: blå op, orange ned.
+        // For red-green colour blindness: blue up, orange down.
         case (.blueOrange, true): return ((0.20, 0.52, 0.98), (0.98, 0.56, 0.12))
         case (.blueOrange, false): return ((0.10, 0.42, 0.92), (0.95, 0.50, 0.05))
         }
     }
 }
 
-/// Farveskalaen. Neutral grå i midten, fuld farve ved `scale` procent.
+/// The colour scale. Neutral grey in the middle, full colour at `scale` percent.
 public enum Heat {
     public static func rgb(_ change: Double?, scale: Double, style: ColorStyle, theme: Theme = .dark) -> Theme.RGB {
         guard let change, change.isFinite else { return theme.missing }
         let (up, down) = theme.ends(style)
         let target = change >= 0 ? up : down
         let neutral = theme.neutral
-        // Lidt hurtigere ud af det grå end lineært, så små bevægelser kan ses.
+        // Leaves the grey a little faster than linear, so small moves are visible.
         let t = pow(min(abs(change) / scale, 1), 0.75)
         return (neutral.r + (target.r - neutral.r) * t,
                 neutral.g + (target.g - neutral.g) * t,
@@ -156,14 +156,14 @@ public enum Heat {
         return Color(.sRGB, red: c.r, green: c.g, blue: c.b)
     }
 
-    /// Hvid tekst på mørke felter, næsten sort på lyse.
+    /// White text on dark tiles, near-black on light ones.
     public static func label(on change: Double?, scale: Double, style: ColorStyle, theme: Theme) -> Color {
         let c = rgb(change, scale: scale, style: style, theme: theme)
         let luminance = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
         return luminance > (theme.isDark ? 0.75 : 0.50) ? Color(white: 0.1) : .white
     }
 
-    /// Tekstfarve for et tal: grøn/rød (eller blå/orange) i fuld styrke.
+    /// Text colour for a figure: green/red (or blue/orange) at full strength.
     public static func textColor(_ change: Double?, style: ColorStyle, theme: Theme = .dark) -> Color {
         guard let change, change != 0 else { return .secondary }
         let (up, down) = theme.ends(style)
@@ -172,7 +172,7 @@ public enum Heat {
     }
 }
 
-// MARK: - Tal
+// MARK: - Numbers
 
 public enum Format {
     private static var decimal: String { Lang.isEnglish ? "." : "," }
@@ -188,14 +188,14 @@ public enum Format {
         return "\(sign)\(number(abs(value), digits: digits))%"
     }
 
-    /// Til menubaren: "▲ 0,42%"
+    /// For the menu bar: "▲ 0,42%"
     public static func arrowPercent(_ value: Double?) -> String {
         guard let value, value.isFinite else { return "–" }
         let arrow = value > 0 ? "▲" : value < 0 ? "▼" : "■"
         return "\(arrow) \(number(abs(value), digits: 2))%"
     }
 
-    /// "182,29 $", "1.234,50 kr.", "$182.29" på engelsk.
+    /// "182,29 $", "1.234,50 kr.", "$182.29" in English.
     public static func price(_ value: Double?, currency: String? = "USD") -> String {
         guard let value else { return "–" }
         let formatter = NumberFormatter()
@@ -209,7 +209,7 @@ public enum Format {
         return "\(text) \(symbol)"
     }
 
-    /// Store tal: dansk 1 bio. = 10¹² og 1 mia. = 10⁹; engelsk T og B.
+    /// Large numbers: Danish 1 bio. = 10¹² and 1 mia. = 10⁹; English T and B.
     public static func marketCap(_ value: Double?) -> String {
         guard let value, value > 0 else { return "–" }
         let (scaled, unit): (Double, String) = value >= 1e12 ? (value / 1e12, tr("bio.", "T"))
@@ -218,7 +218,7 @@ public enum Format {
         return Lang.isEnglish ? "$\(number(scaled, digits: digits))\(unit)" : "\(number(scaled, digits: digits)) \(unit) $"
     }
 
-    /// "1.276" på dansk, "1,276" på engelsk.
+    /// "1.276" in Danish, "1,276" in English.
     public static func integer(_ value: Int) -> String {
         let formatter = NumberFormatter()
         formatter.locale = Lang.locale
@@ -226,7 +226,7 @@ public enum Format {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
-    /// Vægt i en fond: "5,79%" — med flere decimaler for de små.
+    /// Weight in a fund: "5,79%" — with more decimals for the small ones.
     public static func weight(_ value: Double?) -> String {
         guard let value else { return "–" }
         return "\(number(value, digits: value < 0.1 ? 3 : 2))%"
@@ -241,11 +241,11 @@ public enum Format {
     }
 }
 
-// MARK: - Panelets flader
+// MARK: - Panel surfaces
 
-/// Farver der følger macOS' udseende — lyst eller mørkt — af sig selv, fordi
-/// de er dynamiske NSColors. Panelets NSHostingView får det valgte udseende,
-/// og så skifter alt med.
+/// Colours that follow macOS's appearance — light or dark — on their own, because
+/// they're dynamic NSColors. The panel's NSHostingView gets the chosen appearance,
+/// and everything follows.
 public enum Palette {
     private static func dynamic(dark: NSColor, light: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -258,16 +258,16 @@ public enum Palette {
         NSColor(srgbRed: r, green: g, blue: b, alpha: 1)
     }
 
-    /// Bag kortet og toppen.
+    /// Behind the map and the top bar.
     public static let background = dynamic(dark: gray(0.0), light: gray(0.985))
-    /// Sidebjælken.
+    /// The sidebar.
     public static let sidebar = dynamic(dark: gray(0.075), light: rgb(0.935, 0.94, 0.95))
-    /// Kort, tooltips, felter i indstillinger.
+    /// Cards, tooltips, fields in settings.
     public static let surface = dynamic(dark: gray(0.11), light: gray(1.0))
-    /// Knapper og søgefelter.
+    /// Buttons and search fields.
     public static let raised = dynamic(dark: gray(0.17), light: rgb(0.90, 0.905, 0.92))
     public static let hover = dynamic(dark: gray(0.24), light: rgb(0.84, 0.85, 0.87))
     public static let separator = dynamic(dark: gray(0.18), light: rgb(0.86, 0.87, 0.89))
-    /// Kanten om tooltip og kort i det lyse tema; næsten usynlig i det mørke.
+    /// The border around tooltips and cards in the light theme; nearly invisible in the dark one.
     public static let outline = dynamic(dark: NSColor(white: 1, alpha: 0.12), light: NSColor(white: 0, alpha: 0.10))
 }

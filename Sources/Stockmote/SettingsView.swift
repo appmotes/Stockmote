@@ -2,9 +2,9 @@ import AppKit
 import StockmoteShared
 import SwiftUI
 
-/// Indstillinger som Systemindstillinger: én kolonne, grupper af rækker,
-/// teksten til venstre og kontrollen til højre. Ingen forklaringer under hver
-/// række — det der kræver en forklaring, har den i en tooltip på ⓘ.
+/// Settings laid out like System Settings: one column, groups of rows, the
+/// label on the left and the control on the right. No explanations under each
+/// row — anything that needs one gets it in a tooltip on ⓘ.
 struct SettingsTab: View {
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var universe = UniverseStore.shared
@@ -113,7 +113,7 @@ struct SettingsTab: View {
     }
 }
 
-/// En gruppe rækker med en lille overskrift over.
+/// A group of rows with a small heading above.
 private struct SettingsGroup<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
@@ -165,7 +165,7 @@ private struct Row<Control: View>: View {
     }
 }
 
-/// Fem små felter der viser skalaen i den valgte farve.
+/// Five small tiles showing the scale in the chosen colour.
 private struct Swatches: View {
     let style: ColorStyle
     @Environment(\.heatTheme) private var theme

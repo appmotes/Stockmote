@@ -2,16 +2,16 @@
 import Foundation
 import PackageDescription
 
-/// AppIntents-metadata (widget'ens konfiguration) laves af Xcodes
-/// appintentsmetadataprocessor ud fra compilerens konstantværdier. Xcode
-/// beder selv compileren om dem; her gør vi det med flag. Se make-app.sh.
+/// AppIntents metadata (the widget's configuration) is produced by Xcode's
+/// appintentsmetadataprocessor from the compiler's constant values. Xcode
+/// asks the compiler for them itself; here we do it with flags. See make-app.sh.
 let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
 
 let package = Package(
     name: "Stockmote",
     platforms: [.macOS(.v14)],
     targets: [
-        // Treemap, farver, Yahoo-klient og den fil appen deler med widget'en.
+        // Treemap, colours, Yahoo client and the file the app shares with the widget.
         .target(
             name: "StockmoteShared",
             path: "Sources/StockmoteShared"
@@ -22,8 +22,8 @@ let package = Package(
             path: "Sources/Stockmote",
             resources: [.copy("Resources/Indices.json")]
         ),
-        // Widget-udvidelsen. SwiftPM bygger binæren; Scripts/make-app.sh
-        // pakker den som Stockmote.app/Contents/PlugIns/StockmoteWidget.appex.
+        // The widget extension. SwiftPM builds the binary; Scripts/make-app.sh
+        // packages it as Stockmote.app/Contents/PlugIns/StockmoteWidget.appex.
         .executableTarget(
             name: "StockmoteWidget",
             dependencies: ["StockmoteShared"],
@@ -36,10 +36,10 @@ let package = Package(
                 ])
             ],
             linkerSettings: [
-                // Udvidelser skal starte i Foundations _NSExtensionMain, ikke
-                // i main — ellers dør processen i ExtensionFoundation før
-                // WidgetKit når at starte. Det er det Xcode gør for appex-
-                // targets; SwiftPM ved ikke at det er en udvidelse.
+                // Extensions must start in Foundation's _NSExtensionMain, not in
+                // main — otherwise the process dies in ExtensionFoundation before
+                // WidgetKit gets going. Xcode does this for appex targets; SwiftPM
+                // doesn't know this is an extension.
                 .unsafeFlags(["-Xlinker", "-e", "-Xlinker", "_NSExtensionMain"])
             ]
         )

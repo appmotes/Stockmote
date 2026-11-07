@@ -1,16 +1,16 @@
 import Foundation
 
-/// Det appen deler med widget'en.
+/// What the app shares with the widget.
 ///
-/// Widget'en kører i en sandbox og kan ikke læse appens UserDefaults. En app
-/// group ville være den normale vej, men den kræver et Apple-udviklerhold;
-/// Stockmote er ad hoc-signeret. Derfor skriver appen en lille fil i
-/// `~/Library/Application Support/Stockmote/`, og widget'en har en
-/// read-only-undtagelse til netop den mappe i sine entitlements.
+/// The widget runs in a sandbox and can't read the app's UserDefaults. An app
+/// group would be the usual route, but it requires an Apple developer team;
+/// Stockmote is ad hoc signed. So the app writes a small file to
+/// `~/Library/Application Support/Stockmote/`, and the widget has a
+/// read-only exception for exactly that folder in its entitlements.
 ///
-/// Filen indeholder favoritter, watchlister, klassifikation og markedsværdi —
-/// men ikke kurser. Dem henter widget'en selv fra Yahoo, så den er frisk selv
-/// når appen ikke har været åbnet.
+/// The file holds favourites, watchlists, classification and market cap —
+/// but not prices. The widget fetches those itself from Yahoo, so it's fresh
+/// even when the app hasn't been opened.
 public struct WidgetShare: Codable {
     public struct Stock: Codable {
         public let name: String
@@ -36,7 +36,7 @@ public struct WidgetShare: Codable {
         }
     }
 
-    /// Et indeks som widget'ens menu viser det.
+    /// An index as the widget's menu shows it.
     public struct Index: Codable {
         public let id: String
         public let name: String
@@ -56,17 +56,17 @@ public struct WidgetShare: Codable {
     public var updated: Date
     public var favorites: [String]
     public var watchlists: [List]
-    /// indeks-id → symboler
+    /// index ID → symbols
     public var indices: [String: [String]]
     public var stocks: [String: Stock]
     public var colorStyle: String
-    /// Valgfrie, så en fil fra en ældre version stadig kan læses.
+    /// Optional, so a file from an older version can still be read.
     public var indexList: [Index]?
     public var english: Bool?
-    /// Appens tema: "system", "light" eller "dark" (ThemeMode.rawValue).
+    /// The app's theme: "system", "light" or "dark" (ThemeMode.rawValue).
     public var theme: String?
-    /// Fonde: fond-id → symbol → vægt i procent. Felterne får fondens vægt
-    /// i stedet for markedsværdi.
+    /// Funds: fund ID → symbol → weight in percent. Tiles get the fund's weight
+    /// instead of the market cap.
     public var weights: [String: [String: Double]]?
 
     public init(updated: Date, favorites: [String], watchlists: [List],
@@ -84,8 +84,8 @@ public struct WidgetShare: Codable {
         self.weights = weights
     }
 
-    /// Den rigtige hjemmemappe — også inde i sandboxen, hvor
-    /// `NSHomeDirectory()` peger på containeren.
+    /// The real home folder — also inside the sandbox, where
+    /// `NSHomeDirectory()` points to the container.
     public static var realHome: URL {
         if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir {
             return URL(fileURLWithPath: String(cString: dir))

@@ -6,7 +6,7 @@ import WidgetKit
 @main
 struct StockmoteWidgets: WidgetBundle {
     init() {
-        // Sproget skal være sat før widget'ens navn og beskrivelse læses.
+        // The language must be set before the widget's name and description are read.
         Lang.isEnglish = WidgetShare.read()?.english ?? false
     }
 
@@ -18,7 +18,7 @@ struct StockmoteWidgets: WidgetBundle {
 struct StockmoteWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: "StockmoteHeatmap", intent: HeatmapIntent.self, provider: Provider()) { entry in
-            // Appens temavalg (Som systemet / Lyst / Mørkt) gælder også her.
+            // The app's theme choice (System / Light / Dark) applies here too.
             HeatmapWidgetView(entry: entry)
                 .themed(entry.themeMode)
                 .containerBackground(for: .widget) { WidgetBackground().themed(entry.themeMode) }
@@ -31,7 +31,7 @@ struct StockmoteWidget: Widget {
     }
 }
 
-// MARK: - Konfiguration
+// MARK: - Configuration
 
 enum WidgetSource: String, AppEnum {
     case favorites, watchlist, index
@@ -44,8 +44,8 @@ enum WidgetSource: String, AppEnum {
     ]
 }
 
-/// Et indeks fra appen. Listen læses fra den delte fil, så nye indekser
-/// (fx når update-indices.sh har tilføjet et) dukker op af sig selv.
+/// An index from the app. The list is read from the shared file, so new indices
+/// (e.g. once update-indices.sh has added one) show up by themselves.
 struct IndexEntity: AppEntity {
     let id: String
     let name: String
@@ -124,8 +124,8 @@ enum PeriodChoice: String, AppEnum {
     }
 }
 
-/// En watchliste fra appen. Listen læses fra den delte fil, så den følger med
-/// når man laver nye i Stockmote.
+/// A watchlist from the app. The list is read from the shared file, so it keeps
+/// up when you create new ones in Stockmote.
 struct WatchlistEntity: AppEntity {
     let id: String
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Watchliste"
@@ -227,13 +227,13 @@ struct Provider: AppIntentTimelineProvider {
 
     func timeline(for configuration: HeatmapIntent, in context: Context) async -> Timeline<Entry> {
         let entry = await load(configuration, family: context.family)
-        // Hvert kvarter mens børsen er åben, ellers hver time. WidgetKit
-        // bestemmer selv det endelige tidspunkt ud fra sit budget.
+        // Every quarter of an hour while the exchange is open, otherwise hourly.
+        // WidgetKit decides the actual time itself, based on its budget.
         let next = Date().addingTimeInterval(entry.marketOpen ? 15 * 60 : 60 * 60)
         return Timeline(entries: [entry], policy: .after(next))
     }
 
-    /// Hvor mange felter der er plads til at læse.
+    /// How many tiles there's room to read.
     private func limit(for family: WidgetFamily) -> Int {
         switch family {
         case .systemSmall: return 9
@@ -297,8 +297,8 @@ struct Provider: AppIntentTimelineProvider {
             else if symbols.isEmpty { message = tr("Ingen aktier matcher", "No stocks match") }
         }
 
-        // De største selskaber først, så det er dem der kommer med. En fond
-        // har sine egne vægte; et indeks bruger markedsværdien.
+        // Largest companies first, so they're the ones that make the cut. A fund
+        // has its own weights; an index uses market cap.
         let fundWeights = config.source == .index ? share?.weights?[config.index?.id ?? share?.indexList?.first?.id ?? ""] : nil
         let cap: (String) -> Double = { fundWeights?[$0] ?? share?.stocks[$0]?.cap ?? 0 }
         if config.source == .index {
@@ -326,7 +326,7 @@ struct Provider: AppIntentTimelineProvider {
         if let benchmark {
             change = values[benchmark]?.change
         } else {
-            // Gennemsnit — vægtet hvis felterne er det.
+            // Average — weighted if the tiles are.
             let known = items.filter { $0.change != nil }
             let weight = known.reduce(0) { $0 + $1.weight }
             change = weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
@@ -339,7 +339,7 @@ struct Provider: AppIntentTimelineProvider {
     }
 }
 
-// MARK: - Visning
+// MARK: - View
 
 struct HeatmapWidgetView: View {
     let entry: Entry
@@ -384,7 +384,7 @@ struct HeatmapWidgetView: View {
     }
 }
 
-/// Sort i mørk tilstand, næsten hvid i lys — samme fuger som i panelet.
+/// Black in dark mode, near-white in light — the same gaps as in the panel.
 private struct WidgetBackground: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
@@ -392,9 +392,9 @@ private struct WidgetBackground: View {
     }
 }
 
-/// Tvinger lyst eller mørkt, når appen er sat til det; ellers følger widget'en
-/// systemet. Alt nedenunder — tekst, kortets tema, baggrund — læser
-/// colorScheme og følger derfor med.
+/// Forces light or dark when the app is set to it; otherwise the widget follows
+/// the system. Everything below — text, the map's theme, background — reads
+/// colorScheme and so follows along.
 private struct ThemedModifier: ViewModifier {
     let mode: ThemeMode
     @Environment(\.colorScheme) private var system

@@ -3,10 +3,10 @@ import Foundation
 import StockmoteShared
 import WidgetKit
 
-/// Skriver `Widget.json` til widget'en (se WidgetShare for hvorfor det er en
-/// fil). Kurserne henter widget'en selv, så filen skrives kun når lister,
-/// farver eller markedsværdier ændrer sig — og WidgetKit bedes kun genindlæse
-/// når noget man kan se har ændret sig.
+/// Writes `Widget.json` for the widget (see WidgetShare for why it's a
+/// file). The widget fetches prices itself, so the file is only written when
+/// lists, colours or market caps change — and WidgetKit is only asked to
+/// reload when something visible has changed.
 @MainActor
 final class WidgetSync {
     static let shared = WidgetSync()
@@ -37,7 +37,7 @@ final class WidgetSync {
         let universe = UniverseStore.shared
         let lists = ListsStore.shared
 
-        // Fondene står i widget'ens indeks-menu sammen med indekserne.
+        // Funds appear in the widget's index menu alongside the indices.
         let funds = FundStore.shared.indices.filter { !$0.symbols.isEmpty }
         let all = universe.indices + funds
 

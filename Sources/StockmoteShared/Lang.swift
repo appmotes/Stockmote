@@ -1,12 +1,12 @@
 import Foundation
 
-/// Sprogvalget i indstillingerne.
+/// The language choice in settings.
 public enum AppLanguage: String, CaseIterable, Identifiable, Codable {
     case system, danish, english
     public var id: String { rawValue }
 
-    /// Navnet på sproget på sproget selv, så man kan finde tilbage fra et
-    /// sprog man ikke forstår.
+    /// The language's name in that language, so you can find your way back from
+    /// a language you don't understand.
     public var label: String {
         switch self {
         case .system: return tr("Som systemet", "Same as system")
@@ -25,13 +25,13 @@ public enum AppLanguage: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-/// Det aktive sprog. Sættes af appen ved start og når indstillingen skifter,
-/// og af widget'en ud fra den delte fil.
+/// The active language. Set by the app at launch and when the setting changes,
+/// and by the widget from the shared file.
 ///
-/// Teksterne står som par direkte i koden — `tr("Opdatér", "Refresh")` —
-/// frem for i .strings-filer. Det er to sprog, og sproget skal kunne skiftes
-/// mens appen kører, uden genstart. Bundle-lokalisering følger systemets sprog
-/// og kan ikke det.
+/// The strings sit as pairs right in the code — `tr("Opdatér", "Refresh")` —
+/// rather than in .strings files. There are two languages, and the language
+/// must be switchable while the app runs, without a restart. Bundle
+/// localisation follows the system language and can't do that.
 public enum Lang {
     public static var isEnglish = false
 
@@ -40,7 +40,7 @@ public enum Lang {
     }
 }
 
-/// Dansk eller engelsk tekst, efter det aktive sprog.
+/// Danish or English text, depending on the active language.
 public func tr(_ danish: String, _ english: String) -> String {
     Lang.isEnglish ? english : danish
 }

@@ -2,16 +2,16 @@ import AppKit
 import StockmoteShared
 import SwiftUI
 
-/// "Afspil dagen": kortet animeret gennem tidsrummet.
+/// "Afspil dagen" (Replay the day): the map animated through the time range.
 ///
-/// Et almindeligt heatmap viser hvor dagen endte. Her ser man hvordan den kom
-/// derhen — åbningen, frokostsalget, den sidste time. Med 1D afspilles dagen i
-/// 5-minutters skridt; med 1U i halve timer; med 1M, 3M og ÅTD dag for dag; med
-/// 1Å uge for uge.
+/// A regular heatmap shows where the day ended. Here you see how it got
+/// there — the open, the lunchtime selling, the last hour. With 1D the day
+/// plays in 5-minute steps; with 1U in half hours; with 1M, 3M and ÅTD day by
+/// day; with 1Å week by week.
 ///
-/// Forløbene hentes fra samme Yahoo-adresse som kurserne, bare med
-/// `interval` sat. Felternes størrelse står fast mens det kører; kun farverne
-/// skifter, så kortet ikke hopper rundt.
+/// The series come from the same Yahoo URL as the quotes, just with
+/// `interval` set. Tile sizes stay fixed while it runs; only the colours
+/// change, so the map doesn't jump around.
 @MainActor
 final class ReplayStore: ObservableObject {
     static let shared = ReplayStore()
@@ -19,18 +19,18 @@ final class ReplayStore: ObservableObject {
     @Published private(set) var isActive = false
     @Published private(set) var isLoading = false
     @Published private(set) var isPlaying = false
-    /// Tidspunkterne der afspilles (Unix-sekunder).
+    /// The timestamps being played (Unix seconds).
     @Published private(set) var timeline: [Int] = []
     @Published var frame = 0 {
         didSet { if frame != oldValue { frame = min(max(frame, 0), max(timeline.count - 1, 0)) } }
     }
-    /// 1×, 2× eller 4×.
+    /// 1×, 2× or 4×.
     @Published var speed: Double = 1
     @Published private(set) var errorMessage: String?
-    /// Indeksets kurve (eller listens gennemsnit), én værdi pr. tidspunkt.
+    /// The index's curve (or the list's average), one value per timestamp.
     @Published private(set) var curve: [Double] = []
 
-    /// Fuldskærm afspiller i ring som en levende skærm; panelet stopper ved enden.
+    /// Full screen loops like a living screen; the panel stops at the end.
     var loops = false
 
     private var changes: [String: [Double]] = [:]
@@ -40,12 +40,12 @@ final class ReplayStore: ObservableObject {
     private var player: Task<Void, Never>?
     private var loadedPeriod: Period = .day
 
-    /// En hel gennemspilning varer så længe ved 1×.
+    /// A full playthrough takes this long at 1×.
     private let baseDuration: Double = 14
 
     var isReady: Bool { isActive && !timeline.isEmpty }
 
-    // MARK: Styring
+    // MARK: Controls
 
     func toggle() { isActive ? stop() : start() }
 
@@ -79,7 +79,7 @@ final class ReplayStore: ObservableObject {
                 if self.frame < self.timeline.count - 1 {
                     self.frame += 1
                 } else if self.loops {
-                    // Et øjeblik på slutbilledet, så forfra.
+                    // A moment on the final frame, then from the start.
                     try? await Task.sleep(for: .seconds(2.5))
                     guard !Task.isCancelled else { return }
                     self.frame = 0
@@ -102,7 +102,7 @@ final class ReplayStore: ObservableObject {
         frame += delta
     }
 
-    // MARK: Opslag
+    // MARK: Lookup
 
     func change(_ symbol: String) -> Double? {
         guard isReady, let series = changes[symbol], frame < series.count else { return nil }
@@ -123,7 +123,7 @@ final class ReplayStore: ObservableObject {
         timeline.count > 1 ? Double(frame) / Double(timeline.count - 1) : 0
     }
 
-    /// "11.15" for en dag, "tor. 14.30" for en uge, "3. nov." for længere.
+    /// "11.15" for a day, "tor. 14.30" for a week, "3. nov." for longer.
     func timeLabel(_ index: Int? = nil) -> String {
         let i = index ?? frame
         guard i < timeline.count else { return "–" }
@@ -139,9 +139,9 @@ final class ReplayStore: ObservableObject {
         return formatter.string(from: date)
     }
 
-    // MARK: Hentning
+    // MARK: Fetching
 
-    /// Henter forløb for det man kigger på — hvis det har ændret sig.
+    /// Fetches series for what you're looking at — if it has changed.
     func reload(force: Bool = false) {
         guard isActive else { return }
         let current = Items.current()
@@ -172,9 +172,9 @@ final class ReplayStore: ObservableObject {
         }
     }
 
-    /// Lægger alle forløb på én fælles tidslinje. Et symbol der endnu ikke har
-    /// handlet på et tidspunkt (fx en amerikansk aktie før New York åbner),
-    /// står på sin forrige lukkekurs — ændring 0.
+    /// Puts all series on one shared timeline. A symbol that hasn't traded yet
+    /// at a given time (e.g. a US stock before New York opens) sits at its
+    /// previous close — a change of 0.
     private func build(_ series: [String: Yahoo.Series], symbols: [String], benchmark: String?, period: Period) {
         loadedPeriod = period
         var stamps = Set<Int>()
@@ -182,7 +182,7 @@ final class ReplayStore: ObservableObject {
         for s in source { stamps.formUnion(s.timestamps) }
         if stamps.isEmpty { for s in series.values { stamps.formUnion(s.timestamps) } }
         var sorted = stamps.sorted()
-        // Højst ~400 billeder; flere ses ikke alligevel.
+        // At most ~400 frames; you can't see more anyway.
         if sorted.count > 400 {
             let stride = Double(sorted.count) / 400
             sorted = (0..<400).map { sorted[min(Int(Double($0) * stride), sorted.count - 1)] }
@@ -208,7 +208,7 @@ final class ReplayStore: ObservableObject {
             prices[symbol] = priceRow
         }
 
-        // Kurven: indekset selv, ellers et ligevægtet gennemsnit af listen.
+        // The curve: the index itself, otherwise an equal-weighted average of the list.
         var curve: [Double]
         if let benchmark, let row = changes[benchmark] {
             curve = row
@@ -226,9 +226,9 @@ final class ReplayStore: ObservableObject {
     }
 }
 
-// MARK: - Linjen under kortet
+// MARK: - The bar below the map
 
-/// ▶ · klokkeslæt · kurve man kan trække i · hastighed · ×
+/// ▶ · time · draggable curve · speed · ×
 struct ReplayBar: View {
     @ObservedObject private var replay = ReplayStore.shared
     @ObservedObject private var prefs = Preferences.shared
@@ -302,8 +302,8 @@ struct ReplayBar: View {
     }
 }
 
-/// Kurven over tidsrummet, med det afspillede stykke tydeligt og resten
-/// svagt. Klik eller træk for at gå til et tidspunkt.
+/// The curve over the time range, with the played part solid and the rest
+/// faint. Click or drag to jump to a point in time.
 private struct Scrubber: View {
     let curve: [Double]
     let frame: Int
@@ -317,7 +317,7 @@ private struct Scrubber: View {
             let x = curve.count > 1 ? size.width * CGFloat(frame) / CGFloat(curve.count - 1) : 0
             let color = Heat.textColor(curve.last, style: style, theme: theme)
             ZStack(alignment: .topLeading) {
-                // Nullinjen: forrige lukkekurs.
+                // The zero line: the previous close.
                 Path { p in
                     let y = yPosition(0, in: size)
                     p.move(to: CGPoint(x: 0, y: y))
@@ -369,8 +369,8 @@ private struct Scrubber: View {
     }
 }
 
-/// Henter forløb igen når man skifter indeks, liste eller tidsrum mens
-/// afspilningen er tændt.
+/// Refetches series when you switch index, list or time range while
+/// playback is on.
 struct ReplayReloader: ViewModifier {
     @ObservedObject private var replay = ReplayStore.shared
     @ObservedObject private var market = MarketStore.shared
@@ -386,7 +386,7 @@ struct ReplayReloader: ViewModifier {
     }
 }
 
-/// Mellemrum, ← og → styrer afspilningen — men ikke mens man skriver.
+/// Space, ← and → control playback — but not while you're typing.
 @MainActor
 enum ReplayKeys {
     static func handle(_ event: NSEvent) -> Bool {
@@ -395,7 +395,7 @@ enum ReplayKeys {
         if event.window?.firstResponder is NSTextView { return false }
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
         switch event.keyCode {
-        case 49: replay.togglePlay(); return true      // mellemrum
+        case 49: replay.togglePlay(); return true      // space
         case 123: replay.step(-1); return true         // ←
         case 124: replay.step(1); return true          // →
         default: return false

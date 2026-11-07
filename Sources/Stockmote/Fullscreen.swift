@@ -2,20 +2,21 @@ import AppKit
 import StockmoteShared
 import SwiftUI
 
-/// Kortet alene, kant til kant over hele skærmen.
+/// The map alone, edge to edge across the whole screen.
 ///
-/// Ikke macOS' egen fuldskærm: den laver et nyt Space med animation og
-/// forventer et almindeligt vindue med titellinje. Her er det et rammeløst
-/// vindue på størrelse med skærmen, og menubar og dock skjules mens det er
-/// fremme. Hover, klik, højreklik og zoom virker som i panelet.
+/// Not macOS's own full screen: that creates a new Space with an animation and
+/// expects an ordinary window with a title bar. This is a borderless window
+/// the size of the screen, with the menu bar and Dock hidden while it's
+/// showing. Hover, click, right-click and zoom work as in the panel.
 ///
-/// Skærme med notch: øverste ~32 pt ligger bag kameraet. Kortet starter under
-/// notchen — ellers forsvandt sektor- og branchestrimlerne derind — og båndet
-/// ved siden af notchen viser titel og tal i stedet for at stå tomt.
+/// Screens with a notch: the top ~32 pt sit behind the camera. The map starts
+/// below the notch — otherwise the sector and industry strips would vanish into
+/// it — and the band beside the notch shows the title and figure instead of
+/// sitting empty.
 ///
-/// Esc: først ud af zoom, så ud af afspilning, så et niveau op, og til sidst
-/// lukkes fuldskærm. ⌃⌘F lukker med det samme. Mellemrum, ← og → styrer
-/// afspilningen, som kører i ring her — en levende skærm.
+/// Esc: first out of zoom, then out of playback, then up a level, and finally
+/// closes full screen. ⌃⌘F closes at once. Space, ← and → control playback,
+/// which loops here — a living screen.
 @MainActor
 final class FullscreenController {
     static let shared = FullscreenController()
@@ -31,7 +32,7 @@ final class FullscreenController {
         MenuBarPanel.current?.hide()
         AppState.shared.resetZoom()
 
-        // Skærmen hvor musen er — det er der man kigger.
+        // The screen the mouse is on — that's where you're looking.
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
         guard let screen else { return }
@@ -51,12 +52,12 @@ final class FullscreenController {
         window.contentView = host
         self.window = window
 
-        // En LSUIElement-app skal være aktiv for at kunne skjule menubar og
-        // dock — og for at få tastetryk.
+        // An LSUIElement app must be active to hide the menu bar and Dock — and to
+        // receive key presses.
         NSApp.activate(ignoringOtherApps: true)
         savedOptions = NSApp.presentationOptions
-        // Skjult automatisk, ikke helt væk: føres musen til toppen, glider
-        // menubaren frem, og et klik på Stockmote-ikonet lukker fuldskærm.
+        // Auto-hidden, not gone: move the mouse to the top and the menu bar slides
+        // in, and a click on the Stockmote icon closes full screen.
         NSApp.presentationOptions = [.autoHideDock, .autoHideMenuBar]
         window.makeKeyAndOrderFront(nil)
         MarketStore.shared.panelVisible = true
@@ -99,7 +100,7 @@ final class FullscreenController {
 }
 
 struct FullscreenView: View {
-    /// Højden af notch-båndet. 0 på skærme uden notch.
+    /// Height of the notch band. 0 on screens without a notch.
     var topInset: CGFloat = 0
 
     @ObservedObject private var market = MarketStore.shared
@@ -136,8 +137,8 @@ struct FullscreenView: View {
                             })
                         }
                     )
-                    // Uden notch er der intet bånd at vise tidspunktet i, så
-                    // afspilningen får en lille pille nederst i stedet.
+                    // Without a notch there's no band to show the time in, so
+                    // playback gets a small pill at the bottom instead.
                     if replay.isActive, topInset == 0 {
                         ReplayPill()
                             .padding(.bottom, 14)
@@ -145,8 +146,8 @@ struct FullscreenView: View {
                     }
                 }
                 .overlay(alignment: .top) {
-                    // Et diskret hint de første sekunder, så man ved hvordan
-                    // man kommer ud igen. Det forsvinder af sig selv.
+                    // A discreet hint for the first few seconds, so you know how
+                    // to get out again. It goes away by itself.
                     if showHint {
                         Text(tr("Esc for at lukke", "Esc to exit"))
                             .font(.system(size: 12, weight: .semibold))
@@ -171,8 +172,8 @@ struct FullscreenView: View {
     }
 }
 
-/// Båndet ved siden af notchen: titel og ændring til venstre, tidsrum eller
-/// afspilningens klokkeslæt til højre. Altid sort — det flugter med notchen.
+/// The band beside the notch: title and change on the left, time range or
+/// playback time on the right. Always black — it blends in with the notch.
 private struct NotchBand: View {
     @ObservedObject private var market = MarketStore.shared
     @ObservedObject private var universe = UniverseStore.shared
