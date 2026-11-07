@@ -1,17 +1,17 @@
 import Foundation
 import StockmoteShared
 
-/// Et selskab som det står i Indices.json: navn og GICS-klassifikation.
+/// A company as it appears in Indices.json: name and GICS classification.
 struct StockInfo: Codable, Hashable, Identifiable {
     let symbol: String
     let name: String
     let sector: String
     let industry: String
-    /// Kursens valuta. "GBp" er pence.
+    /// The price's currency. "GBp" is pence.
     var currency: String? = "USD"
-    /// Europæiske aktier: markedsværdi i `capCurrency` da kursen var
-    /// `capPrice` (begge fra update-indices.py). Appen skalerer med den
-    /// aktuelle kurs. Amerikanske aktier får markedsværdien fra Nasdaq.
+    /// European stocks: market cap in `capCurrency` when the price was
+    /// `capPrice` (both from update-indices.py). The app scales it by the
+    /// current price. US stocks get their market cap from Nasdaq.
     var cap: Double? = nil
     var capCurrency: String? = nil
     var capPrice: Double? = nil
@@ -20,25 +20,25 @@ struct StockInfo: Codable, Hashable, Identifiable {
     var displaySymbol: String { Symbols.display(symbol) }
 }
 
-/// Et indeks og dets medlemmer.
+/// An index and its members.
 struct MarketIndex: Codable, Hashable, Identifiable {
     let id: String
     let name: String
-    /// "us" eller "eu" — sidebjælkens grupper.
+    /// "us" or "eu" — the sidebar's groups.
     var region: String? = "us"
     var flag: String? = nil
-    /// Yahoo-symbolet for selve indekset, fx "^GSPC". Bruges til tallet i
-    /// toppen og i menubaren.
+    /// The Yahoo symbol for the index itself, e.g. "^GSPC". Used for the number at
+    /// the top and in the menu bar.
     let benchmark: String
     var timezone: String? = nil
     var open: String? = nil
     var close: String? = nil
     let symbols: [String]
-    /// Kun fonde: hver akties vægt i fonden i procent. Felternes størrelse
-    /// følger den i stedet for markedsværdien.
+    /// Funds only: each stock's weight in the fund in percent. The tiles' size
+    /// follows it instead of market cap.
     var weights: [String: Double]? = nil
 
-    /// "🇩🇰 C25", eller bare navnet for en fond.
+    /// "🇩🇰 C25", or just the name for a fund.
     var title: String { flag.map { "\($0) \(name)" } ?? name }
 
     var isFund: Bool { region == "fund" }
@@ -50,7 +50,7 @@ struct MarketIndex: Codable, Hashable, Identifiable {
 
     var isEuropean: Bool { region == "eu" }
 
-    /// Aktiernes vægt: fondens egen hvis den har en, ellers markedsværdi.
+    /// The stocks' weights: the fund's own if it has them, otherwise market cap.
     @MainActor
     func weight(_ symbol: String) -> Double? {
         if let weights { return weights[symbol] }
@@ -58,9 +58,9 @@ struct MarketIndex: Codable, Hashable, Identifiable {
     }
 }
 
-/// Indlæser indeksernes medlemmer fra Indices.json. Listen ligger i data og
-/// ikke i koden, så den kan opdateres med Scripts/update-indices.sh uden at
-/// røre Swift — og overstyres af brugeren uden at kompilere.
+/// Loads the indices' members from Indices.json. The list lives in data and
+/// not in the code, so it can be updated with Scripts/update-indices.sh without
+/// touching Swift — and overridden by the user without compiling.
 @MainActor
 final class UniverseStore: ObservableObject {
     static let shared = UniverseStore()
@@ -71,7 +71,7 @@ final class UniverseStore: ObservableObject {
     @Published private(set) var loadError: String?
     @Published private(set) var sourceURL: URL?
 
-    /// Alle symboler i alle indekser, uden dubletter.
+    /// All symbols in all indices, without duplicates.
     private(set) var allIndexSymbols: [String] = []
 
     private struct Payload: Decodable {
@@ -84,7 +84,7 @@ final class UniverseStore: ObservableObject {
         load()
     }
 
-    /// Et indeks — eller en fond fra sidebjælken ("fund:SPY").
+    /// An index — or a fund from the sidebar ("fund:SPY").
     func index(withID id: String) -> MarketIndex? {
         if FundStore.symbol(fromID: id) != nil { return FundStore.shared.index(withID: id) }
         return indices.first { $0.id == id }
@@ -121,14 +121,14 @@ final class UniverseStore: ObservableObject {
         loadError = message
     }
 
-    /// Brugerens override først, derefter .app-bundlen, derefter SwiftPM's
-    /// ressourcebundle ved siden af binæren (så `swift run` også virker).
+    /// The user's override first, then the .app bundle, then SwiftPM's
+    /// resource bundle next to the binary (so `swift run` works too).
     static func candidateLocations() -> [URL] {
         var urls: [URL] = [userOverrideURL]
         if let resources = Bundle.main.resourceURL {
             urls.append(resources.appendingPathComponent("Indices.json"))
         }
-        // SwiftPM lægger ressourcebundlen ved siden af binæren i .build/<config>/.
+        // SwiftPM puts the resource bundle next to the binary in .build/<config>/.
         let executableDir = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0]))
             .resolvingSymlinksInPath()
             .deletingLastPathComponent()
@@ -139,7 +139,7 @@ final class UniverseStore: ObservableObject {
     }
 
     /// `~/Library/Application Support/Stockmote/Indices.json`
-    static var userOverrideURL: URL {
+    nonisolated static var userOverrideURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base.appendingPathComponent("Stockmote/Indices.json")

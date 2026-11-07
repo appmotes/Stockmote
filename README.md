@@ -25,11 +25,11 @@ later.
 ## Disclaimer
 
 Not investment advice. The app shows public quotes as they are. It is not made by or affiliated with Nasdaq, Yahoo,
-S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, State Street, Invesco or any other exchange, index or fund
-provider.
+S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, State Street, Invesco or any other exchange, index
+or fund provider.
 
-Quotes come from public endpoints at Yahoo Finance and Nasdaq, fund holdings from State Street and Invesco, none of
-which need an account or API key. None of them is a
+Quotes come from public endpoints at Yahoo Finance and Nasdaq, fund holdings from BlackRock (iShares), State Street
+and Invesco, none of which need an account or API key. None of them is a
 documented, promised API. Any of them can change or close without notice, and then the map goes grey and the status
 line says which source failed. No analytics and no tracking.
 
@@ -37,13 +37,16 @@ line says which source failed. No analytics and no tracking.
 
 - **13 indices.** United States: S&P 500, Nasdaq 100, Dow Jones. Europe: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50,
   🇬🇧 FTSE 100, 🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI and 🇳🇱 AEX. ⌘1 … ⌘9 jump to the first nine.
-- **Funds.** + next to **Funds** in the sidebar opens a search field: type the name or ticker of an ETF or index fund
-  (`SPY`, `QQQ`, `iShares Core MSCI World`, `SPIC25`), and Return or a click adds and opens it. The fund is shown
+- **Funds.** + next to **Funds** in the sidebar opens a dialog in the middle of the panel: type the name or ticker of
+  an ETF or index fund (`SPY`, `SEC0`, `iShares Core MSCI World`, `SPIC25`) and pick a result. Its holdings are loaded
+  right there, with a preview such as "237 stocks · largest: Taiwan Semiconductor 8.81%", and only a fund whose
+  holdings could be found can be added — otherwise the dialog says so and **Add** stays off. Return adds and opens
+  it; Esc cancels without closing the panel. The fund is shown
   exactly like an index — sector → industry → stock, zoom, hover, list, replay, full screen, widget — but each tile's
   size is the stock's **weight in the fund**, not its market value. The title shows the fund's own name and its own
   price change. Hover shows the weight, the list has a weight column, and the status line says where the holdings
-  come from. Large funds (MSCI World via SPGM: ~2,900 stocks) are cut to the 500 largest by weight, and the status line
-  says so. Funds are remembered across restarts; right-click to reload the holdings or remove the fund.
+  come from. Large funds (iShares Core MSCI World: ~1,200 stocks) are cut to the 500 largest by weight, and the status
+  line says so. Funds are remembered across restarts; right-click to reload the holdings or remove the fund.
 - **Six time ranges** in the segmented control at the top: 1D, 1U/1W (week), 1M, 3M, ÅTD/YTD and 1Å/1Y. The colour
   scale follows the range: full colour at ±3 % for a day, ±35 % for a year.
 - **Sectors and industries.** Click a sector or industry header to go into it. The title becomes that level, with a
@@ -66,7 +69,8 @@ line says which source failed. No analytics and no tracking.
   **Right-click** to add it to favourites or a watchlist, jump to its sector or industry, or copy the symbol.
 - **Favorites** and **watchlists** in the sidebar under **My lists**, each with a
   search field that finds any US stock or any stock in the European indices. Favourites get a small star on the map.
-  + makes a new watchlist; right-click one to rename or delete it.
+  + makes a new watchlist and right-click → **Rename …** renames one, both in a small dialog over the panel;
+  right-click to delete one.
 - **List view** (⌘L): any map as a sortable list.
 - **Light and dark theme.** The light theme is not the dark one inverted: white grout between the tiles, light grey
   for unchanged stocks and dark text wherever a tile is light.
@@ -92,6 +96,8 @@ line says which source failed. No analytics and no tracking.
 | Replaying the S&P 500's day, paused at 17.45 | Full screen with a notch: C25 replaying at 14.30 |
 | ![Settings](docs/settings.png) | ![iShares Core MSCI World](docs/fund.png) |
 | Settings, at the smallest panel size | A fund: iShares Core MSCI World, tiles sized by weight |
+| ![Adding a fund](docs/fund-dialog.png) | |
+| Adding a fund: its holdings are checked before it can be added | |
 
 ## Build
 
@@ -122,6 +128,7 @@ The widget appears in the gallery once the app is in `/Applications` and has bee
 | US market value, name, search | Nasdaq screener (all ~7000 US stocks, 2 MB) | Every 30 min |
 | Index members, sectors, European market values | `Indices.json`, bundled | When you run `update-indices.sh` |
 | Fund search; sectors for foreign stocks in funds | Yahoo Finance `v1/finance/search` | As you type; once per new stock |
+| Fund holdings: iShares ETFs, US and European (SOXX, IVV, SEC0, EUNL, CSPX …) | iShares' product lists (the ones the product screener on ishares.com loads, for the US, UK and German sites) and each fund's `latest-holdings.csv` | When the fund is added, then at most weekly; the product lists weekly |
 | Fund holdings: SPDR ETFs (SPY, XLK, SPGM …) | State Street's daily spreadsheet (`holdings-daily-us-en-<ticker>.xlsx`) | When the fund is added, then at most weekly |
 | Fund holdings: Invesco ETFs (QQQ, RSP …) | Invesco's JSON (`dng-api.invesco.com`) | As above |
 
@@ -144,8 +151,11 @@ index shares one vocabulary; their industries keep Yahoo's names (`Drug Manufact
 
 **Funds.** No open source has the holdings of every fund. The app tries, in this order:
 
-1. **The fund's own holdings** at State Street (every SPDR ETF) or Invesco, for US funds. Both publish the full
-   holdings with weight, ticker and trading currency.
+1. **The fund's own holdings** at iShares (US and European iShares ETFs), State Street (every SPDR ETF) or Invesco.
+   An iShares fund is found in iShares' own product lists by ticker — any listing: `SEC0` on Xetra, `SEMI` in
+   London — or else by name, since the lists have one ticker per country (`IWDA` in Amsterdam is found as "iShares
+   Core MSCI World UCITS ETF", the same fund as `SWDA` and `EUNL`). All three publish the full holdings with weight,
+   ticker and trading currency; iShares also gives the exchange and the sector.
 2. **One of the app's own indices**, if the fund's name says it tracks one: `iShares Core DAX`, `Sparindex INDEX OMX
    C25 KL`, `Vanguard 500 Index Admiral`. The holdings are then the index members, and tiles are sized by market value.
 3. **A SPDR fund on a similar index**: MSCI World, MSCI ACWI and FTSE All-World → SPGM (MSCI ACWI IMI); emerging
@@ -155,14 +165,17 @@ index shares one vocabulary; their industries keep Yahoo's names (`Drug Manufact
 4. Otherwise: "Could not load the holdings for …".
 
 Funds with a twist in the name — sector, factor, ESG, leverage, bonds — do not track the broad index and get no
-stand-in. iShares (now behind a sign-in), Vanguard, Zacks and stockanalysis.com were tried and left out: they either
-need a sign-in or turn away anything but a browser.
+stand-in. Vanguard, Zacks and stockanalysis.com were tried and left out: they turn away anything but a browser.
 
-Foreign stocks in a fund get their Yahoo symbol from ticker and currency (`7203` + JPY → `7203.T`, `700` + HKD →
-`0700.HK`, `SHEL` + GBP → `SHEL.L`). Euro stocks cannot be guessed (Paris, Frankfurt, Milan …) and are looked up by
-name. Sector and industry come from `Indices.json` if the stock is there, otherwise from Yahoo's search, mapped to the
-GICS sector names. The lookups are stored in `~/Library/Application Support/Stockmote/Funds/Names.json` and the
-holdings in the same folder, so a fund only costs Yahoo calls the first time. Yahoo answers 429 when asked too much;
+Foreign stocks in a fund get their Yahoo symbol from ticker and exchange where the provider names the exchange, as
+iShares does (`ASML` on Euronext Amsterdam → `ASML.AS`, `000660` on the Korea Exchange → `000660.KS`), and otherwise
+from ticker and currency (`7203` + JPY → `7203.T`, `700` + HKD → `0700.HK`, `SHEL` + GBP → `SHEL.L`). Euro stocks
+without an exchange cannot be guessed (Paris, Frankfurt, Milan …) and are looked up by name, and so are stocks whose
+guessed symbol Yahoo does not know (iShares writes Roche as `ROP`; Yahoo has `ROG.SW`). Sector and industry come from
+`Indices.json` if the stock is there, otherwise from Yahoo's search, mapped to the GICS sector names, and as a last
+resort from the fund's own file. The lookups are stored in `~/Library/Application Support/Stockmote/Funds/Names.json`,
+iShares' product lists in `iShares.json` and the holdings in the same folder, so a fund only costs Yahoo calls the
+first time. Yahoo answers 429 when asked too much;
 the app then waits, and retries the lookups that failed one at a time.
 
 **Opening hours** are per exchange and shown in your local time in the status line: `Closed · opens Mon 09.00`. Holidays are not known.
@@ -215,16 +228,17 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/Stockmote/StockmoteApp.swift](Sources/Stockmote/StockmoteApp.swift) | `@main`, `AppDelegate`, `stockmote://` links, snapshot mode |
 | [Sources/Stockmote/MenuBarPanel.swift](Sources/Stockmote/MenuBarPanel.swift) | Menu bar icon and coloured figure, panel window, placement, Esc |
 | [Sources/Stockmote/PanelView.swift](Sources/Stockmote/PanelView.swift) | Sidebar, toolbar, status line, favourites, watchlists, search, list view |
+| [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | The dialogs centred over the panel: add a fund (search, check its holdings, add), new and rename watchlist |
 | [Sources/Stockmote/HeatmapView.swift](Sources/Stockmote/HeatmapView.swift) | Hover, click, zoom, tooltip, right-click menu |
 | [Sources/Stockmote/Fullscreen.swift](Sources/Stockmote/Fullscreen.swift) | The borderless full-screen map and the notch strip |
 | [Sources/Stockmote/Replay.swift](Sources/Stockmote/Replay.swift) | Replay the day: history, timeline, playback, the bar under the map |
 | [Sources/Stockmote/SettingsView.swift](Sources/Stockmote/SettingsView.swift) | Settings and About |
 | [Sources/Stockmote/MarketData.swift](Sources/Stockmote/MarketData.swift) | Quotes, exchange rates, refresh loop, Nasdaq screener |
 | [Sources/Stockmote/Universe.swift](Sources/Stockmote/Universe.swift) | Loading `Indices.json` |
-| [Sources/Stockmote/Funds.swift](Sources/Stockmote/Funds.swift) | Funds: search, holdings from State Street and Invesco, stand-in indices, foreign stock lookup, cache, .xlsx reader |
+| [Sources/Stockmote/Funds.swift](Sources/Stockmote/Funds.swift) | Funds: search, holdings from iShares, State Street and Invesco, stand-in indices, foreign stock lookup, cache, .xlsx and CSV readers |
 | [Sources/Stockmote/Lists.swift](Sources/Stockmote/Lists.swift) | Favourites and watchlists |
 | [Sources/Stockmote/Preferences.swift](Sources/Stockmote/Preferences.swift) | Settings |
-| [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | What is selected, drill-down and zoom |
+| [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | What is selected, drill-down, zoom and the open dialog |
 | [Sources/Stockmote/Browsers.swift](Sources/Stockmote/Browsers.swift) | Which browser links open in (from DRmote) |
 | [Sources/Stockmote/WidgetSync.swift](Sources/Stockmote/WidgetSync.swift) | Writes `Widget.json` and reloads the widget |
 | [Sources/StockmoteShared/Treemap.swift](Sources/StockmoteShared/Treemap.swift) | Squarified treemap layout |
@@ -253,7 +267,9 @@ Options: `--tab map|favorites|watchlists|settings`, `--index <id>`, `--period 1D
 `--sector "…"`, `--industry "…"`, `--size small|medium|large|huge`, `--list`, `--zoom 2.5`,
 `--theme light|dark`, `--lang da|en`, `--no-sidebar`, `--fullscreen`, `--notch 32` (full screen as on a screen
 with a notch), `--replay 0.4` (replay paused 40 % into the range), `--fund SPY` (add and show a fund),
-`--fund-search "MSCI World"` (the fund search field, open with results).
+`--fund-search "MSCI World"` (the add-fund dialog, open with results), `--fund-pick SEC0.DE` (with that result picked
+and its holdings loaded — or the warning if none were found), `--fund-add` (and added), `--dialog new-list|rename-list`
+(the watchlist dialogs).
 
 | | |
 | --- | --- |

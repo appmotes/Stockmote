@@ -7,13 +7,13 @@ struct StockmoteApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        // Menubar-ikonet og panelet laves i AppKit af MenuBarPanel. Settings-
-        // scenen er kun noget at give SwiftUI — men den er ikke usynlig: når
-        // appen er aktiv (efter fuld skærm eller "Om Stockmote"), åbner ⌘,
-        // den som et tomt vindue — og SwiftUI viser det af og til selv ved
-        // start. Menupunktet erstattes derfor, så ⌘, åbner panelets egne
-        // indstillinger, og vinduet lukker sig selv, usynligt, hvis det
-        // alligevel kommer frem.
+        // The menu bar icon and the panel are made in AppKit by MenuBarPanel. The Settings
+        // scene is only something to give SwiftUI — but it is not invisible: when
+        // the app is active (after full screen or "About Stockmote"), ⌘, opens
+        // it as an empty window — and SwiftUI now and then shows it by itself at
+        // launch. So the menu item is replaced, making ⌘, open the panel's own
+        // settings, and the window closes itself, invisibly, if it
+        // shows up anyway.
         Settings { SettingsRedirect() }
             .commands {
                 CommandGroup(replacing: .appSettings) {
@@ -24,7 +24,7 @@ struct StockmoteApp: App {
     }
 }
 
-/// Viser indstillingerne i panelet — det eneste sted de findes.
+/// Shows the settings in the panel — the only place they exist.
 @MainActor
 func openPanelSettings() {
     if FullscreenController.shared.isShowing { FullscreenController.shared.close() }
@@ -32,9 +32,9 @@ func openPanelSettings() {
     MenuBarPanel.current?.show()
 }
 
-/// Indholdet af SwiftUI's indstillingsvindue: lukker vinduet med det samme.
-/// Det åbner ikke panelet — vinduet kan komme frem af sig selv ved start, og så
-/// skal der ikke ske noget. ⌘, går gennem menukommandoen ovenfor.
+/// The content of SwiftUI's settings window: closes the window right away.
+/// It does not open the panel — the window can show up by itself at launch, and then
+/// nothing should happen. ⌘, goes through the menu command above.
 private struct SettingsRedirect: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView { Closer() }
     func updateNSView(_ nsView: NSView, context: Context) {}
@@ -63,12 +63,12 @@ private struct SettingsRedirect: NSViewRepresentable {
     }
 }
 
-/// Holder appen ude af docken også når den kører via `swift run` (i .app-bundlen
-/// gør LSUIElement det samme) og bygger menubar-ikonet.
+/// Keeps the app out of the Dock even when it runs via `swift run` (in the .app bundle
+/// LSUIElement does the same) and builds the menu bar icon.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarPanel?
-    /// Et klik på widget'en kan starte appen; så kommer URL'en før menubaren
-    /// er bygget.
+    /// A click on the widget can launch the app; then the URL arrives before the menu bar
+    /// is built.
     private var pendingURL: URL?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             menuBar = MenuBarPanel()
             MarketStore.shared.start()
-            // Fondenes beholdninger hentes igen når de er en uge gamle.
+            // The funds' holdings are fetched again when they are a week old.
             FundStore.shared.refreshStale()
             WidgetSync.shared.start()
             if let pendingURL {
@@ -92,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// `stockmote://open?tab=favorites&index=ndx` — fra widget'en.
+    /// `stockmote://open?tab=favorites&index=ndx` — from the widget.
     func application(_ application: NSApplication, open urls: [URL]) {
         guard let url = urls.first(where: { $0.scheme == "stockmote" }) else { return }
         MainActor.assumeIsolated {
@@ -119,14 +119,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// `Stockmote --snapshot ud.png [--tab map|favorites|watchlists|settings]
+/// `Stockmote --snapshot out.png [--tab map|favorites|watchlists|settings]
 /// [--index sp500|ndx|dji] [--period 1D|1U|1M|3M|ÅTD|1Å] [--sector "…"]
 /// [--industry "…"] [--size small|medium|large|huge] [--list] [--zoom 2.5]
 /// [--theme light|dark] [--lang da|en] [--no-sidebar] [--fullscreen [--notch 32]]
-/// [--replay 0.4] [--fund SPY] [--fund-search "MSCI World"]`
+/// [--replay 0.4] [--fund SPY] [--fund-search "MSCI World" [--fund-pick URTH] [--fund-add]]
+/// [--dialog new-list|rename-list]`
 ///
-/// Henter rigtige data, renderer panelet til en PNG og afslutter. Bruges til
-/// billederne i docs/ og til at se UI'et uden at klikke rundt.
+/// Fetches real data, renders the panel to a PNG and quits. Used for
+/// the images in docs/ and to see the UI without clicking around.
 @MainActor
 struct Snapshot {
     let output: URL
@@ -167,11 +168,11 @@ struct Snapshot {
         app.showList = flags.contains("list")
         if let period = options["period"].flatMap(Period.init(rawValue:)) { market.period = period }
 
-        // Screeneren først: fondens amerikanske aktier tjekkes mod den.
+        // The screener first: the fund's US stocks are checked against it.
         await market.refresh()
 
-        // --fund SPY: fonden tilføjes (som om den var fundet i søgefeltet) og
-        // vises. Navn og type slås op i Yahoo's søgning.
+        // --fund SPY: the fund is added (as if it had been found in the search field) and
+        // shown. Name and type are looked up in Yahoo's search.
         if let symbol = options["fund"] {
             let funds = FundStore.shared
             let found = await FundStore.search(symbol).first { $0.symbol.uppercased() == symbol.uppercased() }
@@ -181,10 +182,35 @@ struct Snapshot {
             await funds.ensureLoaded(found?.symbol ?? symbol.uppercased())
             if let error = funds.errors[found?.symbol ?? symbol.uppercased()] { print("Fond: \(error)") }
         }
-        // --fund-search "MSCI World": søgefeltet under Fonde, åbent med resultater.
+        // --fund-search "MSCI World": the add-fund dialog, open with results.
+        // --fund-pick SEC0.DE: and with that result picked and its holdings
+        // loaded (or failed).
         if let query = options["fund-search"] {
-            app.fundSearchOpen = true
-            app.fundQuery = query
+            let picker = FundPicker.shared
+            picker.query = query
+            await picker.search(debounce: false)
+            if let pick = options["fund-pick"],
+               let result = picker.results.first(where: { $0.symbol.uppercased() == pick.uppercased() }) ?? picker.results.first {
+                picker.select(result)
+                await picker.waitForHoldings()
+            }
+            app.dialog = .addFund
+            // --fund-add: and then the Add button pressed.
+            if flags.contains("fund-add") {
+                picker.commit()
+                await market.loadPeriod(.day, force: false)
+            }
+        }
+        // --dialog new-list | rename-list: the watchlist dialogs.
+        switch options["dialog"] {
+        case "new-list"?:
+            app.dialog = .newWatchlist(symbols: [])
+        case "rename-list"?:
+            let lists = ListsStore.shared
+            let id = lists.watchlists.first?.id ?? lists.createWatchlist(named: tr("Tech-aktier", "Tech stocks"))
+            app.dialog = .renameWatchlist(id)
+        default:
+            break
         }
 
         await market.refresh()
@@ -196,12 +222,12 @@ struct Snapshot {
             app.focus = .sector(sector)
         }
 
-        // --fullscreen: kortet alene, som i fuldskærm, på en 1440×900-skærm.
+        // --fullscreen: the map alone, as in full screen, on a 1440×900 screen.
         let fullscreen = flags.contains("fullscreen")
         let size = fullscreen ? CGSize(width: 1440, height: 900) : prefs.panelSize.size
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.borderless], backing: .buffered, defer: false)
-        // --replay 0.4: afspilning stoppet 40 % inde i tidsrummet.
+        // --replay 0.4: replay paused 40 % into the period.
         if let fraction = options["replay"].flatMap(Double.init) {
             let replay = ReplayStore.shared
             replay.start()
@@ -209,21 +235,19 @@ struct Snapshot {
             replay.pause()
             replay.frame = Int(Double(max(replay.timeline.count - 1, 0)) * min(max(fraction, 0), 1))
         }
-        // --notch 32: fuldskærm som på en skærm med notch.
+        // --notch 32: full screen as on a display with a notch.
         let notch = CGFloat(options["notch"].flatMap(Double.init) ?? 0)
         let host = NSHostingView(rootView: fullscreen ? AnyView(FullscreenView(topInset: notch)) : AnyView(PanelRoot()))
         host.appearance = prefs.appearance
         host.frame = NSRect(origin: .zero, size: size)
         window.contentView = host
-        // Langt uden for skærmen, så musen ikke giver en tilfældig tooltip.
+        // Far off screen, so the mouse does not cause a stray tooltip.
         window.setFrameOrigin(NSPoint(x: -20000, y: -20000))
         window.orderFrontRegardless()
         window.alphaValue = 0.01
 
-        // Lad layout og GeometryReader falde på plads, også efter zoom.
+        // Let layout and GeometryReader settle, also after zoom.
         try? await Task.sleep(for: .milliseconds(600))
-        // Søgningen svarer først efter en pause i skrivningen og et kald til Yahoo.
-        if options["fund-search"] != nil { try? await Task.sleep(for: .seconds(3)) }
         if let zoom = options["zoom"].flatMap(Double.init) {
             app.zoom = zoom
             app.offset = CGPoint(x: size.width * (zoom - 1) * 0.1, y: size.height * (zoom - 1) * 0.1)

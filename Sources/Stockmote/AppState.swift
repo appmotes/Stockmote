@@ -1,14 +1,24 @@
 import SwiftUI
 import StockmoteShared
 
-/// Hvad sidebjælken har valgt: et indeks (`indexID`), favoritter, en
-/// watchliste (`watchlistID`) eller indstillinger.
+/// The "new" and "rename" actions of the sidebar, each shown as a dialog
+/// centred over the panel instead of a field squeezed into the sidebar.
+enum PanelDialog: Equatable {
+    case addFund
+    /// A new watchlist, optionally with stocks in it already (from the map's
+    /// context menu).
+    case newWatchlist(symbols: [String])
+    case renameWatchlist(UUID)
+}
+
+/// What the sidebar has selected: an index (`indexID`), favorites, a
+/// watchlist (`watchlistID`) or settings.
 enum PanelTab: String, CaseIterable, Identifiable {
     case map, favorites, watchlists, settings
     var id: String { rawValue }
 }
 
-/// Hvor man er i panelet: fane, indeks, sektor/branche og zoom.
+/// Where you are in the panel: tab, index, sector/industry and zoom.
 @MainActor
 final class AppState: ObservableObject {
     static let shared = AppState()
@@ -21,7 +31,7 @@ final class AppState: ObservableObject {
             AppDefaults.store.set(indexID, forKey: "indexID")
             guard indexID != oldValue else { return }
             focus = .all
-            // Et nyt indeks har medlemmer vi ikke har hentet kurser for endnu.
+            // A new index has members we have not fetched prices for yet.
             let market = MarketStore.shared
             Task { await market.loadPeriod(market.period, force: false) }
         }
@@ -29,16 +39,13 @@ final class AppState: ObservableObject {
     @Published var focus: Focus = .all {
         didSet { if focus != oldValue { resetZoom() } }
     }
-    /// Liste i stedet for kort.
+    /// List instead of map.
     @Published var showList: Bool {
         didSet { AppDefaults.store.set(showList, forKey: "showList") }
     }
     @Published var watchlistID: UUID?
-    /// Watchlisten hvis navn redigeres i sidebjælken lige nu.
-    @Published var renamingWatchlist: UUID?
-    /// Søgefeltet under "Fonde" er åbent, og hvad der står i det.
-    @Published var fundSearchOpen = false
-    @Published var fundQuery = ""
+    /// The dialog centred over the panel, if one is open.
+    @Published var dialog: PanelDialog?
 
     @Published var zoom: CGFloat = 1
     @Published var offset: CGPoint = .zero
@@ -48,10 +55,10 @@ final class AppState: ObservableObject {
         showList = AppDefaults.store.bool(forKey: "showList")
     }
 
-    /// Fanen før Indstillinger, så et klik mere fører tilbage.
+    /// The tab before Settings, so one more click leads back.
     private var tabBeforeSettings: PanelTab = .map
 
-    /// Indstillinger slår til og fra: åbner dem, eller går tilbage.
+    /// Settings toggles on and off: opens it, or goes back.
     func toggleSettings() {
         if tab == .settings {
             tab = tabBeforeSettings
@@ -61,8 +68,8 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Klik på et indeks i sidebjælken. Er det allerede valgt, går klikket
-    /// tilbage til hele kortet og ud af zoom — ellers skiftes indeks.
+    /// Click on an index in the sidebar. If it is already selected, the click goes
+    /// back to the whole map and out of zoom — otherwise the index changes.
     func selectIndex(_ id: String) {
         if tab == .map, indexID == id {
             focus = .all
@@ -78,8 +85,13 @@ final class AppState: ObservableObject {
         offset = .zero
     }
 
-    /// Esc: først zoom ud, så et niveau op, og først derefter lukkes panelet.
+    /// Esc: first close a dialog, then zoom out, then go up a level, and
+    /// only then is the panel closed.
     func handleEscape() -> Bool {
+        if dialog != nil {
+            dialog = nil
+            return true
+        }
         if zoom > 1.01 {
             resetZoom()
             return true

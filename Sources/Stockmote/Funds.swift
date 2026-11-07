@@ -4,21 +4,21 @@ import StockmoteShared
 
 // MARK: - Model
 
-/// En fond man har tilføjet i sidebjælken: en ETF, en investeringsforening
-/// eller lignende, kendt på sit Yahoo-symbol ("SPY", "EXS1.DE",
+/// A fund added in the sidebar: an ETF, a mutual fund or similar,
+/// known by its Yahoo symbol ("SPY", "EXS1.DE",
 /// "SPIC25KL.CO").
 struct Fund: Codable, Hashable, Identifiable {
     let symbol: String
     var name: String
-    /// Yahoo's quoteType: "ETF", "MUTUALFUND" eller "EQUITY" (danske
-    /// investeringsforeninger står ofte som aktier).
+    /// Yahoo's quoteType: "ETF", "MUTUALFUND" or "EQUITY" (Danish mutual
+    /// funds are often listed as stocks).
     var kind: String
     var exchange: String?
 
     var id: String { FundStore.id(symbol) }
     var displaySymbol: String { Symbols.display(symbol) }
 
-    /// Navnet uden udbyderens fyldord, til sidebjælken: "State Street SPDR
+    /// The name without the provider's filler words, for the sidebar: "State Street SPDR
     /// S&P 500 ETF Trust" → "SPDR S&P 500", "iShares Core MSCI World UCITS ETF
     /// USD (Acc)" → "iShares Core MSCI World".
     var shortName: String {
@@ -33,13 +33,13 @@ struct Fund: Codable, Hashable, Identifiable {
         return text.isEmpty ? name : text
     }
 
-    /// "ETF" eller "Fond" — til søgeresultater og værktøjstip.
+    /// "ETF" or "Fund" — for search results and tooltips.
     var kindLabel: String {
         kind == "ETF" ? "ETF" : tr("Fond", "Fund")
     }
 
-    /// Fondens børs, ud fra symbolets suffiks. Bruges til "Åben · lukker …"
-    /// og til hvor tit der opdateres.
+    /// The fund's exchange, from the symbol's suffix. Used for "Open · closes …"
+    /// and for how often to refresh.
     var hours: MarketHours {
         let suffix = symbol.split(separator: ".").last.map(String.init) ?? ""
         switch symbol.contains(".") ? suffix : "" {
@@ -58,33 +58,33 @@ struct Fund: Codable, Hashable, Identifiable {
     }
 }
 
-/// Én aktie i en fond. Vægten er fondens egen i procent; nil når beholdningen
-/// er lånt fra et af appens egne indekser, hvor felterne så får markedsværdi.
+/// One stock in a fund. The weight is the fund's own, in percent; nil when the holdings
+/// are borrowed from one of the app's own indices, where the fields then get market cap.
 struct Holding: Codable, Hashable {
     let symbol: String
     let weight: Double?
 }
 
-/// En fonds beholdning som hentet. Gemmes på disken og hentes igen efter en
-/// uge — beholdninger ændrer sig sjældent.
+/// A fund's holdings as loaded. Stored on disk and loaded again after a
+/// week — holdings rarely change.
 struct FundHoldings: Codable {
     var symbol: String
-    /// Største først, højst `FundStore.maxHoldings`.
+    /// Largest first, at most `FundStore.maxHoldings`.
     var holdings: [Holding]
-    /// Antal aktier i fonden før beskæring.
+    /// Number of stocks in the fund before trimming.
     var total: Int
-    /// Hvor beholdningen kom fra: "zacks" eller "index".
+    /// Where the holdings came from: "iShares", "SSGA", "Invesco" or "index".
     var source: String
-    /// Når fondens egen beholdning ikke findes: den ETF eller det indeks der
-    /// følger samme indeks ("URTH", "dax").
+    /// When the fund's own holdings aren't available: the ETF or index that
+    /// tracks the same index ("URTH", "dax").
     var proxy: String?
     var fetched: Date
-    /// Navn og sektor for aktier appen ellers ikke kender (japanske,
-    /// canadiske …), slået op i Yahoo's søgning.
+    /// Name and sector for stocks the app doesn't otherwise know (Japanese,
+    /// Canadian …), looked up in Yahoo's search.
     var stocks: [StockInfo]
 }
 
-/// Et søgeresultat fra Yahoo.
+/// A search result from Yahoo.
 struct FundSearchResult: Identifiable, Hashable {
     let symbol: String
     let name: String
@@ -102,34 +102,34 @@ enum FundError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noSource(let name):
-            return tr("Kunne ikke hente beholdningen for \(name). Fulde beholdninger findes for amerikanske ETF'er og for fonde der følger et kendt indeks.",
-                      "Could not load the holdings for \(name). Full holdings are available for US ETFs and for funds that track a well-known index.")
+            return tr("Kunne ikke hente beholdningen for \(name). Fulde beholdninger findes for iShares-, SPDR- og Invesco-ETF'er og for fonde der følger et kendt indeks.",
+                      "Could not load the holdings for \(name). Full holdings are available for iShares, SPDR and Invesco ETFs and for funds that track a well-known index.")
         case .empty(let name):
             return tr("Kunne ikke hente beholdningen for \(name).", "Could not load the holdings for \(name).")
         }
     }
 }
 
-// MARK: - Butikken
+// MARK: - Store
 
-/// Fonde i sidebjælken og deres beholdninger.
+/// Funds in the sidebar and their holdings.
 ///
-/// Listen over fonde gemmes i UserDefaults (så snapshot-tilstanden har sin
-/// egen). Beholdninger og opslag af navne gemmes som cache i
+/// The list of funds is stored in UserDefaults (so snapshot mode has its
+/// own). Holdings and name lookups are cached in
 /// `~/Library/Application Support/Stockmote/Funds/`.
 ///
-/// En fond vises som et indeks: `index(withID:)` giver en `MarketIndex` med
-/// beholdningen som medlemmer og fondens egen kurs som benchmark, så kort,
-/// liste, afspilning, fuld skærm og widget virker uden særtilfælde.
+/// A fund is shown as an index: `index(withID:)` gives a `MarketIndex` with
+/// the holdings as members and the fund's own price as benchmark, so map,
+/// list, playback, full screen and widget work without special cases.
 @MainActor
 final class FundStore: ObservableObject {
     static let shared = FundStore()
 
-    /// Store fonde (MSCI World har ~1300 aktier) beskæres til de største, så
-    /// Yahoo-kaldene holder sig på niveau med S&P 500.
+    /// Large funds (MSCI World has ~1300 stocks) are trimmed to the largest, so
+    /// the Yahoo calls stay on par with the S&P 500.
     static let maxHoldings = 500
-    /// Beholdningen hentes igen når den er ældre end en uge.
-    static let maxAge: TimeInterval = 7 * 24 * 3600
+    /// Holdings are loaded again when they are more than a week old.
+    nonisolated static let maxAge: TimeInterval = 7 * 24 * 3600
 
     nonisolated static func id(_ symbol: String) -> String { "fund:\(symbol)" }
     nonisolated static func symbol(fromID id: String) -> String? {
@@ -140,15 +140,15 @@ final class FundStore: ObservableObject {
         didSet { save() }
     }
     @Published private(set) var holdings: [String: FundHoldings] = [:]
-    /// Fond → hvad der sker lige nu ("Slår aktier op 40/130").
+    /// Fund → what is happening right now ("Looking up stocks 40/130").
     @Published private(set) var progress: [String: String] = [:]
     @Published private(set) var errors: [String: String] = [:]
 
-    /// Klassifikation for aktier i fondene som ikke findes i Indices.json
-    /// eller Nasdaq's screener.
+    /// Classification for stocks in the funds that aren't in Indices.json
+    /// or Nasdaq's screener.
     private(set) var info: [String: StockInfo] = [:]
-    /// Navn fra fonden → aktie, slået op én gang og gemt. En tom streng
-    /// betyder at opslaget ikke fandt noget.
+    /// Name from the fund → stock, looked up once and stored. An empty string
+    /// means the lookup found nothing.
     private var names: [String: NameMatch] = [:]
     private var tasks: [String: Task<Void, Never>] = [:]
 
@@ -181,14 +181,14 @@ final class FundStore: ObservableObject {
         defaults.set(data, forKey: "funds")
     }
 
-    // MARK: Opslag
+    // MARK: Lookup
 
     func fund(_ symbol: String) -> Fund? { funds.first { $0.symbol == symbol } }
 
     func contains(_ symbol: String) -> Bool { fund(symbol) != nil }
 
-    /// Fonden som indeks. Findes den, men er beholdningen ikke hentet endnu,
-    /// er medlemslisten tom — kortet viser så at den hentes.
+    /// The fund as an index. If it exists but its holdings aren't loaded yet,
+    /// the member list is empty — the map then shows that they are loading.
     func index(withID id: String) -> MarketIndex? {
         guard let symbol = Self.symbol(fromID: id), let fund = fund(symbol) else { return nil }
         return index(for: fund)
@@ -210,20 +210,23 @@ final class FundStore: ObservableObject {
 
     var indices: [MarketIndex] { funds.map(index(for:)) }
 
-    /// Alle aktier i alle fonde.
+    /// All stocks in all funds.
     var allSymbols: Set<String> {
         Set(holdings.values.flatMap { $0.holdings.map(\.symbol) })
     }
 
-    /// Aktiens vægt i fonden, i procent.
+    /// The stock's weight in the fund, in percent.
     func weight(of symbol: String, inIndex id: String) -> Double? {
         guard let fund = Self.symbol(fromID: id) else { return nil }
         return holdings[fund]?.holdings.first { $0.symbol == symbol }?.weight
     }
 
-    /// "SSGA · de 500 største af 2.874 aktier" eller "Samme indeks som 🇩🇪 DAX".
+    /// "SSGA · the 500 largest of 2,874 stocks" or "Same index as 🇩🇪 DAX".
     func sourceNote(_ symbol: String) -> String? {
-        guard let loaded = holdings[symbol] else { return nil }
+        holdings[symbol].map(sourceNote(for:))
+    }
+
+    func sourceNote(for loaded: FundHoldings) -> String {
         var parts: [String] = []
         if loaded.source == "index", let proxy = loaded.proxy,
            let index = UniverseStore.shared.index(withID: proxy) {
@@ -241,12 +244,43 @@ final class FundStore: ObservableObject {
         return parts.joined(separator: " · ")
     }
 
-    // MARK: Tilføj og fjern
+    /// One line for the add-fund dialog once the holdings are loaded:
+    /// "237 stocks · largest: NVDA 9.8 %".
+    func preview(_ loaded: FundHoldings) -> String {
+        let count = tr("\(Format.integer(loaded.total)) aktier", "\(Format.integer(loaded.total)) stocks")
+        guard let top = loaded.holdings.first, let weight = top.weight else { return count }
+        // Asian tickers are just numbers ("2330"); the company name says more.
+        var name = Symbols.display(top.symbol)
+        if name.allSatisfy(\.isNumber),
+           let info = loaded.stocks.first(where: { $0.symbol == top.symbol }) ?? UniverseStore.shared.info[top.symbol] {
+            name = Self.nameWords(info.name).prefix(2).map(\.capitalized).joined(separator: " ")
+        }
+        return "\(count) · " + tr("største: \(name) \(Format.weight(weight))", "largest: \(name) \(Format.weight(weight))")
+    }
 
-    /// Tilføjer fonden (hvis den ikke er der) og henter beholdningen.
+    // MARK: Add and remove
+
+    /// Adds the fund (if it isn't there) and loads its holdings. Used
+    /// by snapshot mode; the dialog uses `resolve` and `add(_:holdings:)`.
     func add(_ fund: Fund) {
         if !contains(fund.symbol) { funds.append(fund) }
         load(fund.symbol, force: false)
+    }
+
+    /// Loads the fund's holdings without adding it. The dialog shows them
+    /// first, so a fund no source knows never ends up in the sidebar.
+    /// `report` gets the progress ("Looking up stocks 40/130…").
+    func resolve(_ fund: Fund, report: @escaping @MainActor (String) -> Void) async throws -> FundHoldings {
+        try await buildHoldings(fund, report: report)
+    }
+
+    /// Adds a fund whose holdings `resolve` just loaded. They are cached
+    /// right away, so the fund shows without being loaded again.
+    func add(_ fund: Fund, holdings loaded: FundHoldings) {
+        if !contains(fund.symbol) { funds.append(fund) }
+        errors[fund.symbol] = nil
+        keep(loaded)
+        Task { await loadQuotes() }
     }
 
     func remove(_ symbol: String) {
@@ -261,25 +295,33 @@ final class FundStore: ObservableObject {
         if app.indexID == Self.id(symbol) { app.indexID = "sp500" }
     }
 
-    /// Henter beholdninger der mangler eller er mere end en uge gamle.
+    /// Loads holdings that are missing or more than a week old.
     func refreshStale() {
-        for fund in funds {
-            let age = holdings[fund.symbol].map { Date().timeIntervalSince($0.fetched) } ?? .infinity
-            if age > Self.maxAge { load(fund.symbol, force: false) }
+        for fund in funds where !isFresh(fund) {
+            load(fund.symbol, force: false)
         }
     }
 
-    /// Henter beholdningen i baggrunden. `force` henter selv om den er frisk.
+    /// Stored holdings are fresh for a week — except holdings borrowed from
+    /// a similar fund or index for an iShares fund. Those were stored before
+    /// iShares became a source, and the fund's own holdings can now be loaded.
+    private func isFresh(_ fund: Fund) -> Bool {
+        guard let loaded = holdings[fund.symbol] else { return false }
+        if loaded.proxy != nil, IShares.isIShares(fund.name) { return false }
+        return Date().timeIntervalSince(loaded.fetched) < Self.maxAge
+    }
+
+    /// Loads the holdings in the background. `force` loads even when they are fresh.
     func load(_ symbol: String, force: Bool) {
         guard tasks[symbol] == nil, let fund = fund(symbol) else { return }
-        if !force, let loaded = holdings[symbol], Date().timeIntervalSince(loaded.fetched) < Self.maxAge { return }
+        if !force, isFresh(fund) { return }
         tasks[symbol] = Task { [weak self] in
             await self?.fetch(fund)
             self?.tasks[symbol] = nil
         }
     }
 
-    /// Venter til beholdningen er hentet (til snapshot-tilstanden).
+    /// Waits until the holdings are loaded (for snapshot mode).
     func ensureLoaded(_ symbol: String) async {
         load(symbol, force: false)
         await tasks[symbol]?.value
@@ -290,32 +332,40 @@ final class FundStore: ObservableObject {
         progress[fund.symbol] = tr("Henter beholdningen…", "Loading holdings…")
         defer { progress[fund.symbol] = nil }
         do {
-            let loaded = try await buildHoldings(fund)
+            let loaded = try await buildHoldings(fund) { [weak self] in self?.progress[fund.symbol] = $0 }
             guard !Task.isCancelled, contains(fund.symbol) else { return }
-            holdings[fund.symbol] = loaded
-            for stock in loaded.stocks { info[stock.symbol] = stock }
-            Self.writeJSON(loaded, to: Self.cacheURL(fund.symbol))
-            // De nye aktier har ingen kurser endnu.
-            let market = MarketStore.shared
-            await market.loadPeriod(.day, force: false)
-            if market.period != .day { await market.loadPeriod(market.period, force: false) }
+            keep(loaded)
+            await loadQuotes()
         } catch {
             guard !Task.isCancelled else { return }
-            // En gammel beholdning er bedre end ingen; fejlen vises kun når
-            // der intet er.
+            // Old holdings are better than none; the error only shows when
+            // there are none.
             if holdings[fund.symbol] == nil {
                 errors[fund.symbol] = error.localizedDescription
             }
         }
     }
 
-    // MARK: Hentning
+    private func keep(_ loaded: FundHoldings) {
+        holdings[loaded.symbol] = loaded
+        for stock in loaded.stocks { info[stock.symbol] = stock }
+        Self.writeJSON(loaded, to: Self.cacheURL(loaded.symbol))
+    }
 
-    /// Fondens egen beholdning hos udbyderen hvis den er amerikansk; ellers en
-    /// fond eller et indeks der følger samme indeks (se `FundProxy`).
-    private func buildHoldings(_ fund: Fund) async throws -> FundHoldings {
-        if !fund.symbol.contains("."), let found = await FundSources.holdings(fund.symbol) {
-            return try await fromRows(found.rows, source: found.source, fund: fund, proxy: nil)
+    /// The new stocks don't have prices yet.
+    private func loadQuotes() async {
+        let market = MarketStore.shared
+        await market.loadPeriod(.day, force: false)
+        if market.period != .day { await market.loadPeriod(market.period, force: false) }
+    }
+
+    // MARK: Loading
+
+    /// The fund's own holdings from the provider (iShares, SSGA, Invesco); otherwise
+    /// a fund or index that tracks the same index (see `FundProxy`).
+    private func buildHoldings(_ fund: Fund, report: @escaping @MainActor (String) -> Void) async throws -> FundHoldings {
+        if let found = await FundSources.holdings(fund.symbol, name: fund.name) {
+            return try await fromRows(found.rows, source: found.source, fund: fund, proxy: nil, report: report)
         }
         switch FundProxy.match(fund.name) {
         case .index(let id)?:
@@ -323,19 +373,20 @@ final class FundStore: ObservableObject {
             return FundHoldings(symbol: fund.symbol, holdings: index.symbols.map { Holding(symbol: $0, weight: nil) },
                                 total: index.symbols.count, source: "index", proxy: id, fetched: Date(), stocks: [])
         case .etf(let etf)?:
-            progress[fund.symbol] = tr("Henter beholdningen fra \(etf)…", "Loading holdings from \(etf)…")
+            report(tr("Henter beholdningen fra \(etf)…", "Loading holdings from \(etf)…"))
             guard let found = await FundSources.holdings(etf) else { break }
-            return try await fromRows(found.rows, source: found.source, fund: fund, proxy: etf)
+            return try await fromRows(found.rows, source: found.source, fund: fund, proxy: etf, report: report)
         case nil:
             break
         }
         throw FundError.noSource(fund.name)
     }
 
-    private func fromRows(_ rows: [FundSources.Row], source: String, fund: Fund, proxy: String?) async throws -> FundHoldings {
+    private func fromRows(_ rows: [FundSources.Row], source: String, fund: Fund, proxy: String?,
+                          report: @MainActor (String) -> Void) async throws -> FundHoldings {
         let market = MarketStore.shared
         let universe = UniverseStore.shared
-        // Kontanter, futures, pengemarkedsfonde og lignende er ikke aktier.
+        // Cash, futures, money market funds and the like are not stocks.
         var stocks = rows.filter { $0.weight > 0 && !FundSources.isNonEquity($0.name, ticker: $0.ticker) }
         stocks.sort { $0.weight > $1.weight }
         let total = stocks.count
@@ -346,20 +397,20 @@ final class FundStore: ObservableObject {
         var unresolved: [FundSources.Row] = []
         for row in stocks {
             if row.isUS, let us = row.yahooGuess {
-                // Står den hverken i screeneren eller i indekserne, er det
-                // nok en fond eller kontanter.
+                // If it's in neither the screener nor the indices, it is
+                // probably a fund or cash.
                 if !market.quotes.isEmpty, market.quotes[us] == nil, universe.info[us] == nil { continue }
                 result.append(Holding(symbol: us, weight: row.weight))
                 if market.quotes[us] == nil, universe.info[us] == nil {
-                    found.append(StockInfo(symbol: us, name: row.name.capitalized, sector: "Øvrige", industry: "Øvrige"))
+                    found.append(row.fallbackInfo(us) ?? StockInfo(symbol: us, name: row.name.capitalized, sector: "Øvrige", industry: "Øvrige"))
                 }
             } else {
                 unresolved.append(row)
             }
         }
 
-        // Udenlandske aktier: først Indices.json og tidligere opslag, så
-        // Yahoo's søgning, fire ad gangen.
+        // Foreign stocks: first Indices.json and earlier lookups, then
+        // Yahoo's search, four at a time.
         var matches: [(FundSources.Row, NameMatch)] = []
         var lookups: [FundSources.Row] = []
         for row in unresolved {
@@ -382,7 +433,7 @@ final class FundStore: ObservableObject {
             }
             while let (row, match) = await group.next() {
                 done += 1
-                progress[fund.symbol] = tr("Slår aktier op \(done)/\(count)…", "Looking up stocks \(done)/\(count)…")
+                report(tr("Slår aktier op \(done)/\(count)…", "Looking up stocks \(done)/\(count)…"))
                 if let match {
                     names[Self.nameKey(row)] = match
                     matches.append((row, match))
@@ -394,17 +445,17 @@ final class FundStore: ObservableObject {
                 }
             }
         }
-        // Yahoo svarer 429 når der spørges meget. De opslag der fejlede prøves
-        // én gang til, ét ad gangen. Fejler de stadig, gemmes de ikke — så
-        // prøves de igen næste gang — og indtil da bruges tickeren som den
-        // er, uden sektor.
+        // Yahoo answers 429 when asked a lot. Lookups that failed are retried
+        // once, one at a time. If they still fail, they aren't stored — so
+        // they are retried next time — and until then the ticker is used as
+        // is, without a sector.
         for row in failed {
             try? await Task.sleep(for: .milliseconds(400))
             if let match = await Self.yahooMatch(row) {
                 names[Self.nameKey(row)] = match
                 matches.append((row, match))
             } else if let guess = row.yahooGuess {
-                matches.append((row, NameMatch(symbol: guess, info: nil)))
+                matches.append((row, NameMatch(symbol: guess, info: row.fallbackInfo(guess))))
             }
         }
         if count > 0 { Self.writeJSON(names, to: Self.namesURL) }
@@ -413,8 +464,8 @@ final class FundStore: ObservableObject {
             if let info = match.info { found.append(info) }
         }
 
-        // Samme aktie to gange (fx to aktieklasser der slås op til samme
-        // symbol): læg vægten sammen.
+        // The same stock twice (e.g. two share classes that resolve to the same
+        // symbol): add up the weights.
         var merged: [String: Double] = [:]
         var order: [String] = []
         for holding in result {
@@ -427,13 +478,13 @@ final class FundStore: ObservableObject {
                             source: source, proxy: proxy, fetched: Date(), stocks: found)
     }
 
-    /// Navn og valuta: samme navn kan være to selskaber på to børser.
+    /// Name and currency: the same name can be two companies on two exchanges.
     nonisolated private static func nameKey(_ row: FundSources.Row) -> String {
         "\(row.name.uppercased())|\(row.currency)"
     }
 
-    /// En europæisk aktie i et af appens indekser: samme symbol som gættet,
-    /// samme ticker og samme første ord i navnet, eller helt samme navn.
+    /// A European stock in one of the app's indices: same symbol as the guess,
+    /// same ticker and same first word in the name, or exactly the same name.
     private func localMatch(_ row: FundSources.Row) -> NameMatch? {
         let universe = UniverseStore.shared
         if let guess = row.yahooGuess, universe.info[guess] != nil { return NameMatch(symbol: guess, info: nil) }
@@ -450,7 +501,7 @@ final class FundStore: ObservableObject {
         return nil
     }
 
-    /// Navnet uden selskabsform og tegn: "ROLLS-ROYCE HOLDINGS PLC" → ["ROLLS", "ROYCE"].
+    /// The name without legal form and punctuation: "ROLLS-ROYCE HOLDINGS PLC" → ["ROLLS", "ROYCE"].
     nonisolated static func nameWords(_ name: String) -> [String] {
         let stop: Set<String> = ["PLC", "AG", "SA", "SE", "NV", "ASA", "AB", "OYJ", "AS", "A", "B", "N", "LTD", "INC",
                                  "CORP", "CO", "HOLDING", "HOLDINGS", "GROUP", "THE", "REG", "CLASS", "SPA", "PUBL",
@@ -465,31 +516,36 @@ final class FundStore: ObservableObject {
         text.uppercased().filter { $0.isLetter || $0.isNumber }
     }
 
-    /// Slår et selskab op i Yahoo's søgning for at få sektor og branche — og
-    /// symbolet, når det ikke kan gættes ud fra ticker og valuta (euro-aktier).
-    /// Foretrækker gættet, ellers hovednoteringen (SAN.PA frem for BNP.F eller
-    /// en OTC-ADR) og en ticker der passer med den fonden selv skriver.
+    /// Looks up a company in Yahoo's search to get sector and industry — and
+    /// the symbol, when it can't be guessed from ticker and currency (euro stocks).
+    /// Prefers the guess, otherwise the primary listing (SAN.PA over BNP.F or
+    /// an OTC ADR) and a ticker that matches the one the fund itself writes.
     nonisolated private static func yahooMatch(_ row: FundSources.Row) async -> NameMatch? {
-        // Først det gættede symbol ("RY.TO") — så svarer Yahoo med netop den
-        // aktie. Ellers navnet, og til sidst de to første ord: søgningen
-        // finder intet på "ROYAL BANK CANADA", men noget på "ROYAL BANK".
+        // First the guessed symbol ("RY.TO") — then Yahoo answers with exactly that
+        // stock. Otherwise the name, and finally the first two words: the search
+        // finds nothing for "ROYAL BANK CANADA", but something for "ROYAL BANK".
         let words = nameWords(row.name)
         var queries: [String] = []
         for query in [row.yahooGuess ?? "", words.prefix(4).joined(separator: " "), words.prefix(2).joined(separator: " ")] {
             if !query.isEmpty, !queries.contains(query) { queries.append(query) }
         }
         var answered = false
+        var guessKnown = false
         for query in queries {
             guard let quotes = await YahooSearch.quotes(query, count: 8) else { continue }
             answered = true
-            if let match = pick(quotes, for: row) { return match }
+            if quotes.contains(where: { $0.symbol == row.yahooGuess }) { guessKnown = true }
+            // If Yahoo doesn't know the guessed symbol, its other answers are
+            // other companies with a similar ticker — look up the name instead.
+            if query == row.yahooGuess, !guessKnown { continue }
+            if let match = pick(quotes, for: row, guessKnown: guessKnown) { return match }
         }
-        // Svarede Yahoo slet ikke, prøves det igen senere (nil). Svarede den
-        // uden at kende aktien: tickeren som den er, uden sektor.
-        return answered ? NameMatch(symbol: row.yahooGuess ?? "", info: nil) : nil
+        // If Yahoo didn't answer at all, try again later (nil). If it answered
+        // without knowing the stock: the ticker as is, without a sector.
+        return answered ? NameMatch(symbol: row.yahooGuess ?? "", info: row.yahooGuess.flatMap(row.fallbackInfo)) : nil
     }
 
-    nonisolated private static func pick(_ quotes: [YahooSearch.Quote], for row: FundSources.Row) -> NameMatch? {
+    nonisolated private static func pick(_ quotes: [YahooSearch.Quote], for row: FundSources.Row, guessKnown: Bool) -> NameMatch? {
         let equities = quotes.filter { $0.quoteType == "EQUITY" }
         let ticker = squash(row.ticker)
         let guess = row.yahooGuess
@@ -507,27 +563,34 @@ final class FundStore: ObservableObject {
             return points
         }
         guard let best = equities.enumerated().max(by: { a, b in
-            // Lige point: Yahoo's egen rækkefølge.
+            // Tied score: Yahoo's own order.
             (score(a.element), -a.offset) < (score(b.element), -b.offset)
         })?.element, score(best) > -10 else { return nil }
-        // Et gæt ud fra ticker og valuta vinder over søgningens symbol — det
-        // er udbyderens egen oplysning. Søgningen giver så kun sektoren.
-        // Amerikanske klasse-aktier skrives med punktum internt ("BRK.B").
-        let symbol = guess ?? (best.symbol.contains(".") && Symbols.isForeign(best.symbol)
+        // A guess from ticker and exchange wins over the search's symbol — it
+        // is the provider's own information, and the search only adds the
+        // sector. Except when Yahoo doesn't know the guess but found the
+        // company on the same exchange under another ticker: iShares writes
+        // Roche as "ROP", Yahoo has "ROG.SW".
+        // US class shares are written with a dot internally ("BRK.B").
+        func suffix(_ symbol: String) -> String { symbol.contains(".") ? String(symbol.split(separator: ".").last!) : "" }
+        let replaceGuess = guess.map { !guessKnown && suffix($0) == suffix(best.symbol) } ?? true
+        let symbol = guess.flatMap { replaceGuess ? nil : $0 } ?? (best.symbol.contains(".") && Symbols.isForeign(best.symbol)
             ? best.symbol
             : best.symbol.replacingOccurrences(of: "-", with: "."))
+        // If Yahoo doesn't know the sector, use the fund's own (iShares writes it).
+        let sector = YahooSearch.gicsSector(best.sector)
         let info = StockInfo(
             symbol: symbol, name: best.name,
-            sector: YahooSearch.gicsSector(best.sector),
+            sector: sector == "Øvrige" ? (row.gicsSector ?? sector) : sector,
             industry: (best.industry ?? "Øvrige").replacingOccurrences(of: "—", with: " – "),
             currency: YahooSearch.currency(for: symbol)
         )
         return NameMatch(symbol: symbol, info: info)
     }
 
-    // MARK: Søgning
+    // MARK: Search
 
-    /// ETF'er og fonde der matcher teksten.
+    /// ETFs and funds that match the text.
     nonisolated static func search(_ text: String) async -> [FundSearchResult] {
         let query = text.trimmingCharacters(in: .whitespaces)
         guard query.count >= 2, let quotes = await YahooSearch.quotes(query, count: 15) else { return [] }
@@ -540,34 +603,34 @@ final class FundStore: ObservableObject {
         }
     }
 
-    /// Danske investeringsforeninger står ofte som aktier hos Yahoo
+    /// Danish mutual funds are often listed as stocks on Yahoo
     /// ("Sparindex INDEX OMX C25 KL").
     nonisolated private static func looksLikeFund(_ name: String) -> Bool {
         let words = Set(name.uppercased().components(separatedBy: CharacterSet.alphanumerics.inverted))
         return !words.isDisjoint(with: ["ETF", "UCITS", "INDEX", "INDEKS", "KL", "FUND", "FOND", "SPARINDEX"])
     }
 
-    // MARK: Filer
+    // MARK: Files
 
-    private static var folder: URL {
+    nonisolated static var folder: URL {
         UniverseStore.userOverrideURL.deletingLastPathComponent().appendingPathComponent("Funds")
     }
 
-    private static func cacheURL(_ symbol: String) -> URL {
+    nonisolated private static func cacheURL(_ symbol: String) -> URL {
         let safe = symbol.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
         return folder.appendingPathComponent("\(safe).json")
     }
 
     private static var namesURL: URL { folder.appendingPathComponent("Names.json") }
 
-    private static func readJSON<T: Decodable>(_ type: T.Type, from url: URL) -> T? {
+    nonisolated static func readJSON<T: Decodable>(_ type: T.Type, from url: URL) -> T? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(type, from: data)
     }
 
-    private static func writeJSON<T: Encodable>(_ value: T, to url: URL) {
+    nonisolated static func writeJSON<T: Encodable>(_ value: T, to url: URL) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(value) else { return }
@@ -576,64 +639,140 @@ final class FundStore: ObservableObject {
     }
 }
 
-// MARK: - Kilder
+// MARK: - Sources
 
-/// Kilder til fulde beholdninger. Ingen af dem kræver konto eller nøgle, og
-/// ingen er et dokumenteret API — det er de filer udbyderne selv lægger frem
-/// til download på fondenes sider.
+/// Sources for full holdings. None of them needs an account or key, and
+/// none is a documented API — they are the files the providers themselves offer
+/// for download on the funds' pages.
 ///
-/// - **State Street (SSGA)**: et regneark med hele beholdningen for alle
-///   SPDR-ETF'er (SPY, XLK, SPGM …), opdateret dagligt.
-/// - **Invesco**: JSON med hele beholdningen (QQQ, RSP …).
+/// - **iShares (BlackRock)**: a CSV with the full holdings on each fund's page,
+///   for both US ETFs (SOXX, IVV …) and European UCITS ETFs
+///   (SEC0, EUNL, CSPX …). See `IShares`.
+/// - **State Street (SSGA)**: a spreadsheet with the full holdings for all
+///   SPDR ETFs (SPY, XLK, SPGM …), updated daily.
+/// - **Invesco**: JSON with the full holdings (QQQ, RSP …).
 ///
-/// iShares og Vanguard kræver nu login eller svarer ikke uden en browser, og
-/// Zacks og stockanalysis.com afviser andet end browsere — dem bruges ikke.
+/// Vanguard doesn't answer without a browser, and Zacks and stockanalysis.com
+/// reject anything but browsers — those aren't used.
 enum FundSources {
     struct Row: Sendable {
         let name: String
-        /// Tickeren som udbyderen skriver den: "AAPL", "BRK.B", "7203", "NOVN".
+        /// The ticker as the provider writes it: "AAPL", "BRK.B", "7203", "NOVN".
         let ticker: String
-        /// Handelsvaluta. Den afgør børsen: USD er en amerikansk aktie, JPY Tokyo.
+        /// Trading currency. Without an exchange it decides the exchange: USD is a US
+        /// stock, JPY Tokyo.
         let currency: String
-        /// Procent af fonden.
+        /// Percent of the fund.
         let weight: Double
+        /// The exchange as the provider writes it ("Euronext Amsterdam", "Xetra").
+        /// Only iShares has it; it decides the exchange for euro stocks, which
+        /// the currency can't.
+        var exchange: String? = nil
+        /// The GICS sector as the provider writes it, for stocks Yahoo doesn't know.
+        var sector: String? = nil
 
-        var isUS: Bool { currency == "USD" }
+        /// The Yahoo suffix for the stock's exchange, "" for the US: from the exchange when
+        /// the provider writes it, otherwise from the currency when it has only one
+        /// exchange. nil when it can't be determined (euro without exchange, Thailand …) —
+        /// then the stock is looked up by name.
+        var suffix: String? {
+            if let exchange, let known = FundSources.suffix(exchange: exchange) { return known }
+            return FundSources.suffix(currency: currency)
+        }
 
-        /// Yahoo-symbolet ud fra ticker og valuta, når valutaen kun har én
-        /// børs. Euro-aktier (Paris, Frankfurt, Milano …) kan ikke gættes og
-        /// slås op på navnet.
+        var isUS: Bool { suffix == "" }
+
+        /// The Yahoo symbol from ticker and exchange. Each exchange writes tickers
+        /// its own way on Yahoo: class shares with a dot in the US and
+        /// a hyphen in Stockholm, Hong Kong with four digits …
         var yahooGuess: String? {
             let t = ticker.trimmingCharacters(in: .whitespaces)
-            guard !t.isEmpty else { return nil }
-            switch currency {
-            case "USD": return t.replacingOccurrences(of: "/", with: ".")
-            case "JPY": return "\(t).T"
-            case "HKD": return "\(String(repeating: "0", count: max(0, 4 - t.count)))\(t).HK"
-            case "CAD": return "\(t.replacingOccurrences(of: ".", with: "-")).TO"
-            case "AUD": return "\(t).AX"
-            case "GBP", "GBp", "GBX":
+            guard !t.isEmpty, let suffix else { return nil }
+            switch suffix {
+            case "": return t.replacingOccurrences(of: "/", with: ".").replacingOccurrences(of: " ", with: ".")
+            case "HK": return "\(String(repeating: "0", count: max(0, 4 - t.count)))\(t).HK"
+            case "TO": return "\(t.replacingOccurrences(of: ".", with: "-").replacingOccurrences(of: " ", with: "-")).TO"
+            case "L":
+                // Dollar listings in London (GDRs) are named differently on Yahoo.
+                guard ["GBP", "GBp", "GBX"].contains(currency) else { return nil }
                 let base = t.hasSuffix(".") ? String(t.dropLast()) : t
-                return "\(base.replacingOccurrences(of: ".", with: "-").replacingOccurrences(of: "/", with: "-")).L"
-            case "CHF": return "\(t).SW"
-            case "SEK": return "\(t.replacingOccurrences(of: " ", with: "-")).ST"
-            case "NOK": return "\(t).OL"
-            case "DKK": return "\(t.replacingOccurrences(of: " ", with: "-")).CO"
-            case "SGD": return "\(t).SI"
-            case "ILS", "ILA": return "\(t.replacingOccurrences(of: ".", with: "")).TA"
-            case "KRW": return "\(t.hasPrefix("A") ? String(t.dropFirst()) : t).KS"
-            case "TWD": return "\(t).TW"
-            case "NZD": return "\(t).NZ"
-            case "INR": return "\(t).NS"
-            case "BRL": return "\(t).SA"
-            case "ZAR": return "\(t).JO"
-            case "PLN": return "\(t).WA"
-            default: return nil
+                return "\(base.replacingOccurrences(of: ".", with: "-").replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: " ", with: "-")).L"
+            case "TA": return "\(t.replacingOccurrences(of: ".", with: "")).TA"
+            case "KS", "KQ": return "\(t.hasPrefix("A") ? String(t.dropFirst()) : t).\(suffix)"
+            default: return "\(t.replacingOccurrences(of: " ", with: "-")).\(suffix)"
             }
+        }
+
+        /// The sector as a GICS name, or nil if the provider doesn't write one
+        /// the app knows (iShares' German files write "IT", "Gesundheitswesen" …).
+        var gicsSector: String? {
+            guard let sector else { return nil }
+            let name = sector == "Communication" ? "Communication Services" : sector
+            return FundSources.gicsSectors.contains(name) ? name : nil
+        }
+
+        /// Name and sector from the fund itself, when Yahoo doesn't know the stock.
+        func fallbackInfo(_ symbol: String) -> StockInfo? {
+            guard let gicsSector else { return nil }
+            return StockInfo(symbol: symbol, name: name.capitalized, sector: gicsSector, industry: "Øvrige",
+                             currency: YahooSearch.currency(for: symbol))
         }
     }
 
-    /// Kontanter, futures, swaps og pengemarkedsfonde.
+    static let gicsSectors: Set<String> = [
+        "Information Technology", "Health Care", "Financials", "Consumer Discretionary", "Consumer Staples",
+        "Industrials", "Energy", "Utilities", "Materials", "Real Estate", "Communication Services"
+    ]
+
+    /// Currencies with only one exchange, as Yahoo suffix.
+    static func suffix(currency: String) -> String? {
+        switch currency {
+        case "USD": return ""
+        case "JPY": return "T"
+        case "HKD": return "HK"
+        case "CAD": return "TO"
+        case "AUD": return "AX"
+        case "GBP", "GBp", "GBX": return "L"
+        case "CHF": return "SW"
+        case "SEK": return "ST"
+        case "NOK": return "OL"
+        case "DKK": return "CO"
+        case "SGD": return "SI"
+        case "ILS", "ILA": return "TA"
+        case "KRW": return "KS"
+        case "TWD": return "TW"
+        case "NZD": return "NZ"
+        case "INR": return "NS"
+        case "BRL": return "SA"
+        case "ZAR": return "JO"
+        case "PLN": return "WA"
+        default: return nil
+        }
+    }
+
+    /// Exchanges as iShares writes them, as Yahoo suffix. The first match
+    /// wins, so "Nasdaq Omx Helsinki" comes before "Nasdaq", and "Nyse Euronext
+    /// - Euronext Paris" before "Nyse". Exchanges not listed here (Thailand,
+    /// Saudi Arabia …) — or "Nasdaq Omx Nordic", which covers four countries —
+    /// are left to the currency and otherwise to the name lookup.
+    private static let exchanges: [(String, String?)] = [
+        ("amsterdam", "AS"), ("paris", "PA"), ("brussels", "BR"), ("lisbon", "LS"), ("irish", "IR"), ("dublin", "IR"),
+        ("xetra", "DE"), ("deutsche b", "DE"), ("borsa italiana", "MI"), ("madrid", "MC"), ("wiener", "VI"),
+        ("athens", "AT"), ("helsinki", "HE"), ("copenhagen", "CO"), ("oslo", "OL"), ("stockholm", "ST"),
+        ("nasdaq omx", nil), ("swiss", "SW"), ("london", "L"), ("warsaw", "WA"), ("istanbul", "IS"),
+        ("tel aviv", "TA"), ("johannesburg", "JO"), ("tokyo", "T"), ("hong kong", "HK"), ("kosdaq", "KQ"),
+        ("korea exchange", "KS"), ("gretai", "TWO"), ("taipei exchange", "TWO"), ("taiwan stock exchange", "TW"),
+        ("shanghai", "SS"), ("shenzhen", "SZ"), ("national stock exchange of india", "NS"), ("singapore", "SI"),
+        ("asx", "AX"), ("new zealand", "NZ"), ("toronto", "TO"), ("xbsp", "SA"),
+        ("nasdaq", ""), ("nyse", ""), ("new york stock exchange", ""), ("cboe", ""), ("arca", "")
+    ]
+
+    static func suffix(exchange: String) -> String? {
+        let name = exchange.lowercased()
+        return exchanges.first { name.contains($0.0) }?.1
+    }
+
+    /// Cash, futures, swaps and money market funds.
     static func isNonEquity(_ name: String, ticker: String) -> Bool {
         let upper = " \(name.uppercased()) "
         if ticker.isEmpty || ticker == "-" || ticker == "N/A" { return true }
@@ -642,14 +781,22 @@ enum FundSources {
             .contains { upper.contains($0) }
     }
 
-    /// Prøver udbyderne efter tur. nil: ingen af dem kender fonden.
-    static func holdings(_ symbol: String) async -> (rows: [Row], source: String)? {
+    /// Tries the providers in turn. nil: none of them knows the fund.
+    ///
+    /// iShares first: it also knows European funds, and it is skipped
+    /// without a single call when the name isn't an iShares fund. SSGA and
+    /// Invesco only know US tickers.
+    static func holdings(_ symbol: String, name: String? = nil) async -> (rows: [Row], source: String)? {
+        if let name, let rows = try? await IShares.holdings(symbol: symbol, name: name), !rows.isEmpty {
+            return (rows, "iShares")
+        }
+        guard !symbol.contains(".") else { return nil }
         if let rows = try? await ssga(symbol), !rows.isEmpty { return (rows, "SSGA") }
         if let rows = try? await invesco(symbol), !rows.isEmpty { return (rows, "Invesco") }
         return nil
     }
 
-    /// SPDR-fondenes daglige regneark. 404 for alle andre fonde.
+    /// The SPDR funds' daily spreadsheet. 404 for all other funds.
     static func ssga(_ symbol: String) async throws -> [Row] {
         let ticker = symbol.lowercased().addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
         guard let url = URL(string: "https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us/holdings-daily-us-en-\(ticker).xlsx") else { return [] }
@@ -657,7 +804,7 @@ enum FundSources {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else { throw MarketError.http(status) }
         let rows = try XLSX.rows(data)
-        // Øverst står fondens navn og dato; tabellen starter ved "Name".
+        // At the top are the fund's name and date; the table starts at "Name".
         guard let header = rows.firstIndex(where: { $0.first == "Name" }) else { return [] }
         let columns = rows[header]
         func column(_ name: String) -> Int? { columns.firstIndex(of: name) }
@@ -684,7 +831,7 @@ enum FundSources {
         }
     }
 
-    /// Invesco's ETF'er (QQQ, RSP, SPHD …).
+    /// Invesco's ETFs (QQQ, RSP, SPHD …).
     static func invesco(_ symbol: String) async throws -> [Row] {
         let ticker = symbol.uppercased().addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
         guard let url = URL(string: "https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/\(ticker)/holdings/fund?idType=ticker&productType=ETF") else { return [] }
@@ -701,10 +848,255 @@ enum FundSources {
     }
 }
 
-// MARK: - Regneark
+// MARK: - iShares
 
-/// Det mindste der skal til for at læse første ark i en .xlsx: en zip med
-/// XML indeni. Kun det SSGA's filer bruger — delte strenge og tal.
+/// BlackRock's iShares: the full holdings as CSV on each fund's page
+/// (`<page>/latest-holdings.csv`, the same file as "Download" under Holdings),
+/// for US ETFs and European UCITS ETFs.
+///
+/// The fund's page is found in iShares' own product lists — the lists
+/// the product search on ishares.com itself loads — by ticker or name. There
+/// are three: US, UK (English, with the London tickers: SEMI, CSPX,
+/// SWDA) and Germany (the Xetra tickers: SEC0, EUNL, SXR8, and German funds like
+/// iShares Core DAX). The lists are stored for a week, like the holdings.
+enum IShares {
+    struct Product: Codable, Sendable {
+        /// The fund's tickers in the lists, e.g. ["SEMI", "SEC0"].
+        var tickers: [String]
+        let isin: String
+        /// The fund's name and the share class, when it is special ("Hedged EUR").
+        let name: String
+        /// The fund's page: "https://www.ishares.com/uk/individual/en/products/319084/…".
+        let url: String
+        /// US fund (ishares.com/us) or European.
+        let us: Bool
+    }
+
+    struct Catalog: Codable {
+        var products: [Product]
+        var fetched: Date
+    }
+
+    /// The English list first: when a fund is in both European lists, its
+    /// English page is used, and the CSV is then in English.
+    private static let lists: [(url: String, us: Bool)] = [
+        ("https://www.ishares.com/us/product-screener/product-screener-v3.1.jsn?dcrPath=/templatedata/config/product-screener-v3/data/en/us-ishares/ishares-product-screener-backend-config&siteEntryPassthrough=true", true),
+        ("https://www.ishares.com/varnish-api/blk-product-screener-server/api/v1/product-screener/product-data?country=gb&language=en&siteName=ishares-uk&userType=individual", false),
+        ("https://www.ishares.com/varnish-api/blk-product-screener-server/api/v1/product-screener/product-data?country=de&language=de&siteName=de-ishares-v2&userType=individual", false)
+    ]
+
+    private static var cacheURL: URL { FundStore.folder.appendingPathComponent("iShares.json") }
+
+    /// The holdings for the fund with this Yahoo symbol and name. Empty when it
+    /// isn't an iShares fund or isn't in the lists.
+    static func holdings(symbol: String, name: String) async throws -> [FundSources.Row] {
+        guard isIShares(name), let products = await catalog.products(),
+              let product = match(symbol: symbol, name: name, in: products),
+              let url = URL(string: product.url + "/latest-holdings.csv") else { return [] }
+        let (data, response) = try await Net.session.data(from: url)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else { throw MarketError.http(status) }
+        return parse(String(decoding: data, as: UTF8.self))
+    }
+
+    /// Yahoo writes the name in full ("iShares Core MSCI World UCITS ETF") or
+    /// abbreviated from the German exchanges ("iShsIII-Core MSCI World U.ETF").
+    static func isIShares(_ name: String) -> Bool {
+        let upper = name.uppercased()
+        return upper.contains("ISHARES") || upper.hasPrefix("ISH")
+    }
+
+    // MARK: Find the fund
+
+    /// First the ticker without exchange ("SEC0.DE" → "SEC0") among the funds from the same
+    /// country, then the name. The name is needed because the lists only have one ticker
+    /// per country: IWDA (Amsterdam) isn't listed anywhere, but "iShares Core MSCI
+    /// World UCITS ETF USD (Acc)" is the same fund as SWDA and EUNL.
+    static func match(symbol: String, name: String, in products: [Product]) -> Product? {
+        let us = !symbol.contains(".")
+        let ticker = String(symbol.split(separator: ".").first ?? "").uppercased()
+        let candidates = products.filter { $0.us == us }
+        if let found = candidates.first(where: { $0.tickers.contains(ticker) }) { return found }
+        let words = nameWords(name)
+        guard !words.isEmpty else { return nil }
+        return candidates.first { nameWords($0.name) == words }
+    }
+
+    /// The name without share class and currency: "iShares Core S&P 500 UCITS ETF
+    /// USD (Acc)" and "iShares Core S&P 500 UCITS ETF" are the same fund — all
+    /// share classes have the same holdings. "Hedged" stays.
+    static func nameWords(_ name: String) -> [String] {
+        let noise: Set<String> = ["USD", "EUR", "GBP", "CHF", "JPY", "ACC", "DIST", "INC", "ACCUMULATING",
+                                  "DISTRIBUTING", "ACCUMULATION", "DISTRIBUTION", "CLASS", "SHARE", "SHARES"]
+        return name.uppercased()
+            .replacingOccurrences(of: "&", with: " AND ")
+            .replacingOccurrences(of: #"\([^)]*\)"#, with: " ", options: .regularExpression)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty && !noise.contains($0) }
+    }
+
+    // MARK: Product lists
+
+    private static let catalog = CatalogLoader()
+
+    /// Loads the lists one at a time, even when two funds ask at the same time.
+    private actor CatalogLoader {
+        private var cached: Catalog?
+        private var running: Task<Catalog?, Never>?
+
+        func products() async -> [Product]? {
+            if cached == nil { cached = FundStore.readJSON(Catalog.self, from: IShares.cacheURL) }
+            if let cached, Date().timeIntervalSince(cached.fetched) < FundStore.maxAge { return cached.products }
+            let task = running ?? Task { await IShares.download() }
+            running = task
+            let fresh = await task.value
+            running = nil
+            if let fresh {
+                cached = fresh
+                return fresh.products
+            }
+            // If iShares doesn't answer, an old list is better than none.
+            return cached?.products
+        }
+    }
+
+    /// All three lists. If one of them fails, the rest are used, but the result isn't
+    /// stored — so it is tried again next time.
+    private static func download() async -> Catalog? {
+        var byID: [String: Product] = [:]
+        var order: [String] = []
+        var complete = true
+        for list in lists {
+            guard let url = URL(string: list.url),
+                  let (data, response) = try? await Net.session.data(from: url),
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                complete = false
+                continue
+            }
+            for (id, value) in root {
+                guard let fields = value as? [String: Any], let product = product(fields, us: list.us) else { continue }
+                // Same fund in the English and the German list: same id,
+                // and the German ticker is added.
+                let key = "\(list.us ? "us" : "eu"):\(id)"
+                if var known = byID[key] {
+                    for ticker in product.tickers where !known.tickers.contains(ticker) { known.tickers.append(ticker) }
+                    byID[key] = known
+                } else {
+                    byID[key] = product
+                    order.append(key)
+                }
+            }
+        }
+        guard !byID.isEmpty else { return nil }
+        let catalog = Catalog(products: order.sorted().compactMap { byID[$0] }, fetched: Date())
+        if complete { FundStore.writeJSON(catalog, to: cacheURL) }
+        return catalog
+    }
+
+    /// Only ETFs: the index funds (without a ticker) have no holdings as CSV.
+    private static func product(_ fields: [String: Any], us: Bool) -> Product? {
+        guard let page = fields["productPageUrl"] as? String, page.hasPrefix("/"),
+              let name = fields["fundName"] as? String else { return nil }
+        let views = fields["productView"] as? [String] ?? []
+        guard views.contains("etf") else { return nil }
+        let ticker = (fields["localExchangeTicker"] as? String ?? "").trimmingCharacters(in: .whitespaces).uppercased()
+        let shareClass = (fields["investorClassName"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+        return Product(
+            tickers: ticker.isEmpty || ticker == "-" ? [] : [ticker],
+            isin: fields["isin"] as? String ?? "",
+            name: shareClass.isEmpty || shareClass == "-" ? name : "\(name) \(shareClass)",
+            url: "https://www.ishares.com\(page)",
+            us: us
+        )
+    }
+
+    // MARK: The CSV
+
+    /// At the top are the fund's name and date; the table starts at "Ticker" — in
+    /// German "Emittententicker", with numbers like "1.234,56". Only stocks are included,
+    /// not cash, futures and currency forwards.
+    static func parse(_ text: String) -> [FundSources.Row] {
+        let lines = text.components(separatedBy: .newlines)
+        guard let header = lines.firstIndex(where: { $0.hasPrefix("Ticker,") || $0.hasPrefix("Emittententicker,") })
+        else { return [] }
+        let columns = CSV.fields(lines[header])
+        let german = lines[header].hasPrefix("Emittententicker")
+        func column(_ names: String...) -> Int? { names.lazy.compactMap { columns.firstIndex(of: $0) }.first }
+        // The US files write the weight as "Weight (%)" or "Market Weight".
+        guard let tickerColumn = column("Ticker", "Emittententicker"), let nameColumn = column("Name"),
+              let weightColumn = column("Weight (%)", "Market Weight", "Gewichtung (%)") else { return [] }
+        let assetColumn = column("Asset Class", "Anlageklasse")
+        let sectorColumn = column("Sector", "Sektor")
+        let exchangeColumn = column("Exchange", "Börse")
+        let currencyColumn = column("Market Currency", "Marktwährung", "Currency", "Währung")
+
+        return lines[(header + 1)...].compactMap { line in
+            let row = CSV.fields(line)
+            // The lines below the table (disclaimers, blank lines) have fewer fields.
+            guard row.count > max(tickerColumn, nameColumn, weightColumn) else { return nil }
+            func cell(_ i: Int?) -> String { i.flatMap { $0 < row.count ? row[$0] : nil } ?? "" }
+            guard ["Equity", "Aktien"].contains(cell(assetColumn)) || assetColumn == nil,
+                  let weight = number(cell(weightColumn), german: german), !cell(nameColumn).isEmpty
+            else { return nil }
+            let exchange = cell(exchangeColumn), currency = cell(currencyColumn)
+            return FundSources.Row(
+                name: cell(nameColumn), ticker: cell(tickerColumn),
+                currency: currency.isEmpty ? "USD" : currency, weight: weight,
+                exchange: exchange.isEmpty || exchange == "-" ? nil : exchange,
+                sector: cell(sectorColumn).isEmpty ? nil : cell(sectorColumn)
+            )
+        }
+    }
+
+    private static func number(_ text: String, german: Bool) -> Double? {
+        let plain = german
+            ? text.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
+            : text.replacingOccurrences(of: ",", with: "")
+        return Double(plain.trimmingCharacters(in: .whitespaces))
+    }
+}
+
+/// One line in a CSV: fields separated by commas, with quotes around fields
+/// that contain a comma themselves ("1,234.56") and "" for a quote.
+enum CSV {
+    static func fields(_ line: String) -> [String] {
+        var fields: [String] = []
+        var field = ""
+        var quoted = false
+        var iterator = line.makeIterator()
+        var pending = iterator.next()
+        while let char = pending {
+            pending = iterator.next()
+            if quoted {
+                if char == "\"" {
+                    if pending == "\"" {
+                        field.append("\"")
+                        pending = iterator.next()
+                    } else {
+                        quoted = false
+                    }
+                } else {
+                    field.append(char)
+                }
+            } else if char == "\"" {
+                quoted = true
+            } else if char == "," {
+                fields.append(field.trimmingCharacters(in: .whitespaces))
+                field = ""
+            } else {
+                field.append(char)
+            }
+        }
+        fields.append(field.trimmingCharacters(in: .whitespaces))
+        return fields
+    }
+}
+
+// MARK: - Spreadsheet
+
+/// The minimum needed to read the first sheet of an .xlsx: a zip with
+/// XML inside. Only what SSGA's files use — shared strings and numbers.
 enum XLSX {
     enum Failure: Error { case notZip, missing(String), inflate }
 
@@ -718,7 +1110,7 @@ enum XLSX {
             var cells: [String] = []
             for cell in allGroups(#"<c ([^>]*?)(?:/>|>(.*?)</c>)"#, in: row) {
                 let attributes = cell[0], body = cell[1]
-                // Kolonnen står i r="C12"; tomme celler mangler helt.
+                // The column is in r="C12"; empty cells are missing entirely.
                 if let ref = first(#"r="([A-Z]+)\d+""#, in: attributes) {
                     let column = ref.unicodeScalars.reduce(0) { $0 * 26 + Int($1.value) - 64 } - 1
                     while cells.count < column { cells.append("") }
@@ -735,13 +1127,13 @@ enum XLSX {
     private static func sharedStrings(_ data: Data) -> [String] {
         let xml = String(decoding: data, as: UTF8.self)
         return matches(#"<si>(.*?)</si>"#, in: xml).map { item in
-            // En streng kan være delt i flere <t>-stykker med hver sin formatering.
+            // A string can be split into several <t> pieces, each with its own formatting.
             matches(#"<t[^>]*>(.*?)</t>"#, in: item).joined()
         }
     }
 
-    /// Pakker de ønskede filer ud: central-kataloget bagerst i zip'en peger på
-    /// hver fil, og deflate-data pakkes ud med Compression-frameworket.
+    /// Unpacks the requested files: the central directory at the end of the zip points to
+    /// each file, and deflate data is unpacked with the Compression framework.
     static func unzip(_ data: Data, wanted: Set<String>) throws -> [String: Data] {
         let bytes = [UInt8](data)
         func u16(_ i: Int) -> Int { Int(bytes[i]) | Int(bytes[i + 1]) << 8 }
@@ -801,19 +1193,19 @@ enum XLSX {
     }
 }
 
-/// Fonde hvis egen beholdning ikke kan hentes (europæiske UCITS-ETF'er,
-/// danske investeringsforeninger, amerikanske investeringsforeninger), men
-/// som følger et kendt indeks. Navnet afgør det: "iShares Core DAX" følger
-/// DAX, "Sparindex INDEX OMX C25 KL" C25 og "iShares Core MSCI World UCITS"
-/// samme indeks som URTH.
+/// Funds whose own holdings can't be loaded (European UCITS ETFs,
+/// Danish mutual funds, US mutual funds), but
+/// which track a known index. The name decides it: "iShares Core DAX" tracks
+/// DAX, "Sparindex INDEX OMX C25 KL" C25, and "iShares Core MSCI World UCITS"
+/// the same index as URTH.
 enum FundProxy: Equatable {
-    /// Et af appens egne indekser.
+    /// One of the app's own indices.
     case index(String)
-    /// En amerikansk ETF på samme eller et tilsvarende indeks.
+    /// A US ETF on the same or a similar index.
     case etf(String)
 
-    /// Fonde med en drejning — sektor, stil, faktor, gearing, bæredygtighed —
-    /// følger ikke det brede indeks, selv om navnet nævner det.
+    /// Funds with a twist — sector, style, factor, leverage, sustainability —
+    /// don't track the broad index, even if the name mentions it.
     private static let twists = [
         "INFORMATION TECHNOLOGY", "HEALTH", "FINANCIAL", "ENERGY", "UTILITIES", "INDUSTRIALS", "MATERIALS",
         "CONSUMER", "REAL ESTATE", "COMMUNICATION", "TEKNOLOGI", "SMALL", "MID CAP", "MIDCAP", "VALUE", "GROWTH",
@@ -836,9 +1228,9 @@ enum FundProxy: Equatable {
         (["DOW JONES INDUSTRIAL", "DJIA", "DOW 30"], .index("dji")),
         (["NASDAQ 100", "NASDAQ-100", "NASDAQ100"], .index("ndx")),
         (["S&P 500", "S&P500", "500 INDEX", "US 500", "USA 500"], .index("sp500")),
-        // Verdensindeks: SPDR Portfolio MSCI Global Stock Market (MSCI ACWI
-        // IMI) er den nærmeste fond hvis beholdning kan hentes. MSCI World
-        // har ikke emerging markets med, men de største aktier er de samme.
+        // World index: SPDR Portfolio MSCI Global Stock Market (MSCI ACWI
+        // IMI) is the closest fund whose holdings can be loaded. MSCI World
+        // doesn't include emerging markets, but the largest stocks are the same.
         (["FTSE ALL-WORLD", "FTSE ALL WORLD", "ALL-WORLD", "TOTAL WORLD", "MSCI ACWI", "ACWI", "ALL COUNTRY WORLD",
           "MSCI WORLD", "GLOBALE AKTIER", "GLOBAL INDEKS", "GLOBAL INDEX", "DEVELOPED WORLD", "CORE WORLD"], .etf("SPGM")),
         (["EMERGING"], .etf("SPEM")),
@@ -855,14 +1247,14 @@ enum FundProxy: Equatable {
         return nil
     }
 
-    /// Mønsteret som hele ord, så "DAX" ikke findes i "MIDAXX".
+    /// The pattern as whole words, so "DAX" isn't found in "MIDAXX".
     private static func containsWord(_ text: String, _ pattern: String) -> Bool {
         let escaped = NSRegularExpression.escapedPattern(for: pattern.trimmingCharacters(in: .whitespaces))
         return text.range(of: "(^|[^A-Z0-9])\(escaped)([^A-Z0-9]|$)", options: .regularExpression) != nil
     }
 }
 
-/// Yahoo's søgning. Kræver hverken cookie eller nøgle.
+/// Yahoo's search. Needs neither a cookie nor a key.
 enum YahooSearch {
     struct Quote: Decodable, Sendable {
         let symbol: String
@@ -880,8 +1272,8 @@ enum YahooSearch {
 
     private struct Payload: Decodable { let quotes: [Quote]? }
 
-    /// Tyske regionalbørser, Xetra-kopier o.l. — aldrig den hovednotering
-    /// fonden ejer.
+    /// German regional exchanges, Xetra copies and the like — never the primary listing
+    /// the fund holds.
     static let euroSuffixes: Set<String> = ["DE", "PA", "AS", "MI", "MC", "BR", "HE", "IR", "LS", "VI"]
     static let secondarySuffixes: Set<String> = ["F", "MU", "DU", "BE", "SG", "HM", "HA", "XC", "XD", "AQ", "IL", "NE", "BD", "VI", "MX", "BA", "SN"]
     static let primarySuffixes: Set<String> = [
@@ -897,7 +1289,7 @@ enum YahooSearch {
             let (data, response) = try await Net.session.data(from: url)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             if status == 429 || status >= 500, attempt < 3 {
-                // Samme ventetid som spark-kaldene i Yahoo.swift.
+                // Same wait as the spark calls in Yahoo.swift.
                 try? await Task.sleep(for: .seconds(1.2 * Double(attempt + 1)))
                 return await quotes(query, count: count, attempt: attempt + 1)
             }
@@ -909,7 +1301,7 @@ enum YahooSearch {
         }
     }
 
-    /// Yahoo's sektornavne oversat til GICS, som i Scripts/update-indices.py.
+    /// Yahoo's sector names translated to GICS, as in Scripts/update-indices.py.
     static func gicsSector(_ sector: String?) -> String {
         switch sector ?? "" {
         case "Technology": return "Information Technology"
@@ -923,7 +1315,7 @@ enum YahooSearch {
         }
     }
 
-    /// Kursvalutaen ud fra børsen.
+    /// The quote currency from the exchange.
     static func currency(for symbol: String) -> String {
         guard Symbols.isForeign(symbol), let suffix = symbol.split(separator: ".").last else { return "USD" }
         switch suffix {

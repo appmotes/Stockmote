@@ -2,21 +2,21 @@ import AppKit
 import StockmoteShared
 import SwiftUI
 
-/// Selve kortet.
+/// The map itself.
 ///
-/// Felterne tegnes i én `Canvas` i stedet for 500 SwiftUI-views: det er
-/// hurtigt, og hover og klik slås op i layoutet med et simpelt rektangel-tjek.
+/// The tiles are drawn in one `Canvas` instead of 500 SwiftUI views: it is
+/// fast, and hover and clicks are looked up in the layout with a simple rectangle check.
 ///
-/// Zoom bygger layoutet om i den forstørrede størrelse frem for at skalere et
-/// billede. Så forbliver teksten skarp, og små felter får deres navn efterhånden
-/// som de bliver store nok — ligesom pinch-to-zoom på telefonen.
+/// Zoom rebuilds the layout at the enlarged size rather than scaling an
+/// image. That way the text stays sharp, and small tiles get their names gradually
+/// as they become large enough — like pinch-to-zoom on the phone.
 struct HeatmapView: View {
     let items: [HeatItem]
     let grouping: Grouping
     let focus: Focus
     let period: Period
     let style: ColorStyle
-    /// Skifter når data eller lister ændrer sig. Layoutet bygges kun om da.
+    /// Changes when data or lists change. Only then is the layout rebuilt.
     let contentKey: Int
     var allowsDrillDown = true
     let onFocus: (Focus) -> Void
@@ -105,7 +105,7 @@ struct HeatmapView: View {
         return layout.tile(at: hoverPoint + app.offset)
     }
 
-    // MARK: Klik
+    // MARK: Click
 
     private func click(at point: CGPoint) {
         let content = point + app.offset
@@ -129,7 +129,7 @@ struct HeatmapView: View {
         }
     }
 
-    // MARK: Zoom og panorering
+    // MARK: Zoom and panning
 
     private var magnify: some Gesture {
         MagnifyGesture()
@@ -142,7 +142,7 @@ struct HeatmapView: View {
             .onEnded { _ in gestureStart = nil }
     }
 
-    /// Træk med musen flytter rundt når der er zoomet ind.
+    /// Dragging with the mouse moves around when zoomed in.
     private var pan: some Gesture {
         DragGesture(minimumDistance: 4)
             .onChanged { value in
@@ -159,7 +159,7 @@ struct HeatmapView: View {
         setZoom(app.zoom * factor, anchor: anchor, from: app.zoom, offset: app.offset)
     }
 
-    /// Zoomer om `anchor`, så det punkt man peger på bliver stående.
+    /// Zooms around `anchor`, so the point you are pointing at stays put.
     private func setZoom(_ target: CGFloat, anchor: CGPoint, from zoom: CGFloat, offset: CGPoint) {
         let newZoom = min(max(target, 1), 12)
         let content = CGPoint(x: (anchor.x + offset.x) / zoom, y: (anchor.y + offset.y) / zoom)
@@ -177,9 +177,9 @@ struct HeatmapView: View {
         app.offset = clamped(app.offset, zoom: app.zoom)
     }
 
-    /// To-finger-scroll på trackpad (og musehjul) panorerer når der er zoomet
-    /// ind; ⌘-scroll zoomer. SwiftUI har ingen scroll-hændelse udenfor en
-    /// ScrollView, så vi lytter lokalt og reagerer kun mens musen er over kortet.
+    /// Two-finger scroll on the trackpad (and the mouse wheel) pans when zoomed
+    /// in; ⌘-scroll zooms. SwiftUI has no scroll event outside a
+    /// ScrollView, so we listen locally and only react while the mouse is over the map.
     private func installScrollMonitor() {
         guard scrollMonitor == nil else { return }
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
@@ -246,7 +246,7 @@ private struct HoverLayer: View {
     }
 }
 
-/// Lægger en tooltip ved musen og vender den, så den bliver på kortet.
+/// Places a tooltip at the mouse and flips it so it stays on the map.
 private struct Tooltip<Content: View>: View {
     let point: CGPoint
     let viewport: CGSize
@@ -403,9 +403,9 @@ private struct ZoomControls: View {
     }
 }
 
-// MARK: - Højreklik
+// MARK: - Right-click
 
-/// Menuen på en aktie — bruges både på kortet og i listen.
+/// The menu on a stock — used both on the map and in the list.
 struct StockMenu: View {
     let item: HeatItem
     var showDrillDown = true
@@ -432,15 +432,14 @@ struct StockMenu: View {
                 ))
             }
             if !lists.watchlists.isEmpty { Divider() }
-            Button(tr("Ny watchliste med \(shown)", "New watchlist with \(shown)")) {
-                let id = lists.createWatchlist(with: [item.symbol])
-                AppState.shared.watchlistID = id
+            Button(tr("Ny watchliste med \(shown) …", "New watchlist with \(shown) …")) {
+                AppState.shared.dialog = .newWatchlist(symbols: [item.symbol])
             }
         }
         if showDrillDown {
             Divider()
-            // Står man allerede i branchen eller sektoren, fører punktet
-            // tilbage til hele indekset i stedet.
+            // If you are already in the industry or sector, the item leads
+            // back to the whole index instead.
             let industry = Focus.industry(sector: item.sector, industry: item.industry)
             let sector = Focus.sector(item.sector)
             if app.focus == industry || app.focus == sector {

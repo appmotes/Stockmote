@@ -2,7 +2,7 @@ import AppKit
 import StockmoteShared
 import SwiftUI
 
-/// Kortets tema ud fra det udseende panelet har fået.
+/// The map's theme, based on the appearance the panel has been given.
 struct ThemeKey: EnvironmentKey {
     static let defaultValue = Theme.dark
 }
@@ -14,7 +14,7 @@ extension EnvironmentValues {
     }
 }
 
-/// Læser lyst/mørkt fra miljøet og giver det videre som `heatTheme`.
+/// Reads light/dark from the environment and passes it on as `heatTheme`.
 struct ThemeProvider<Content: View>: View {
     @Environment(\.colorScheme) private var scheme
     @ViewBuilder let content: Content
@@ -24,10 +24,10 @@ struct ThemeProvider<Content: View>: View {
     }
 }
 
-/// Panelet: sidebjælke til venstre, værktøjslinje og kort til højre.
+/// The panel: sidebar on the left, toolbar and map on the right.
 ///
-/// Opbygget som en Mac-app — kildeliste, værktøjslinje, statuslinje — og ikke
-/// som en telefon med faner i bunden.
+/// Built like a Mac app — source list, toolbar, status bar — and not
+/// like a phone with tabs at the bottom.
 struct PanelRoot: View {
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
@@ -58,14 +58,16 @@ struct PanelRoot: View {
                 }
                 .background(Palette.background)
             }
+            .overlay { DialogHost() }
         }
         .frame(width: size.width, height: size.height)
         .background(Palette.background)
         .animation(.easeInOut(duration: 0.2), value: prefs.sidebarVisible)
         .animation(.easeInOut(duration: 0.2), value: replay.isActive)
+        .animation(.easeOut(duration: 0.15), value: app.dialog)
         .modifier(ReplayReloader())
         .background { KeyboardShortcuts() }
-        // Skifter sproget, bygges alt om, så hver tekst læses igen.
+        // When the language changes, everything is rebuilt so every text is read again.
         .id(prefs.language)
     }
 }
@@ -83,7 +85,7 @@ private struct Content: View {
     }
 }
 
-// MARK: - Sidebjælke
+// MARK: - Sidebar
 
 private struct Sidebar: View {
     @ObservedObject private var universe = UniverseStore.shared
@@ -118,13 +120,12 @@ private struct Sidebar: View {
                     ForEach(universe.indices.filter(\.isEuropean)) { IndexRow(index: $0) }
 
                     SectionTitle(text: tr("Fonde", "Funds"),
-                                 addHelp: tr("Tilføj ETF eller fond", "Add ETF or fund"),
-                                 isAdding: app.fundSearchOpen) {
-                        app.fundSearchOpen.toggle()
+                                 addHelp: tr("Tilføj ETF eller fond", "Add ETF or fund")) {
+                        app.dialog = .addFund
                     }
                     ForEach(funds.funds) { FundRow(fund: $0) }
-                    if funds.funds.isEmpty && !app.fundSearchOpen {
-                        Button { app.fundSearchOpen = true } label: {
+                    if funds.funds.isEmpty {
+                        Button { app.dialog = .addFund } label: {
                             Text(tr("Tilføj en ETF eller indeksfond …", "Add an ETF or index fund …"))
                                 .font(.system(size: 11.5))
                                 .foregroundStyle(.secondary)
@@ -136,10 +137,7 @@ private struct Sidebar: View {
                     }
 
                     SectionTitle(text: tr("Mine lister", "My lists")) {
-                        let id = lists.createWatchlist(named: tr("Ny liste", "New list"))
-                        app.watchlistID = id
-                        app.tab = .watchlists
-                        app.renamingWatchlist = id
+                        app.dialog = .newWatchlist(symbols: [])
                     }
                     ListRow(
                         symbol: "star.fill", tint: .yellow, title: tr("Favoritter", "Favorites"),
@@ -151,16 +149,6 @@ private struct Sidebar: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 8)
-            }
-
-            // Søgefeltet står fast i bunden og ikke under "Fonde", som ligger
-            // så langt nede at resultaterne ellers ville være skjult.
-            if app.fundSearchOpen {
-                Rectangle().fill(Palette.separator).frame(height: 1)
-                FundSearchField()
-                    .padding(.horizontal, 8)
-                    .padding(.top, 8)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             Rectangle().fill(Palette.separator).frame(height: 1)
@@ -182,8 +170,6 @@ private struct Sidebar: View {
 private struct SectionTitle: View {
     let text: String
     var addHelp = tr("Ny watchliste", "New watchlist")
-    /// Plusset bliver et kryds mens der tilføjes.
-    var isAdding = false
     var onAdd: (() -> Void)? = nil
 
     var body: some View {
@@ -195,14 +181,14 @@ private struct SectionTitle: View {
             Spacer()
             if let onAdd {
                 Button(action: onAdd) {
-                    Image(systemName: isAdding ? "xmark" : "plus")
+                    Image(systemName: "plus")
                         .font(.system(size: 10, weight: .bold))
                         .frame(width: 18, height: 18)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help(isAdding ? tr("Luk søgning", "Close search") : addHelp)
+                .help(addHelp)
             }
         }
         .padding(.horizontal, 6)
@@ -211,7 +197,7 @@ private struct SectionTitle: View {
     }
 }
 
-/// Fælles række: ikon eller flag, titel, og ændringen til højre.
+/// Shared row: icon or flag, title, and the change on the right.
 private struct SidebarRow<Leading: View>: View {
     let title: String
     let change: Double?
@@ -272,7 +258,7 @@ private struct IndexRow: View {
     }
 }
 
-/// En fond i sidebjælken. Højreklik henter beholdningen igen eller fjerner den.
+/// A fund in the sidebar. Right-click reloads its holdings or removes it.
 private struct FundRow: View {
     let fund: Fund
     @ObservedObject private var market = MarketStore.shared
@@ -318,125 +304,7 @@ private struct FundRow: View {
     }
 }
 
-/// Søgefeltet for fonde: navn eller ticker på en ETF eller fond. Yahoo's
-/// søgning, når man holder en pause i skrivningen. Retur tilføjer og åbner
-/// det første resultat; et klik på et resultat gør det samme — eller fjerner
-/// fonden igen, hvis den allerede er med (✓).
-private struct FundSearchField: View {
-    @ObservedObject private var funds = FundStore.shared
-    @ObservedObject private var app = AppState.shared
-    @State private var results: [FundSearchResult] = []
-    @State private var searching = false
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 5) {
-                Image(systemName: "magnifyingglass").font(.system(size: 10.5)).foregroundStyle(.secondary)
-                TextField(tr("SPY, MSCI World, C25 …", "SPY, MSCI World, C25 …"), text: $app.fundQuery)
-                    .textFieldStyle(.plain)
-                    .focused($focused)
-                    .onSubmit {
-                        if let first = results.first { open(first) }
-                    }
-                    .onExitCommand { close() }
-                if searching {
-                    ProgressView().controlSize(.mini)
-                }
-                Button { close() } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help(tr("Luk (Esc)", "Close (Esc)"))
-            }
-            .font(.system(size: 12))
-            .padding(.horizontal, 8)
-            .frame(height: 26)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Palette.raised))
-            .padding(.bottom, 2)
-
-            ForEach(results) { result in
-                FundResultRow(result: result, isAdded: funds.contains(result.symbol)) {
-                    if funds.contains(result.symbol) {
-                        funds.remove(result.symbol)
-                    } else {
-                        open(result)
-                    }
-                }
-            }
-            if !searching, results.isEmpty, app.fundQuery.trimmingCharacters(in: .whitespaces).count >= 2 {
-                Text(tr("Ingen ETF'er eller fonde fundet", "No ETFs or funds found"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 7).padding(.vertical, 3)
-            }
-        }
-        .padding(.bottom, 4)
-        .onAppear { focused = true }
-        .task(id: app.fundQuery) {
-            let query = app.fundQuery
-            guard query.trimmingCharacters(in: .whitespaces).count >= 2 else {
-                results = []
-                return
-            }
-            // Vent til man holder en pause i skrivningen.
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            searching = true
-            let found = await FundStore.search(query)
-            guard !Task.isCancelled else { return }
-            results = Array(found.prefix(8))
-            searching = false
-        }
-    }
-
-    private func open(_ result: FundSearchResult) {
-        funds.add(result.fund)
-        app.indexID = result.fund.id
-        app.tab = .map
-        close()
-    }
-
-    private func close() {
-        app.fundQuery = ""
-        app.fundSearchOpen = false
-    }
-}
-
-private struct FundResultRow: View {
-    let result: FundSearchResult
-    let isAdded: Bool
-    let action: () -> Void
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 5) {
-                        Text(Symbols.display(result.symbol)).font(.system(size: 11.5, weight: .bold))
-                        Text(result.fund.kindLabel + (result.exchange.isEmpty ? "" : " · \(result.exchange)"))
-                            .font(.system(size: 9.5)).foregroundStyle(.tertiary)
-                    }
-                    .lineLimit(1)
-                    Text(result.name).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer(minLength: 2)
-                Image(systemName: isAdded ? "checkmark" : "plus")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(isAdded ? .green : .secondary)
-            }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(isHovering ? Palette.raised : .clear))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .help(isAdded ? tr("Allerede tilføjet — klik for at fjerne", "Already added — click to remove") : result.name)
-    }
-}
-
-/// Ligevægtet gennemsnit af en listes aktier.
+/// Equal-weighted average of a list's stocks.
 @MainActor
 private func averageChange(_ symbols: [String]) -> Double? {
     let market = MarketStore.shared
@@ -466,39 +334,20 @@ private struct WatchlistRow: View {
     let list: Watchlist
     @ObservedObject private var lists = ListsStore.shared
     @ObservedObject private var app = AppState.shared
-    @State private var draft = ""
-    @FocusState private var focused: Bool
 
     var body: some View {
-        if app.renamingWatchlist == list.id {
-            TextField(tr("Navn", "Name"), text: $draft)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12))
-                .focused($focused)
-                .onAppear {
-                    draft = list.name
-                    focused = true
-                }
-                .onSubmit {
-                    lists.rename(list.id, to: draft)
-                    app.renamingWatchlist = nil
-                }
-                .onExitCommand { app.renamingWatchlist = nil }
-                .padding(.vertical, 2)
-        } else {
-            ListRow(symbol: "list.bullet", tint: .secondary, title: list.name, symbols: list.symbols,
-                    isSelected: app.tab == .watchlists && app.watchlistID == list.id) {
-                app.watchlistID = list.id
-                app.tab = .watchlists
-            }
-            .contextMenu {
-                Button(tr("Omdøb", "Rename")) { app.renamingWatchlist = list.id }
-                Button(tr("Slet \(list.name)", "Delete \(list.name)"), role: .destructive) {
-                    lists.delete(list.id)
-                    if app.watchlistID == list.id {
-                        app.watchlistID = lists.watchlists.first?.id
-                        if app.watchlistID == nil { app.tab = .favorites }
-                    }
+        ListRow(symbol: "list.bullet", tint: .secondary, title: list.name, symbols: list.symbols,
+                isSelected: app.tab == .watchlists && app.watchlistID == list.id) {
+            app.watchlistID = list.id
+            app.tab = .watchlists
+        }
+        .contextMenu {
+            Button(tr("Omdøb …", "Rename …")) { app.dialog = .renameWatchlist(list.id) }
+            Button(tr("Slet \(list.name)", "Delete \(list.name)"), role: .destructive) {
+                lists.delete(list.id)
+                if app.watchlistID == list.id {
+                    app.watchlistID = lists.watchlists.first?.id
+                    if app.watchlistID == nil { app.tab = .favorites }
                 }
             }
         }
@@ -553,7 +402,7 @@ private struct SidebarIconButton: View {
     }
 }
 
-// MARK: - Værktøjslinje
+// MARK: - Toolbar
 
 private struct Toolbar: View {
     @ObservedObject private var market = MarketStore.shared
@@ -567,15 +416,15 @@ private struct Toolbar: View {
                     prefs.sidebarVisible = true
                 }
             }
-            // Titlen giver sig først: den forkortes med … frem for at skubbe
-            // resten. Før var den låst til sin fulde bredde, og et langt navn
-            // som "Euro Stoxx 50" i den lille panelstørrelse gjorde hele
-            // indholdet bredere end vinduet — så sidebjælken røg ud over
-            // venstre kant.
+            // The title gives way first: it is truncated with … rather than pushing
+            // the rest. It used to be locked to its full width, and a long name
+            // like "Euro Stoxx 50" at the small panel size made all the
+            // content wider than the window — so the sidebar slid out past the
+            // left edge.
             TitleBlock()
                 .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
             if app.tab != .settings {
-                // Er der ikke plads til hele tidsvælgeren, bliver den en menu.
+                // If there is no room for the whole period picker, it becomes a menu.
                 ViewThatFits(in: .horizontal) {
                     controls(compact: false)
                     controls(compact: true)
@@ -602,7 +451,7 @@ private struct Toolbar: View {
     }
 }
 
-/// Tidsvælgeren som menu, når panelet er for smalt til hele rækken.
+/// The period picker as a menu, when the panel is too narrow for the whole row.
 private struct PeriodMenu: View {
     @ObservedObject private var market = MarketStore.shared
 
@@ -632,11 +481,11 @@ private struct PeriodMenu: View {
     }
 }
 
-/// Titlen: det man kigger på, stort, og ændringen under.
+/// The title: what you are looking at, large, with the change below.
 ///
-/// Er man gået ind i en sektor eller branche, står det niveau som titel med en
-/// tilbagepil foran, og vejen derop ("🇩🇰 C25 › Health Care") står småt under.
-/// Hele stien på én linje kunne ikke være der i den lille panelstørrelse.
+/// When you have gone into a sector or industry, that level is the title, with a
+/// back arrow in front, and the way up ("🇩🇰 C25 › Health Care") in small type below.
+/// The whole path on one line did not fit at the small panel size.
 private struct TitleBlock: View {
     @ObservedObject private var replay = ReplayStore.shared
     @ObservedObject private var market = MarketStore.shared
@@ -686,10 +535,10 @@ private struct TitleBlock: View {
                         .foregroundStyle(.secondary)
                         .help(tr("Tilbage til \(index?.name ?? "")", "Back to \(index?.name ?? "")"))
                     } else if replay.isReady {
-                        // Under afspilning står tidspunktet der hvor tidsrummet plejer.
+                        // During replay, the time stands where the period usually does.
                         Text("▶ \(replay.timeLabel())").foregroundStyle(.secondary)
                     } else if app.tab == .map, let index, index.isFund {
-                        // En fond: tickeren ved siden af tidsrummet, så man kan se hvilken.
+                        // A fund: the ticker next to the period, so you can see which one.
                         Text("\(Symbols.display(index.benchmark)) · \(market.period.longName)").foregroundStyle(.tertiary)
                     } else {
                         Text(market.period.longName).foregroundStyle(.tertiary)
@@ -712,7 +561,7 @@ private struct TitleBlock: View {
         }
     }
 
-    /// Vejen op: "🇪🇺 Euro Stoxx 50" eller "🇪🇺 Euro Stoxx 50 › Information Technology".
+    /// The way up: "🇪🇺 Euro Stoxx 50" or "🇪🇺 Euro Stoxx 50 › Information Technology".
     private var path: String {
         let root = index?.title ?? ""
         if case .industry(let sector, _) = app.focus { return "\(root) › \(sector)" }
@@ -725,7 +574,7 @@ private struct TitleBlock: View {
             guard let index else { return nil }
             if app.focus == .all, let value = replay.curveValue { return value }
             guard app.focus != .all else { return market.indexChange(index, market.period) }
-            // Sektorens eller branchens egen ændring, vægtet efter markedsværdi.
+            // The sector's or industry's own change, weighted by market cap.
             let items = Items.make(index.symbols, weights: index.weights).filter { item in
                 switch app.focus {
                 case .all: return true
@@ -743,8 +592,8 @@ private struct TitleBlock: View {
     }
 }
 
-/// 1D · 1U · 1M · 3M · ÅTD · 1Å som en segmenteret kontrol, hvor markeringen
-/// glider over til det valgte.
+/// 1D · 1U · 1M · 3M · ÅTD · 1Å as a segmented control, where the selection
+/// slides over to the chosen one.
 private struct PeriodPicker: View {
     @ObservedObject private var market = MarketStore.shared
     @Namespace private var namespace
@@ -852,14 +701,14 @@ struct ToolbarButton: View {
     }
 }
 
-// MARK: - Statuslinje
+// MARK: - Status bar
 
 private struct StatusLine: View {
     @ObservedObject private var market = MarketStore.shared
     @ObservedObject private var funds = FundStore.shared
     @ObservedObject private var app = AppState.shared
 
-    /// For en fond: hvor beholdningen kommer fra, og om den er beskåret.
+    /// For a fund: where the holdings come from, and whether they are truncated.
     private var fundNote: String? {
         guard app.tab == .map, let symbol = FundStore.symbol(fromID: app.indexID) else { return nil }
         return funds.progress[symbol] ?? funds.sourceNote(symbol)
@@ -901,7 +750,7 @@ private struct StatusLine: View {
     }
 }
 
-/// Usynlige knapper der bærer tastaturgenvejene.
+/// Invisible buttons that carry the keyboard shortcuts.
 private struct KeyboardShortcuts: View {
     var body: some View {
         ZStack {
@@ -912,7 +761,7 @@ private struct KeyboardShortcuts: View {
             Button("") { Preferences.shared.sidebarVisible.toggle() }.keyboardShortcut("0")
             Button("") { AppState.shared.toggleSettings() }.keyboardShortcut(",")
             Button("") { FullscreenController.shared.toggle() }.keyboardShortcut("f", modifiers: [.command, .control])
-            // ⌘1 … ⌘9: indekserne i sidebjælkens rækkefølge.
+            // ⌘1 … ⌘9: the indices in the sidebar's order.
             ForEach(1..<10) { number in
                 Button("") {
                     let indices = UniverseStore.shared.indices
@@ -927,16 +776,16 @@ private struct KeyboardShortcuts: View {
     }
 }
 
-// MARK: - Indhold
+// MARK: - Content
 
-/// Fælles: kort eller liste over nogle aktier.
+/// Shared: map or list of some stocks.
 struct StocksView: View {
     let items: [HeatItem]
     let grouping: Grouping
     let contentKey: Int
     var allowsDrillDown = true
     var extraMenu: ((HeatItem) -> AnyView)? = nil
-    /// En fonds vægte: listen viser dem i stedet for markedsværdi.
+    /// A fund's weights: the list shows them instead of market cap.
     var weights: [String: Double]? = nil
 
     @ObservedObject private var market = MarketStore.shared
@@ -980,19 +829,19 @@ private struct LoadingView: View {
     }
 }
 
-/// Bygger kortets elementer ud fra symboler.
+/// Builds the map's tiles from symbols.
 @MainActor
 enum Items {
-    /// `weights`: en fonds vægte. Så er feltets størrelse aktiens andel af
-    /// fonden og ikke dens markedsværdi.
+    /// `weights`: a fund's weights. Then a tile's size is the stock's share of
+    /// the fund and not its market cap.
     static func make(_ symbols: [String], byMarketCap: Bool = true, weights: [String: Double]? = nil) -> [HeatItem] {
         let market = MarketStore.shared
         let lists = ListsStore.shared
         let replay = ReplayStore.shared
         let size: (String) -> Double? = { symbol in weights.map { $0[symbol] } ?? market.marketCap(symbol) }
         let caps = symbols.compactMap(size)
-        // BF.B o.l. har ingen markedsværdi. De får det mindste felt frem for
-        // at forsvinde.
+        // BF.B and the like have no market cap. They get the smallest tile rather than
+        // disappearing.
         let fallback = caps.min() ?? 1
         return symbols.map { symbol in
             let info = market.info(symbol)
@@ -1000,7 +849,7 @@ enum Items {
             return HeatItem(
                 symbol: symbol, name: info.name, sector: info.sector, industry: info.industry,
                 weight: byMarketCap ? cap : 1,
-                // Under afspilning: ændringen på det valgte tidspunkt.
+                // During replay: the change at the selected time.
                 change: replay.isReady ? (replay.change(symbol) ?? 0) : market.change(symbol, market.period),
                 isFavorite: lists.isFavorite(symbol)
             )
@@ -1019,7 +868,7 @@ enum Items {
         return hasher.finalize()
     }
 
-    /// Hvad der vises lige nu — bruges også af fuldskærm.
+    /// What is shown right now — also used by full screen.
     static func current() -> (items: [HeatItem], grouping: Grouping, key: Int, drillDown: Bool) {
         let app = AppState.shared
         let lists = ListsStore.shared
@@ -1078,8 +927,8 @@ private struct MapContent: View {
     }
 }
 
-/// En fond hvis beholdning ikke er hentet: hvor langt det er nået, eller
-/// hvorfor det ikke lykkedes.
+/// A fund whose holdings have not been loaded: how far it has got, or
+/// why it did not succeed.
 private struct FundStatusView: View {
     let fund: Fund
     @ObservedObject private var funds = FundStore.shared
@@ -1190,14 +1039,14 @@ private struct EmptyListView: View {
     }
 }
 
-/// Søgefelt der foreslår aktier mens man skriver. Retur tilføjer det første
-/// forslag.
+/// Search field that suggests stocks as you type. Return adds the first
+/// suggestion.
 private struct AddSymbolBar: View {
     let placeholder: String
     let contains: (String) -> Bool
-    /// Retur: tilføjer det første forslag (aldrig fjern ved et uheld).
+    /// Return: adds the first suggestion (never removes by accident).
     let onAdd: (String) -> Void
-    /// Klik på et forslag: tilføjer, eller fjerner hvis den allerede er med (✓).
+    /// Click on a suggestion: adds it, or removes it if it is already included (✓).
     let onToggle: (String) -> Void
 
     @ObservedObject private var market = MarketStore.shared
@@ -1284,7 +1133,7 @@ private struct SuggestionRow: View {
     }
 }
 
-// MARK: - Liste
+// MARK: - List
 
 enum SortKey: String, CaseIterable, Identifiable {
     case changeDown, changeUp, marketCap, symbol
@@ -1310,7 +1159,7 @@ struct StockList: View {
     @ObservedObject private var market = MarketStore.shared
     @AppStorage("listSort", store: AppDefaults.store) private var sort: SortKey = .changeDown
 
-    /// Markedsværdi — eller vægten i fonden, når det er en fond.
+    /// Market cap — or the weight in the fund, when it is a fund.
     private func size(_ symbol: String) -> Double {
         (weights.map { $0[symbol] } ?? market.marketCap(symbol)) ?? 0
     }
@@ -1436,7 +1285,7 @@ private struct StockRow: View {
     }
 }
 
-/// ▶ i værktøjslinjen: tænder og slukker "Afspil dagen" (⌘P).
+/// ▶ in the toolbar: turns "Replay the day" on and off (⌘P).
 private struct ReplayButton: View {
     @ObservedObject private var replay = ReplayStore.shared
     @ObservedObject private var market = MarketStore.shared

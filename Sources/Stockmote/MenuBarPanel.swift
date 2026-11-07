@@ -3,14 +3,14 @@ import StockmoteShared
 import Combine
 import SwiftUI
 
-/// Menubar-ikonet og panelet under det.
+/// The menu bar icon and the panel below it.
 ///
-/// Bygget i AppKit som i DRmote: et vindue vi selv opretter kan males helt
-/// sort, og det kan skifte størrelse når man vælger en anden panelstørrelse.
-/// `MenuBarExtra(.window)` kan ingen af delene.
+/// Built in AppKit as in DRmote: a window we create ourselves can be painted fully
+/// black, and it can change size when you pick another panel size.
+/// `MenuBarExtra(.window)` can do neither.
 @MainActor
 final class MenuBarPanel: NSObject {
-    /// Den ene menubar — så fuldskærm kan lukke panelet.
+    /// The one menu bar — so full screen can close the panel.
     static weak var current: MenuBarPanel?
 
     private let statusItem: NSStatusItem
@@ -31,8 +31,8 @@ final class MenuBarPanel: NSObject {
         statusItem.button?.imagePosition = .imageLeading
         updateLabel()
 
-        // receive(on:) skubber opdateringen til efter ændringen —
-        // objectWillChange fyrer før.
+        // receive(on:) pushes the update to after the change —
+        // objectWillChange fires before.
         MarketStore.shared.objectWillChange
             .merge(with: Preferences.shared.objectWillChange)
             .merge(with: UniverseStore.shared.objectWillChange)
@@ -53,7 +53,7 @@ final class MenuBarPanel: NSObject {
             .store(in: &cancellables)
     }
 
-    // MARK: Menubar
+    // MARK: Menu bar
 
     private func updateLabel() {
         let market = MarketStore.shared
@@ -64,9 +64,9 @@ final class MenuBarPanel: NSObject {
 
         let symbol = failed ? "exclamationmark.triangle" : "square.grid.2x2.fill"
         let text = index.map { _ in Format.arrowPercent(change) } ?? ""
-        // Ikon og tal i appens farver: grøn op, rød ned (eller blå/orange).
-        // Systemfarverne, fordi de selv justerer sig til lys og mørk menubar.
-        // Uden tal — eller ved præcis 0 — er ikonet en almindelig skabelon.
+        // Icon and number in the app's colours: green up, red down (or blue/orange).
+        // The system colours, because they adjust themselves to a light and dark menu bar.
+        // Without a number — or at exactly 0 — the icon is a plain template.
         let tint: NSColor? = {
             guard let change, change != 0, !failed else { return nil }
             switch prefs.colorStyle {
@@ -104,9 +104,9 @@ final class MenuBarPanel: NSObject {
         close()
     }
 
-    /// Klik på ikonet: åbner panelet, eller lukker det hvis det er åbent.
+    /// Click on the icon: opens the panel, or closes it if it is open.
     @objc private func toggle() {
-        // I fuldskærm lukker ikonet fuldskærm — samme knap, modsat vej.
+        // In full screen the icon closes full screen — same button, opposite direction.
         if FullscreenController.shared.isShowing {
             FullscreenController.shared.close()
             return
@@ -114,19 +114,19 @@ final class MenuBarPanel: NSObject {
         if panel?.isVisible == true {
             close()
         } else if Date().timeIntervalSince(lastClose) > 0.35 {
-            // Lukkede den globale monitor panelet på selve dette klik (se
-            // open()), skal klikket ikke åbne det igen.
+            // If the global monitor closed the panel on this very click (see
+            // open()), the click should not open it again.
             open()
         }
     }
 
-    /// Ikonets ramme på skærmen.
+    /// The icon's frame on screen.
     private var statusItemFrame: NSRect? {
         guard let button = statusItem.button, let window = button.window else { return nil }
         return window.convertToScreen(button.convert(button.bounds, to: nil))
     }
 
-    /// Åbner panelet, hvis det ikke allerede er åbent. Bruges af widget'en.
+    /// Opens the panel if it is not already open. Used by the widget.
     func show() {
         if panel?.isVisible != true { open() }
     }
@@ -138,13 +138,13 @@ final class MenuBarPanel: NSObject {
         panel.makeKeyAndOrderFront(nil)
         MarketStore.shared.panelVisible = true
 
-        // En global monitor ser kun klik i *andre* apps, så den kommer ikke på
-        // tværs af vores eget ikon, panel, menuer eller popovers.
+        // A global monitor only sees clicks in *other* apps, so it does not get in
+        // the way of our own icon, panel, menus or popovers.
         monitors = [
-            // På nyere macOS tegnes menubar-ikoner af en anden proces, så et
-            // klik på vores eget ikon kommer også her. Det skal ikke lukke —
-            // det klarer toggle() — ellers lukker panelet ved museklik ned og
-            // åbner igen ved slip.
+            // On newer macOS, menu bar icons are drawn by another process, so a
+            // click on our own icon also arrives here. It should not close —
+            // toggle() handles that — otherwise the panel closes on mouse down and
+            // opens again on release.
             NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
                 let location = NSEvent.mouseLocation
                 Task { @MainActor in
@@ -156,7 +156,13 @@ final class MenuBarPanel: NSObject {
             NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
                 if ReplayKeys.handle(event) { return nil }
                 guard event.keyCode == 53 else { return event }   // 53 = Escape
-                // Et tekstfelt med indhold får selv lov at rydde op.
+                // An open dialog takes Esc first, even from a text field with
+                // text in it: Esc cancels the dialog and never closes the panel.
+                if AppState.shared.dialog != nil {
+                    AppState.shared.dialog = nil
+                    return nil
+                }
+                // A text field with content gets to clear itself first.
                 if let editor = event.window?.firstResponder as? NSTextView, !editor.string.isEmpty {
                     return event
                 }
@@ -204,7 +210,7 @@ final class MenuBarPanel: NSObject {
 
         let backdrop = NSView()
         backdrop.wantsLayer = true
-        // Ingen farve her: SwiftUI-roden maler baggrunden i det valgte tema.
+        // No colour here: the SwiftUI root paints the background in the chosen theme.
         backdrop.layer?.cornerRadius = 12
         backdrop.layer?.cornerCurve = .continuous
         backdrop.layer?.masksToBounds = true
@@ -212,7 +218,7 @@ final class MenuBarPanel: NSObject {
         backdrop.layer?.borderColor = NSColor(white: 0.5, alpha: 0.25).cgColor
 
         let host = NSHostingView(rootView: PanelRoot())
-        // Lyst, mørkt eller som systemet — se Preferences.theme.
+        // Light, dark or as the system — see Preferences.theme.
         host.appearance = Preferences.shared.appearance
         host.autoresizingMask = [.width, .height]
         host.frame = NSRect(origin: .zero, size: size)
@@ -223,7 +229,7 @@ final class MenuBarPanel: NSObject {
         return panel
     }
 
-    /// Panelet hænges under ikonet og holdes indenfor skærmen.
+    /// The panel is hung below the icon and kept within the screen.
     private func origin(for panel: NSPanel) -> NSPoint {
         guard let button = statusItem.button, let buttonWindow = button.window else { return .zero }
         let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
@@ -234,8 +240,8 @@ final class MenuBarPanel: NSObject {
         return NSPoint(x: x, y: y)
     }
 
-    /// Et borderless vindue kan ellers ikke blive key, og så virker hverken
-    /// søgefeltet, tastaturgenveje eller Esc.
+    /// Otherwise a borderless window cannot become key, and then neither
+    /// the search field, the keyboard shortcuts nor Esc work.
     private final class Panel: NSPanel {
         override var canBecomeKey: Bool { true }
     }
