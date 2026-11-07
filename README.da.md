@@ -60,7 +60,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   den for at hoppe til et tidspunkt, eller brug mellemrum til afspil/pause og ← → til at gå et skridt. Titlen,
   farverne og kursen i tooltippen følger det viste tidspunkt. 1×, 2× eller 4× hastighed. Felternes størrelse står
   fast; kun farverne bevæger sig. I fuld skærm kører den i ring, som et levende billede af markedet.
-- **Fuld skærm** (⌃⌘F eller ⤢-knappen): kortet alene, kant til kant, uden dock, titel eller ramme; menubaren
+- **Fuld skærm** (⌃⌘F): kortet alene, kant til kant, uden dock, titel eller ramme; menubaren
   skjules og glider kun frem hvis man fører musen helt op. Hover, klik og zoom virker stadig. Esc zoomer først ud,
   går så et niveau op og lukker til sidst. ⌃⌘F, menubar-ikonet eller **Afslut fuld skærm** i højrekliksmenuen
   lukker med det samme. På en MacBook med notch starter kortet under notchen, og båndet ved siden af viser titel,

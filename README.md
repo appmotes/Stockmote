@@ -59,7 +59,7 @@ line says which source failed. No analytics and no tracking.
   under the map; drag in it to jump to a moment, or press space to play and pause, ← → to step. The title, the
   colours and the tooltip's price all follow the moment shown. 1×, 2× or 4× speed. Tile sizes stay put; only the
   colours move. In full screen it plays in a loop, like a living picture of the market.
-- **Full screen** (⌃⌘F or the ⤢ button): the map alone, edge to edge, with no Dock, title or frame; the menu bar
+- **Full screen** (⌃⌘F): the map alone, edge to edge, with no Dock, title or frame; the menu bar
   hides and slides in only if you push the pointer to the top. Hover, click and zoom still work. Esc first zooms out,
   then goes up a level, then leaves. ⌃⌘F, the menu bar icon or **Exit full screen** in the
   right-click menu leave at once. On a MacBook with a notch the map starts below the notch, and the strip beside it

@@ -441,10 +441,9 @@ private struct Toolbar: View {
             if compact { PeriodMenu() } else { PeriodPicker() }
             ReplayButton()
             ViewModePicker()
-            ToolbarButton(symbol: "arrow.up.left.and.arrow.down.right",
-                          help: tr("Fuld skærm (⌃⌘F)", "Full screen (⌃⌘F)")) {
-                FullscreenController.shared.toggle()
-            }
+            // No full-screen button: the map-only full screen is still on ⌃⌘F
+            // and in the right-click menu, and the coming app window gets the
+            // standard green full-screen button.
             ThemeToggleButton()
             RefreshButton()
         }
