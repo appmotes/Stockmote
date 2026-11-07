@@ -1,0 +1,15 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Bundlen bygges af Scripts/make-app.sh
+build/
+
+# App-ikonet genereres af Scripts/make-icon.sh, og make-app.sh laver det
+# automatisk hvis det mangler. Derfor ligger det ikke i repoet.
+Resources/AppIcon.icns
+Resources/AppIcon.iconset/
+
+# macOS
+.DS_Store
