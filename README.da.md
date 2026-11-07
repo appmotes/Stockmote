@@ -40,7 +40,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   størrelsesændring fra alle kanter (ned til 720 × 480), den grønne knap til macOS' fulde skærm i sit eget Space,
   minimér til Dock, zoom, og størrelse og placering huskes mellem starter. Træk i den tomme del af værktøjslinjen for
   at flytte vinduet; dobbeltklik for at zoome.
-- **Menubar-panel.** Ikonet i menubaren åbner stadig det kompakte panel under sig — det hurtige kig.
+- **Menubar-panel.** Ikonet i menubaren åbner det kompakte panel under sig — det hurtige kig — når hovedvinduet er lukket eller minimeret; er vinduet fremme, henter ikonet vinduet frem i stedet, så de to aldrig ligger oven på hinanden.
   Vindue-knappen nederst i panelets sidebjælke (eller ⌘O) åbner vinduet. Panel og vindue viser det samme: vælg et
   indeks i det ene, og det andet følger med.
 - **Dock, menubar eller begge.** Indstillinger → **Vis Stockmote i**: **Dock og menubar** (standard), **Kun menubar**

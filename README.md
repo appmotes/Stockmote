@@ -40,7 +40,7 @@ line says which source failed. No analytics and no tracking.
   from every edge (down to 720 × 480), the green button for macOS full screen in its own Space, minimise to the Dock,
   zoom, and the size and position remembered between launches. Drag the empty part of the toolbar row to move the
   window; double-click it to zoom.
-- **Menu bar panel.** The menu bar icon still opens the compact panel under it — the quick look. The window button
+- **Menu bar panel.** The menu bar icon opens the compact panel under it — the quick look — when the main window is closed or minimised; with the window on screen, the icon brings the window forward instead, so the two never sit on top of each other. The window button
   at the bottom of the panel's sidebar (or ⌘O) opens the window. Panel and window show the same thing: pick an index
   in one and the other follows.
 - **Dock, menu bar or both.** Settings → **Show Stockmote in**: **Dock and menu bar** (default), **Menu bar only**

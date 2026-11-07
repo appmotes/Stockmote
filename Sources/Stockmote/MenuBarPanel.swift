@@ -121,6 +121,14 @@ final class MenuBarPanel: NSObject {
             FullscreenController.shared.close()
             return
         }
+        // With the main window on screen, the icon brings the window forward
+        // instead of opening the compact panel on top of it — two copies of
+        // the same view at once only confuses. The panel is for when the
+        // window is closed or minimised (or the app runs from the menu bar only).
+        if panel?.isVisible != true, MainWindow.shared.isOnScreen {
+            MainWindow.shared.show()
+            return
+        }
         if panel?.isVisible == true {
             close()
         } else if Date().timeIntervalSince(lastClose) > 0.35 {
