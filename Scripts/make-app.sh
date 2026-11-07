@@ -2,8 +2,9 @@
 # make-app.sh — packages the built binaries as a proper Stockmote.app with
 # the widget extension inside.
 #
-# LSUIElement = true means the app gets no Dock icon and doesn't show up in
-# ⌘-Tab — it lives only in the menu bar.
+# A regular app (no LSUIElement): Dock icon, ⌘-Tab and a main window. The
+# app itself switches to "menu bar only" at run time if that is chosen in
+# settings (NSApp.setActivationPolicy(.accessory)).
 #
 # Usage:
 #   ./Scripts/make-app.sh            # release build, ad hoc signed
@@ -79,10 +80,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIconName</key>              <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>        <string>14.0</string>
 
-    <!-- No Dock icon, no ⌘-Tab: the app lives only in the menu bar. -->
-    <key>LSUIElement</key>                   <true/>
-
-    <!-- stockmote://open?tab=… — a click on the widget opens the panel. -->
+    <!-- stockmote://open?tab=… — a click on the widget opens the window. -->
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

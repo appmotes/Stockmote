@@ -24,18 +24,22 @@ struct ThemeProvider<Content: View>: View {
     }
 }
 
-/// The panel: sidebar on the left, toolbar and map on the right.
+/// The panel and the main window: sidebar on the left, toolbar and map on the right.
 ///
 /// Built like a Mac app — source list, toolbar, status bar — and not
-/// like a phone with tabs at the bottom.
+/// like a phone with tabs at the bottom. In the panel it has the panel size
+/// from settings; in the main window it fills the window, and runs up under
+/// the transparent title bar.
 struct PanelRoot: View {
+    var context: PanelContext = .panel
+    /// Overrides the panel size (snapshots of the window).
+    var size: CGSize? = nil
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
     @ObservedObject private var replay = ReplayStore.shared
-    var size: CGSize? = nil
 
     var body: some View {
-        let size = size ?? prefs.panelSize.size
+        let fixed = context == .panel ? (size ?? prefs.panelSize.size) : size
         ThemeProvider {
             HStack(spacing: 0) {
                 if prefs.sidebarVisible {
@@ -60,13 +64,18 @@ struct PanelRoot: View {
             }
             .overlay { DialogHost() }
         }
-        .frame(width: size.width, height: size.height)
+        .environment(\.panelContext, context)
+        .frame(width: fixed?.width, height: fixed?.height)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.background)
+        // In the window the content runs under the title bar; the toolbar row
+        // and the sidebar header make room for the traffic lights themselves.
+        .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.2), value: prefs.sidebarVisible)
         .animation(.easeInOut(duration: 0.2), value: replay.isActive)
         .animation(.easeOut(duration: 0.15), value: app.dialog)
         .modifier(ReplayReloader())
-        .background { KeyboardShortcuts() }
+        .background { KeyboardShortcuts(context: context) }
         // When the language changes, everything is rebuilt so every text is read again.
         .id(prefs.language)
     }
@@ -94,22 +103,31 @@ private struct Sidebar: View {
     @ObservedObject private var funds = FundStore.shared
     @ObservedObject private var app = AppState.shared
     @ObservedObject private var prefs = Preferences.shared
+    @ObservedObject private var chrome = WindowChrome.shared
+    @Environment(\.panelContext) private var context
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .frame(width: 18, height: 18)
-                Text("Stockmote")
-                    .font(.system(size: 13, weight: .bold))
+                // In the window the traffic lights sit here, over the sidebar,
+                // as in Mail and Notes; the app's name is in the menu bar.
+                if context == .panel {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 18, height: 18)
+                    Text("Stockmote")
+                        .font(.system(size: 13, weight: .bold))
+                }
                 Spacer()
-                SidebarIconButton(symbol: "sidebar.left", help: tr("Skjul sidebjælke (⌘0)", "Hide sidebar (⌘0)")) {
+                SidebarIconButton(symbol: "sidebar.left",
+                                  help: context == .window ? tr("Skjul sidebjælke (⌃⌘S)", "Hide sidebar (⌃⌘S)")
+                                                           : tr("Skjul sidebjælke (⌘0)", "Hide sidebar (⌘0)")) {
                     prefs.sidebarVisible = false
                 }
             }
             .padding(.horizontal, 12)
-            .frame(height: 50)
+            .frame(height: context == .window ? chrome.titlebarHeight : 50)
+            .background { if context == .window { WindowDragArea() } }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 1) {
@@ -153,12 +171,22 @@ private struct Sidebar: View {
 
             Rectangle().fill(Palette.separator).frame(height: 1)
             HStack(spacing: 4) {
+                // The panel shows settings in place; the window opens the
+                // standard Settings window (⌘,).
                 SidebarRowButton(
-                    symbol: "gearshape", title: tr("Indstillinger", "Settings"),
-                    isSelected: app.tab == .settings
-                ) { app.toggleSettings() }
-                SidebarIconButton(symbol: "power", help: tr("Afslut Stockmote (⌘Q)", "Quit Stockmote (⌘Q)")) {
-                    NSApp.terminate(nil)
+                    symbol: "gearshape",
+                    title: context == .window ? tr("Indstillinger …", "Settings…") : tr("Indstillinger", "Settings"),
+                    isSelected: context == .panel && app.tab == .settings
+                ) {
+                    if context == .window { SettingsWindow.shared.show() } else { app.toggleSettings() }
+                }
+                if context == .panel {
+                    SidebarIconButton(symbol: "macwindow", help: tr("Åbn vindue (⌘O)", "Open window (⌘O)")) {
+                        MainWindow.shared.show()
+                    }
+                    SidebarIconButton(symbol: "power", help: tr("Afslut Stockmote (⌘Q)", "Quit Stockmote (⌘Q)")) {
+                        NSApp.terminate(nil)
+                    }
                 }
             }
             .padding(8)
@@ -408,11 +436,22 @@ private struct Toolbar: View {
     @ObservedObject private var market = MarketStore.shared
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
+    @ObservedObject private var chrome = WindowChrome.shared
+    @Environment(\.panelContext) private var context
+
+    /// With the sidebar hidden, the row starts at the window's edge, under the
+    /// traffic lights — except in full screen, where they are gone.
+    private var leadingInset: CGFloat {
+        guard context == .window, !prefs.sidebarVisible, !chrome.isFullScreen else { return 0 }
+        return max(0, chrome.trafficLightsInset - 12)
+    }
 
     var body: some View {
         HStack(spacing: 10) {
             if !prefs.sidebarVisible {
-                ToolbarButton(symbol: "sidebar.left", help: tr("Vis sidebjælke (⌘0)", "Show sidebar (⌘0)")) {
+                ToolbarButton(symbol: "sidebar.left",
+                              help: context == .window ? tr("Vis sidebjælke (⌃⌘S)", "Show sidebar (⌃⌘S)")
+                                                       : tr("Vis sidebjælke (⌘0)", "Show sidebar (⌘0)")) {
                     prefs.sidebarVisible = true
                 }
             }
@@ -432,8 +471,11 @@ private struct Toolbar: View {
                 .layoutPriority(1)
             }
         }
+        .padding(.leading, leadingInset)
         .padding(.horizontal, 12)
-        .frame(height: 50)
+        .frame(height: context == .window ? chrome.titlebarHeight : 50)
+        // In the window this row is the title bar: empty space drags the window.
+        .background { if context == .window { WindowDragArea() } }
     }
 
     private func controls(compact: Bool) -> some View {
@@ -441,9 +483,8 @@ private struct Toolbar: View {
             if compact { PeriodMenu() } else { PeriodPicker() }
             ReplayButton()
             ViewModePicker()
-            // No full-screen button: the map-only full screen is still on ⌃⌘F
-            // and in the right-click menu, and the coming app window gets the
-            // standard green full-screen button.
+            // No full-screen button: the window has the green one (⌃⌘F),
+            // and "Map only" is on ⇧⌘F and in the View menu.
             ThemeToggleButton()
             RefreshButton()
         }
@@ -519,6 +560,8 @@ private struct TitleBlock: View {
                     .font(.system(size: 16, weight: .bold))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    // Lets a drag on the title move the window, as on a real title bar.
+                    .allowsHitTesting(false)
             }
 
             if app.tab != .settings {
@@ -751,16 +794,36 @@ private struct StatusLine: View {
 }
 
 /// Invisible buttons that carry the keyboard shortcuts.
+///
+/// In the main window the main menu has most of them (and ⌘, and ⌃⌘F mean
+/// something else there), so only the ones the menu lacks are here. The panel
+/// keeps them all: it does not activate the app, so the main menu may not be
+/// the one in the menu bar.
 private struct KeyboardShortcuts: View {
+    let context: PanelContext
+
     var body: some View {
         ZStack {
-            Button("") { Task { await MarketStore.shared.refresh() } }.keyboardShortcut("r")
-            Button("") { NSApp.terminate(nil) }.keyboardShortcut("q")
-            Button("") { AppState.shared.showList.toggle() }.keyboardShortcut("l")
-            Button("") { ReplayStore.shared.toggle() }.keyboardShortcut("p")
+            if context == .panel {
+                Button("") { Task { await MarketStore.shared.refresh() } }.keyboardShortcut("r")
+                Button("") { NSApp.terminate(nil) }.keyboardShortcut("q")
+                Button("") { AppState.shared.showList.toggle() }.keyboardShortcut("l")
+                Button("") { ReplayStore.shared.toggle() }.keyboardShortcut("p")
+                Button("") { AppState.shared.toggleSettings() }.keyboardShortcut(",")
+                Button("") { MainWindow.shared.show() }.keyboardShortcut("o")
+                Button("") { MenuBarPanel.current?.hide() }.keyboardShortcut("w")
+                Button("") { AppState.shared.dialog = .newWatchlist(symbols: []) }.keyboardShortcut("n")
+                Button("") { AppState.shared.dialog = .addFund }.keyboardShortcut("n", modifiers: [.command, .shift])
+                Button("") { Preferences.shared.sidebarVisible.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])
+                Button("") { FullscreenController.shared.toggle() }.keyboardShortcut("f", modifiers: [.command, .shift])
+                // The panel cannot go full screen itself: ⌃⌘F takes the main window there.
+                Button("") { MainWindow.shared.toggleFullScreen() }.keyboardShortcut("f", modifiers: [.command, .control])
+                ForEach(Array(Period.allCases.enumerated()), id: \.offset) { number, period in
+                    Button("") { MarketStore.shared.period = period }
+                        .keyboardShortcut(KeyEquivalent(Character("\(number + 1)")), modifiers: [.command, .option])
+                }
+            }
             Button("") { Preferences.shared.sidebarVisible.toggle() }.keyboardShortcut("0")
-            Button("") { AppState.shared.toggleSettings() }.keyboardShortcut(",")
-            Button("") { FullscreenController.shared.toggle() }.keyboardShortcut("f", modifiers: [.command, .control])
             // ⌘1 … ⌘9: the indices in the sidebar's order.
             ForEach(1..<10) { number in
                 Button("") {

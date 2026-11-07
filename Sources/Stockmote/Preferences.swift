@@ -27,6 +27,25 @@ enum PanelSize: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where Stockmote shows up: in the Dock (with a window and a main menu), in
+/// the menu bar, or both. There is no "neither" — the app would be
+/// unreachable.
+enum AppPresence: String, CaseIterable, Identifiable {
+    case both, menuBarOnly, dockOnly
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .both: return tr("Dock og menubar", "Dock and menu bar")
+        case .menuBarOnly: return tr("Kun menubar", "Menu bar only")
+        case .dockOnly: return tr("Kun Dock", "Dock only")
+        }
+    }
+
+    var showsStatusItem: Bool { self != .dockOnly }
+    var showsDockIcon: Bool { self != .menuBarOnly }
+}
+
 /// Where a stock opens when you click it.
 enum QuoteSite: String, CaseIterable, Identifiable {
     case yahoo, google, nasdaq, finviz
@@ -84,6 +103,11 @@ final class Preferences: ObservableObject {
     /// Favourites and watchlists: equal tiles, or sized by market cap.
     @Published var listsByMarketCap: Bool { didSet { defaults.set(listsByMarketCap, forKey: "listsByMarketCap") } }
 
+    /// Dock, menu bar or both. Applied by AppDelegate.
+    @Published var presence: AppPresence { didSet { defaults.set(presence.rawValue, forKey: "presence") } }
+    /// Open the main window when the app is launched by hand (not at login).
+    @Published var openWindowAtLaunch: Bool { didSet { defaults.set(openWindowAtLaunch, forKey: "openWindowAtLaunch") } }
+
     @Published private(set) var launchAtLogin = false
     @Published private(set) var launchAtLoginError: String?
 
@@ -101,11 +125,13 @@ final class Preferences: ObservableObject {
         let seconds = defaults.integer(forKey: "refreshSeconds")
         refreshSeconds = seconds > 0 ? seconds : 60
         listsByMarketCap = defaults.bool(forKey: "listsByMarketCap")
+        presence = AppPresence(rawValue: defaults.string(forKey: "presence") ?? "") ?? .both
+        openWindowAtLaunch = defaults.object(forKey: "openWindowAtLaunch") as? Bool ?? true
         launchAtLogin = SMAppService.mainApp.status == .enabled
         Lang.isEnglish = language.isEnglish
     }
 
-    /// Appearance for the panel's NSHostingView. nil follows the system.
+    /// Appearance for the panel's NSHostingView and the windows. nil follows the system.
     var appearance: NSAppearance? {
         switch theme {
         case .system: return nil
