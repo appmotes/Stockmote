@@ -73,7 +73,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   amerikansk aktie og enhver aktie i de europæiske indekser. Favoritter får en lille stjerne på kortet. + laver en ny
   watchliste, og højreklik → **Omdøb …** omdøber en, begge i en lille dialog over panelet; højreklik for at slette en.
 - **Listevisning** (⌘L): ethvert kort som en sortérbar liste.
-- **Lyst og mørkt tema.** Det lyse er ikke det mørke vendt om: hvide fuger mellem felterne, lysegrå for uændrede
+- **Lyst og mørkt tema**, skiftet med sol/måne-knappen i værktøjslinjen (⇧⌘T; højreklik for at følge systemet). Det lyse er ikke det mørke vendt om: hvide fuger mellem felterne, lysegrå for uændrede
   aktier og mørk tekst hvor et felt er lyst.
 - **Dansk eller engelsk**, skiftet med det samme uden genstart. Tallene følger med: `+0,31%` og `1,2 bio. $` på
   dansk, `+0.31%` og `$1.2T` på engelsk.

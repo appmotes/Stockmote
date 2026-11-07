@@ -72,7 +72,7 @@ line says which source failed. No analytics and no tracking.
   + makes a new watchlist and right-click → **Rename …** renames one, both in a small dialog over the panel;
   right-click to delete one.
 - **List view** (⌘L): any map as a sortable list.
-- **Light and dark theme.** The light theme is not the dark one inverted: white grout between the tiles, light grey
+- **Light and dark theme**, switched with the sun/moon button in the toolbar (⇧⌘T; right-click to follow the system). The light theme is not the dark one inverted: white grout between the tiles, light grey
   for unchanged stocks and dark text wherever a tile is light.
 - **Danish or English**, switched instantly without a restart. Numbers follow: `+0,31%` and `1,2 bio. $` in Danish,
   `+0.31%` and `$1.2T` in English.
