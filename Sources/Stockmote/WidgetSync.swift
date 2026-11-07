@@ -26,6 +26,7 @@ final class WidgetSync {
             Preferences.shared.$theme.map { _ in () },
             MarketStore.shared.$quotes.map { _ in () }
         )
+        .merge(with: FundStore.shared.$holdings.map { _ in () }, FundStore.shared.$funds.map { _ in () })
         .debounce(for: .seconds(2), scheduler: RunLoop.main)
         .sink { [weak self] in self?.write() }
         .store(in: &cancellables)
@@ -36,8 +37,13 @@ final class WidgetSync {
         let universe = UniverseStore.shared
         let lists = ListsStore.shared
 
+        // Fondene står i widget'ens indeks-menu sammen med indekserne.
+        let funds = FundStore.shared.indices.filter { !$0.symbols.isEmpty }
+        let all = universe.indices + funds
+
         var symbols = Set(universe.allIndexSymbols)
         symbols.formUnion(lists.allSymbols)
+        symbols.formUnion(funds.flatMap(\.symbols))
         var stocks: [String: WidgetShare.Stock] = [:]
         for symbol in symbols {
             let info = market.info(symbol)
@@ -49,14 +55,17 @@ final class WidgetSync {
             updated: Date(),
             favorites: lists.favorites,
             watchlists: lists.watchlists.map { WidgetShare.List(name: $0.name, symbols: $0.symbols) },
-            indices: Dictionary(universe.indices.map { ($0.id, $0.symbols) }, uniquingKeysWith: { a, _ in a }),
+            indices: Dictionary(all.map { ($0.id, $0.symbols) }, uniquingKeysWith: { a, _ in a }),
             stocks: stocks,
             colorStyle: Preferences.shared.colorStyle.rawValue,
-            indexList: universe.indices.map {
-                WidgetShare.Index(id: $0.id, name: $0.name, flag: $0.flag, benchmark: $0.benchmark, hours: $0.hours)
+            indexList: all.map {
+                WidgetShare.Index(id: $0.id, name: $0.name, flag: $0.flag ?? ($0.isFund ? "📊" : nil),
+                                  benchmark: $0.benchmark, hours: $0.hours)
             },
             english: Lang.isEnglish,
-            theme: Preferences.shared.theme.rawValue
+            theme: Preferences.shared.theme.rawValue,
+            weights: Dictionary(funds.compactMap { fund in fund.weights.map { (fund.id, $0) } },
+                                uniquingKeysWith: { a, _ in a })
         )
         do {
             try share.write()
@@ -72,6 +81,7 @@ final class WidgetSync {
         hasher.combine(share.colorStyle)
         hasher.combine(share.english)
         hasher.combine(share.theme)
+        hasher.combine(share.indexList?.map(\.id))
         let key = hasher.finalize()
         if key != lastVisibleKey {
             lastVisibleKey = key

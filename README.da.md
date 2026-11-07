@@ -5,7 +5,7 @@
 [English](README.md) · **Dansk**
 
 En menubar-app til macOS der viser aktiemarkedet som et heatmap: tre amerikanske indekser og ti europæiske, fra S&P
-500 til danske C25 og tyske DAX.
+500 til danske C25 og tyske DAX — og enhver ETF eller indeksfond du søger frem, vist aktie for aktie.
 
 **Denne app er skrevet af en maskinintelligens.** Al koden, kommentarerne, designet, ikonet, scripts og denne README
 er lavet af Claude Opus 5.5 (Anthropic) ud fra et menneskes beskrivelse. Intet menneske har gennemgået koden linje for
@@ -25,9 +25,11 @@ eller nyere.
 ## Ansvarsfraskrivelse
 
 Ikke investeringsrådgivning. Appen viser offentlige kurser som de er. Den er ikke lavet af eller forbundet med Nasdaq,
-Yahoo, S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse eller nogen anden børs eller indeksudbyder.
+Yahoo, S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, State Street, Invesco eller nogen anden børs,
+indeks- eller fondsudbyder.
 
-Kurserne kommer fra offentlige adresser hos Yahoo Finance og Nasdaq der ikke kræver konto eller API-nøgle. Ingen af
+Kurserne kommer fra offentlige adresser hos Yahoo Finance og Nasdaq, fondenes beholdninger fra State Street og
+Invesco, alle uden konto eller API-nøgle. Ingen af
 dem er et dokumenteret, lovet API. De kan alle ændre sig eller lukke uden varsel; så bliver kortet gråt, og
 statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 
@@ -35,6 +37,13 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 
 - **13 indekser.** USA: S&P 500, Nasdaq 100, Dow Jones. Europa: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50, 🇬🇧 FTSE 100,
   🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI og 🇳🇱 AEX. ⌘1 … ⌘9 hopper til de første ni.
+- **Fonde.** + ved **Fonde** i sidebjælken åbner et søgefelt: skriv navn eller ticker på en ETF eller indeksfond
+  (`SPY`, `QQQ`, `iShares Core MSCI World`, `SPIC25`), og Retur eller et klik tilføjer og åbner den. Fonden vises
+  præcis som et indeks — sektor → branche → aktie, zoom, hover, liste, afspilning, fuld skærm, widget — men hvert
+  felts størrelse er aktiens **vægt i fonden**, ikke dens markedsværdi. Titlen viser fondens eget navn og dens egen
+  kursændring. Hover viser vægten, listen har en vægt-kolonne, og statuslinjen siger hvor beholdningen kommer fra.
+  Store fonde (MSCI World via SPGM: ~2900 aktier) beskæres til de 500 største efter vægt, og det står i statuslinjen.
+  Fondene huskes på tværs af genstart; højreklik for at hente beholdningen igen eller fjerne fonden.
 - **Seks tidsrum** i den segmenterede kontrol øverst: 1D, 1U, 1M, 3M, ÅTD og 1Å. Farveskalaen følger tidsrummet: fuld
   farve ved ±3 % for en dag, ±35 % for et år.
 - **Sektorer og brancher.** Klik på en sektor- eller branchestrimmel for at gå ind i den. Titlen bliver det niveau,
@@ -67,7 +76,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 - **Menubaren** viser det valgte indeks' ændring i dag ved siden af ikonet, begge i grønt eller rødt (eller
   blåt/orange).
 - **Widget** til skrivebordet og Notifikationscenter i alle fire størrelser: favoritter, en watchliste eller et
-  indeks, en sektor eller en branche, i ethvert tidsrum. Den følger temaet fra indstillingerne (som systemet, lyst eller mørkt). Et klik åbner panelet på
+  indeks, en fond, en sektor eller en branche, i ethvert tidsrum. Den følger temaet fra indstillingerne (som systemet, lyst eller mørkt). Et klik åbner panelet på
   den rigtige visning.
 - **Alt der slår til, slår også fra** med samme klik eller tast: menubar-ikonet lukker panelet (og fuld skærm),
   Indstillinger går tilbage til hvor du var, ⌘0 sidebjælken, ⌘L kort/liste, ⌃⌘F fuld skærm, og et klik på et
@@ -84,8 +93,8 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 | DAX, lyst tema | C25 — danske aktier i danske kroner |
 | ![Afspilning](docs/replay.png) | ![Fuld skærm](docs/fullscreen.png) |
 | S&P 500's dag afspillet, sat på pause kl. 17.45 | Fuld skærm med notch: C25 afspillet til kl. 14.30 |
-| ![Indstillinger](docs/settings.png) | |
-| Indstillinger i den mindste panelstørrelse | |
+| ![Indstillinger](docs/settings.png) | ![iShares Core MSCI World](docs/fund.png) |
+| Indstillinger i den mindste panelstørrelse | En fond: iShares Core MSCI World, felter efter vægt |
 
 ## Byg
 
@@ -115,6 +124,9 @@ skrivebordet → **Rediger widgets** → søg efter Stockmote.
 | Valutakurser (til at give europæiske aktier størrelse i dollar) | Yahoo Finance, `EURUSD=X` m.fl. | Sammen med kurserne |
 | Amerikansk markedsværdi, navn, søgning | Nasdaq's screener (alle ~7000 amerikanske aktier, 2 MB) | Hver halve time |
 | Indeksmedlemmer, sektorer, europæiske markedsværdier | `Indices.json`, bundtet med | Når du kører `update-indices.sh` |
+| Søgning efter fonde; sektor for udenlandske aktier i fonde | Yahoo Finance `v1/finance/search` | Når du skriver; for hver ny aktie én gang |
+| Fondes beholdning: SPDR-ETF'er (SPY, XLK, SPGM …) | State Streets daglige regneark (`holdings-daily-us-en-<ticker>.xlsx`) | Når fonden tilføjes, og derefter højst ugentligt |
+| Fondes beholdning: Invesco-ETF'er (QQQ, RSP …) | Invescos JSON (`dng-api.invesco.com`) | Som ovenfor |
 
 **Nasdaq's screener halter.** Målt en fredag eftermiddag viste den stadig torsdagens lukkekurs, så den bruges kun til
 størrelse og søgning, og markedsværdien skaleres med Yahoo's aktuelle kurs. Yahoo tillader 20 symboler pr. kald, så
@@ -132,6 +144,29 @@ størrelsen er aktiekursen siger ikke meget.
 
 **Sektorer.** Amerikanske aktier bruger GICS. Europæiske bruger Yahoo's klassifikation, oversat til GICS'
 sektornavne, så alle indekser deler sprog; brancherne beholder Yahoo's navne (`Drug Manufacturers – General`).
+
+**Fonde.** Ingen åben kilde har beholdningen for alle fonde. Appen prøver i denne rækkefølge:
+
+1. **Fondens egen beholdning** hos State Street (alle SPDR-ETF'er) eller Invesco, for amerikanske fonde. Begge
+   lægger hele beholdningen frem, med vægt, ticker og handelsvaluta.
+2. **Et af appens egne indekser**, hvis fondens navn siger at den følger det: `iShares Core DAX`, `Sparindex INDEX OMX
+   C25 KL`, `Vanguard 500 Index Admiral`. Så er beholdningen indeksets medlemmer, og felterne får markedsværdi.
+3. **En SPDR-fond på et tilsvarende indeks**: MSCI World, MSCI ACWI og FTSE All-World → SPGM (MSCI ACWI IMI);
+   emerging markets → SPEM; Europa/STOXX 600 → SPEU; hele det amerikanske marked → SPTM. Statuslinjen siger det
+   ("Beholdning fra SPGM (SSGA), der følger et tilsvarende indeks"). MSCI World har ikke emerging markets med, så det
+   er en tilnærmelse — de største aktier er de samme.
+4. Ellers: "Kunne ikke hente beholdningen for …".
+
+Fonde med en drejning i navnet — sektor, faktor, ESG, gearing, obligationer — følger ikke det brede indeks og får
+ingen erstatning. iShares (kræver nu login), Vanguard, Zacks og stockanalysis.com blev prøvet og fravalgt: de svarer
+enten ikke uden login eller afviser alt andet end en browser.
+
+Udenlandske aktier i en fond får Yahoo-symbol ud fra ticker og valuta (`7203` + JPY → `7203.T`, `700` + HKD →
+`0700.HK`, `SHEL` + GBP → `SHEL.L`). Euro-aktier kan ikke gættes (Paris, Frankfurt, Milano …) og slås op på navnet.
+Sektor og branche kommer fra `Indices.json` hvis aktien står der, ellers fra Yahoo's søgning, oversat til GICS'
+sektornavne. Opslagene gemmes i `~/Library/Application Support/Stockmote/Funds/Names.json` og beholdningerne i samme
+mappe, så en fond kun koster Yahoo-kald første gang. Yahoo svarer 429 hvis der spørges for meget; så ventes der, og
+de opslag der fejlede, prøves igen ét ad gangen.
 
 **Åbningstider** følger hver børs og vises i din lokale tid i statuslinjen: `Lukket · åbner man. 09.00`. Helligdage
 kendes ikke.
@@ -171,8 +206,8 @@ Tre ting som Xcode normalt gør for en widget, måtte gøres i hånden, fordi ap
   compileren bliver bedt om at skrive.
 - **Deling uden app group.** En widget kører i en sandbox og kan ikke læse appens indstillinger. En app group kræver et
   Apple-udviklerhold, og Stockmote er ad hoc-signeret. I stedet skriver appen
-  `~/Library/Application Support/Stockmote/Widget.json` (favoritter, watchlister, indekser, sektorer, markedsværdier,
-  sprog), og widget'en har en read-only-undtagelse til netop den mappe. Kurserne står ikke i filen: widget'en henter
+  `~/Library/Application Support/Stockmote/Widget.json` (favoritter, watchlister, indekser, fonde og deres vægte,
+  sektorer, markedsværdier, sprog), og widget'en har en read-only-undtagelse til netop den mappe. Kurserne står ikke i filen: widget'en henter
   dem selv fra Yahoo, så den er frisk selv når appen ikke har været åbnet.
 
 Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; WidgetKit har det sidste ord.
@@ -190,6 +225,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/Stockmote/SettingsView.swift](Sources/Stockmote/SettingsView.swift) | Indstillinger og Om |
 | [Sources/Stockmote/MarketData.swift](Sources/Stockmote/MarketData.swift) | Kurser, valutakurser, opdateringsløkke, Nasdaq's screener |
 | [Sources/Stockmote/Universe.swift](Sources/Stockmote/Universe.swift) | Indlæsning af `Indices.json` |
+| [Sources/Stockmote/Funds.swift](Sources/Stockmote/Funds.swift) | Fonde: søgning, beholdninger fra State Street og Invesco, erstatningsindekser, opslag af udenlandske aktier, cache, .xlsx-læser |
 | [Sources/Stockmote/Lists.swift](Sources/Stockmote/Lists.swift) | Favoritter og watchlister |
 | [Sources/Stockmote/Preferences.swift](Sources/Stockmote/Preferences.swift) | Indstillinger |
 | [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | Hvad der er valgt, sektor/branche og zoom |
@@ -220,7 +256,8 @@ sine indstillinger adskilt fra den rigtige apps:
 Valg: `--tab map|favorites|watchlists|settings`, `--index <id>`, `--period 1D|1U|1M|3M|ÅTD|1Å`,
 `--sector "…"`, `--industry "…"`, `--size small|medium|large|huge`, `--list`, `--zoom 2.5`,
 `--theme light|dark`, `--lang da|en`, `--no-sidebar`, `--fullscreen`, `--notch 32` (fuld skærm som på en skærm med
-notch), `--replay 0.4` (afspilning sat på pause 40 % inde i tidsrummet).
+notch), `--replay 0.4` (afspilning sat på pause 40 % inde i tidsrummet), `--fund SPY` (tilføj og vis en fond),
+`--fund-search "MSCI World"` (søgefeltet for fonde, åbent med resultater).
 
 | | |
 | --- | --- |

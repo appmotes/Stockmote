@@ -65,10 +65,13 @@ public struct WidgetShare: Codable {
     public var english: Bool?
     /// Appens tema: "system", "light" eller "dark" (ThemeMode.rawValue).
     public var theme: String?
+    /// Fonde: fond-id → symbol → vægt i procent. Felterne får fondens vægt
+    /// i stedet for markedsværdi.
+    public var weights: [String: [String: Double]]?
 
     public init(updated: Date, favorites: [String], watchlists: [List],
                 indices: [String: [String]], stocks: [String: Stock], colorStyle: String,
-                indexList: [Index], english: Bool, theme: String) {
+                indexList: [Index], english: Bool, theme: String, weights: [String: [String: Double]]? = nil) {
         self.updated = updated
         self.favorites = favorites
         self.watchlists = watchlists
@@ -78,6 +81,7 @@ public struct WidgetShare: Codable {
         self.indexList = indexList
         self.english = english
         self.theme = theme
+        self.weights = weights
     }
 
     /// Den rigtige hjemmemappe — også inde i sandboxen, hvor

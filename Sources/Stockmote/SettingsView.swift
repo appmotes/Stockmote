@@ -53,7 +53,8 @@ struct SettingsTab: View {
                     Row(tr("Vis ved ikonet", "Show next to icon")) {
                         Picker("", selection: $prefs.menuBarIndexID) {
                             Text(tr("Kun ikon", "Icon only")).tag(String?.none)
-                            ForEach(universe.indices) { Text("\($0.flag ?? "") \($0.name)").tag(String?.some($0.id)) }
+                            ForEach(universe.indices) { Text($0.title).tag(String?.some($0.id)) }
+                            ForEach(FundStore.shared.indices) { Text($0.title).tag(String?.some($0.id)) }
                         }
                         .fixedSize()
                     }

@@ -34,6 +34,14 @@ struct MarketIndex: Codable, Hashable, Identifiable {
     var open: String? = nil
     var close: String? = nil
     let symbols: [String]
+    /// Kun fonde: hver akties vægt i fonden i procent. Felternes størrelse
+    /// følger den i stedet for markedsværdien.
+    var weights: [String: Double]? = nil
+
+    /// "🇩🇰 C25", eller bare navnet for en fond.
+    var title: String { flag.map { "\($0) \(name)" } ?? name }
+
+    var isFund: Bool { region == "fund" }
 
     var hours: MarketHours {
         guard let timezone, let open, let close else { return .newYork }
@@ -41,6 +49,13 @@ struct MarketIndex: Codable, Hashable, Identifiable {
     }
 
     var isEuropean: Bool { region == "eu" }
+
+    /// Aktiernes vægt: fondens egen hvis den har en, ellers markedsværdi.
+    @MainActor
+    func weight(_ symbol: String) -> Double? {
+        if let weights { return weights[symbol] }
+        return MarketStore.shared.marketCap(symbol)
+    }
 }
 
 /// Indlæser indeksernes medlemmer fra Indices.json. Listen ligger i data og
@@ -69,8 +84,10 @@ final class UniverseStore: ObservableObject {
         load()
     }
 
+    /// Et indeks — eller en fond fra sidebjælken ("fund:SPY").
     func index(withID id: String) -> MarketIndex? {
-        indices.first { $0.id == id }
+        if FundStore.symbol(fromID: id) != nil { return FundStore.shared.index(withID: id) }
+        return indices.first { $0.id == id }
     }
 
     func load() {

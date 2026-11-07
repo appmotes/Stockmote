@@ -216,7 +216,7 @@ private struct NotchBand: View {
         case .watchlists: return lists.watchlist(app.watchlistID)?.name ?? ""
         default:
             let index = universe.index(withID: app.indexID)
-            let base = "\(index?.flag ?? "") \(index?.name ?? "")"
+            let base = index?.title ?? ""
             return app.focus.title.map { "\(base) › \($0)" } ?? base
         }
     }

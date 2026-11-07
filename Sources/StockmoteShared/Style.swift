@@ -218,6 +218,20 @@ public enum Format {
         return Lang.isEnglish ? "$\(number(scaled, digits: digits))\(unit)" : "\(number(scaled, digits: digits)) \(unit) $"
     }
 
+    /// "1.276" på dansk, "1,276" på engelsk.
+    public static func integer(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Lang.locale
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    /// Vægt i en fond: "5,79%" — med flere decimaler for de små.
+    public static func weight(_ value: Double?) -> String {
+        guard let value else { return "–" }
+        return "\(number(value, digits: value < 0.1 ? 3 : 2))%"
+    }
+
     public static func time(_ date: Date?) -> String {
         guard let date else { return "–" }
         let formatter = DateFormatter()

@@ -36,6 +36,9 @@ final class AppState: ObservableObject {
     @Published var watchlistID: UUID?
     /// Watchlisten hvis navn redigeres i sidebjælken lige nu.
     @Published var renamingWatchlist: UUID?
+    /// Søgefeltet under "Fonde" er åbent, og hvad der står i det.
+    @Published var fundSearchOpen = false
+    @Published var fundQuery = ""
 
     @Published var zoom: CGFloat = 1
     @Published var offset: CGPoint = .zero

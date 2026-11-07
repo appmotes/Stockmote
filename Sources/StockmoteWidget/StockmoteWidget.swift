@@ -297,8 +297,10 @@ struct Provider: AppIntentTimelineProvider {
             else if symbols.isEmpty { message = tr("Ingen aktier matcher", "No stocks match") }
         }
 
-        // De største selskaber først, så det er dem der kommer med.
-        let cap: (String) -> Double = { share?.stocks[$0]?.cap ?? 0 }
+        // De største selskaber først, så det er dem der kommer med. En fond
+        // har sine egne vægte; et indeks bruger markedsværdien.
+        let fundWeights = config.source == .index ? share?.weights?[config.index?.id ?? share?.indexList?.first?.id ?? ""] : nil
+        let cap: (String) -> Double = { fundWeights?[$0] ?? share?.stocks[$0]?.cap ?? 0 }
         if config.source == .index {
             symbols = Array(symbols.sorted { cap($0) > cap($1) }.prefix(limit(for: family)))
         } else {
@@ -314,7 +316,7 @@ struct Provider: AppIntentTimelineProvider {
             return HeatItem(
                 symbol: symbol, name: stock?.name ?? symbol,
                 sector: stock?.sector ?? tr("Øvrige", "Other"), industry: stock?.industry ?? tr("Øvrige", "Other"),
-                weight: byCap ? max(stock?.cap ?? 1, 1) : 1,
+                weight: byCap ? (fundWeights?[symbol] ?? max(stock?.cap ?? 1, 1)) : 1,
                 change: values[symbol]?.change,
                 isFavorite: favorites.contains(symbol) && config.source != .favorites
             )

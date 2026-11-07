@@ -26,3 +26,4 @@ find docs -name '*.png' ! -name 'app-icon.png' -delete
 "$BIN" --snapshot docs/english.png --lang en --index ftse
 "$BIN" --snapshot docs/fullscreen.png --fullscreen --notch 32 --replay 0.6 --index c25
 "$BIN" --snapshot docs/replay.png --replay 0.35
+"$BIN" --snapshot docs/fund.png --fund IWDA.AS

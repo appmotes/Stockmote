@@ -82,6 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             menuBar = MenuBarPanel()
             MarketStore.shared.start()
+            // Fondenes beholdninger hentes igen når de er en uge gamle.
+            FundStore.shared.refreshStale()
             WidgetSync.shared.start()
             if let pendingURL {
                 self.pendingURL = nil
@@ -121,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// [--index sp500|ndx|dji] [--period 1D|1U|1M|3M|ÅTD|1Å] [--sector "…"]
 /// [--industry "…"] [--size small|medium|large|huge] [--list] [--zoom 2.5]
 /// [--theme light|dark] [--lang da|en] [--no-sidebar] [--fullscreen [--notch 32]]
-/// [--replay 0.4]`
+/// [--replay 0.4] [--fund SPY] [--fund-search "MSCI World"]`
 ///
 /// Henter rigtige data, renderer panelet til en PNG og afslutter. Bruges til
 /// billederne i docs/ og til at se UI'et uden at klikke rundt.
@@ -165,6 +167,26 @@ struct Snapshot {
         app.showList = flags.contains("list")
         if let period = options["period"].flatMap(Period.init(rawValue:)) { market.period = period }
 
+        // Screeneren først: fondens amerikanske aktier tjekkes mod den.
+        await market.refresh()
+
+        // --fund SPY: fonden tilføjes (som om den var fundet i søgefeltet) og
+        // vises. Navn og type slås op i Yahoo's søgning.
+        if let symbol = options["fund"] {
+            let funds = FundStore.shared
+            let found = await FundStore.search(symbol).first { $0.symbol.uppercased() == symbol.uppercased() }
+            funds.add(found?.fund ?? Fund(symbol: symbol.uppercased(), name: symbol.uppercased(), kind: "ETF"))
+            app.indexID = FundStore.id(found?.symbol ?? symbol.uppercased())
+            app.tab = .map
+            await funds.ensureLoaded(found?.symbol ?? symbol.uppercased())
+            if let error = funds.errors[found?.symbol ?? symbol.uppercased()] { print("Fond: \(error)") }
+        }
+        // --fund-search "MSCI World": søgefeltet under Fonde, åbent med resultater.
+        if let query = options["fund-search"] {
+            app.fundSearchOpen = true
+            app.fundQuery = query
+        }
+
         await market.refresh()
         if market.period != .day { await market.loadPeriod(market.period, force: false) }
 
@@ -200,6 +222,8 @@ struct Snapshot {
 
         // Lad layout og GeometryReader falde på plads, også efter zoom.
         try? await Task.sleep(for: .milliseconds(600))
+        // Søgningen svarer først efter en pause i skrivningen og et kald til Yahoo.
+        if options["fund-search"] != nil { try? await Task.sleep(for: .seconds(3)) }
         if let zoom = options["zoom"].flatMap(Double.init) {
             app.zoom = zoom
             app.offset = CGPoint(x: size.width * (zoom - 1) * 0.1, y: size.height * (zoom - 1) * 0.1)

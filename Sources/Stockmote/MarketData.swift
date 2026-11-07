@@ -120,7 +120,7 @@ final class MarketStore: ObservableObject {
     }
 
     func currency(_ symbol: String) -> String {
-        UniverseStore.shared.info[symbol]?.currency ?? "USD"
+        UniverseStore.shared.info[symbol]?.currency ?? FundStore.shared.info[symbol]?.currency ?? "USD"
     }
 
     /// Ændringen i procent for et symbol (også "^GSPC") i et tidsrum.
@@ -133,12 +133,13 @@ final class MarketStore: ObservableObject {
     }
 
     /// Indeksets egen ændring. Yahoo's tal hvis vi har det, ellers et vægtet
-    /// gennemsnit af medlemmerne — tæt på, men ikke det officielle tal.
+    /// gennemsnit af medlemmerne — tæt på, men ikke det officielle tal. For
+    /// en fond er det fondens egen kurs.
     func indexChange(_ index: MarketIndex, _ period: Period) -> Double? {
         if let value = snapshots[period]?.changes[index.benchmark] { return value }
         var sum = 0.0, weight = 0.0
         for symbol in index.symbols {
-            guard let change = change(symbol, period), let cap = marketCap(symbol) else { continue }
+            guard let change = change(symbol, period), let cap = index.weight(symbol) else { continue }
             sum += change * cap
             weight += cap
         }
@@ -146,13 +147,15 @@ final class MarketStore: ObservableObject {
     }
 
     /// Navn og klassifikation. Indices.json vinder; aktier udenfor indekserne
-    /// (fx tilføjet til en watchliste) får Nasdaq's egen sektor.
+    /// (fx tilføjet til en watchliste) får Nasdaq's egen sektor, og
+    /// udenlandske aktier i en fond den Yahoo's søgning gav.
     func info(_ symbol: String) -> StockInfo {
         if let info = UniverseStore.shared.info[symbol] { return info }
         if let quote = quotes[symbol] {
             return StockInfo(symbol: symbol, name: Self.cleanName(quote.name),
                              sector: quote.sector, industry: quote.industry)
         }
+        if let info = FundStore.shared.info[symbol] { return info }
         return StockInfo(symbol: symbol, name: symbol, sector: tr("Øvrige", "Other"), industry: tr("Øvrige", "Other"))
     }
 
@@ -286,6 +289,8 @@ final class MarketStore: ObservableObject {
     private func wantedSymbols(for period: Period) -> Set<String> {
         let universe = UniverseStore.shared
         var symbols = Set(universe.indices.map(\.benchmark))
+        // Fondenes egne kurser, til tallet i sidebjælken.
+        symbols.formUnion(FundStore.shared.funds.map(\.symbol))
         // Valutakurser til at omregne europæiske markedsværdier til dollar.
         if period == .day { symbols.formUnion(Currency.yahooSymbols) }
         if let index = universe.index(withID: AppState.shared.indexID) {

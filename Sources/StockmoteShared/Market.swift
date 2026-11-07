@@ -3,12 +3,16 @@ import Foundation
 /// Symboler. Internt bruges Yahoo's skrivemåde for europæiske aktier
 /// ("NOVO-B.CO") og Nasdaq's for amerikanske ("BRK.B").
 public enum Symbols {
-    /// Yahoo's børs-suffikser for de børser Stockmote kender.
+    /// Yahoo's børs-suffikser for de børser Stockmote kender: de europæiske
+    /// indeksers, og resten af verdens, som aktier i globale fonde står på
+    /// (Tokyo, Toronto, Sydney, Hongkong …).
     private static let exchangeSuffixes: Set<String> = [
-        "CO", "DE", "F", "PA", "L", "ST", "OL", "HE", "SW", "AS", "MI", "MC", "BR", "VI", "IR", "LS"
+        "CO", "DE", "F", "PA", "L", "ST", "OL", "HE", "SW", "AS", "MI", "MC", "BR", "VI", "IR", "LS",
+        "T", "TO", "V", "AX", "HK", "KS", "KQ", "TW", "TWO", "SI", "NZ", "SA", "JO", "TA", "SS", "SZ",
+        "NS", "BO", "WA", "IS", "PR", "AT", "MU", "DU", "BE", "SG", "HM", "HA", "MX", "BD", "XC", "XD", "AQ", "IL", "NE"
     ]
 
-    /// En aktie på en europæisk børs, kendt på suffikset.
+    /// En aktie på en børs udenfor USA, kendt på suffikset.
     public static func isForeign(_ symbol: String) -> Bool {
         guard let dot = symbol.lastIndex(of: ".") else { return false }
         return exchangeSuffixes.contains(String(symbol[symbol.index(after: dot)...]))
@@ -129,6 +133,8 @@ public enum Currency {
         case "GBP": return "£"
         case "GBp", "GBX": return "p"
         case "CHF": return "CHF"
+        case "JPY": return "¥"
+        case "ZAc": return "ZAc"
         default: return currency ?? ""
         }
     }

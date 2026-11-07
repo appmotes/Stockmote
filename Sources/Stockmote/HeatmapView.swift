@@ -310,6 +310,10 @@ struct StockTooltip: View {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 3) {
                 row(replay.isReady ? tr("Kurs \(replay.timeLabel())", "Price \(replay.timeLabel())") : tr("Kurs", "Price"),
                     Format.price(replay.price(item.symbol) ?? market.price(item.symbol), currency: market.currency(item.symbol)))
+                if let weight = FundStore.shared.weight(of: item.symbol, inIndex: AppState.shared.indexID),
+                   AppState.shared.tab == .map {
+                    row(tr("Vægt i fonden", "Weight in fund"), Format.weight(weight))
+                }
                 row(tr("Markedsværdi", "Market value"), Format.marketCap(market.marketCap(item.symbol)))
                 if period != .day {
                     GridRow {
