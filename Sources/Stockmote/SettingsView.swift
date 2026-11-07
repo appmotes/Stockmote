@@ -34,7 +34,9 @@ struct SettingsTab: View {
                         }
                     }
                     Divider().padding(.leading, 12)
-                    Row(tr("Panelstørrelse", "Panel size")) {
+                    Row(tr("Panelstørrelse", "Panel size"),
+                        help: tr("Panelet under ikonet i menubaren. Vinduet kan du trække til den størrelse, du vil.",
+                                 "The panel under the menu bar icon. The window can be dragged to any size.")) {
                         Picker("", selection: $prefs.panelSize) {
                             ForEach(PanelSize.allCases) { Text($0.label).tag($0) }
                         }
@@ -49,7 +51,16 @@ struct SettingsTab: View {
                     }
                 }
 
-                SettingsGroup(title: tr("Menubar", "Menu bar")) {
+                SettingsGroup(title: tr("Dock og menubar", "Dock and menu bar")) {
+                    Row(tr("Vis Stockmote i", "Show Stockmote in"),
+                        help: tr("Kun menubar: intet Dock-ikon; vinduet åbnes fra panelet. Kun Dock: intet ikon i menubaren.",
+                                 "Menu bar only: no Dock icon; open the window from the panel. Dock only: no menu bar icon.")) {
+                        Picker("", selection: $prefs.presence) {
+                            ForEach(AppPresence.allCases) { Text($0.label).tag($0) }
+                        }
+                        .fixedSize()
+                    }
+                    Divider().padding(.leading, 12)
                     Row(tr("Vis ved ikonet", "Show next to icon")) {
                         Picker("", selection: $prefs.menuBarIndexID) {
                             Text(tr("Kun ikon", "Icon only")).tag(String?.none)
@@ -57,6 +68,13 @@ struct SettingsTab: View {
                             ForEach(FundStore.shared.indices) { Text($0.title).tag(String?.some($0.id)) }
                         }
                         .fixedSize()
+                        .disabled(!prefs.presence.showsStatusItem)
+                    }
+                    Divider().padding(.leading, 12)
+                    Row(tr("Åbn vindue ved start", "Open window at launch"),
+                        help: tr("Ikke når Stockmote starter ved login.", "Not when Stockmote opens at login.")) {
+                        Toggle("", isOn: $prefs.openWindowAtLaunch)
+                            .toggleStyle(.switch)
                     }
                     Divider().padding(.leading, 12)
                     Row(tr("Start ved login", "Open at login"), help: prefs.launchAtLoginError) {
@@ -225,22 +243,24 @@ func showAbout() {
     let alert = NSAlert()
     alert.messageText = version.map { "Stockmote \($0)" } ?? "Stockmote"
     alert.informativeText = tr("""
-        Heatmap over amerikanske og europæiske aktieindekser i menubaren.
+        Heatmap over amerikanske og europæiske aktieindekser — i et vindue og i menubaren.
 
         Feltets størrelse er markedsværdien, farven er ændringen i det valgte \
         tidsrum. Klik på en sektor eller branche for at gå ind i den; klik på \
-        en aktie for at åbne den i browseren. Knib for at zoome, ⌃⌘F for fuld skærm.
+        en aktie for at åbne den i browseren. Knib for at zoome, ⌃⌘F for fuld \
+        skærm, ⇧⌘F for kun kortet.
 
         Kurser fra Yahoo Finance og Nasdaq, hentet uden API-nøgle. De kan være \
         forsinkede, og de kan holde op med at virke uden varsel.
 
         Ikke investeringsrådgivning. Ingen analytics og ingen sporing.
         """, """
-        A heatmap of US and European stock indices in the menu bar.
+        A heatmap of US and European stock indices — in a window and in the menu bar.
 
         Tile size is market value, colour is the change over the chosen \
         range. Click a sector or industry to go into it; click a stock to \
-        open it in the browser. Pinch to zoom, ⌃⌘F for full screen.
+        open it in the browser. Pinch to zoom, ⌃⌘F for full screen, ⇧⌘F \
+        for the map only.
 
         Quotes from Yahoo Finance and Nasdaq, fetched without an API key. They \
         can be delayed and can stop working without notice.

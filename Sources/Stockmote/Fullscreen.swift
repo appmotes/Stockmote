@@ -2,10 +2,10 @@ import AppKit
 import StockmoteShared
 import SwiftUI
 
-/// The map alone, edge to edge across the whole screen.
+/// "Map only" (⇧⌘F): the map alone, edge to edge across the whole screen.
 ///
-/// Not macOS's own full screen: that creates a new Space with an animation and
-/// expects an ordinary window with a title bar. This is a borderless window
+/// Not macOS's own full screen — the main window has that (⌃⌘F, the green
+/// button), with sidebar and toolbar. This is a borderless window
 /// the size of the screen, with the menu bar and Dock hidden while it's
 /// showing. Hover, click, right-click and zoom work as in the panel.
 ///
@@ -15,7 +15,7 @@ import SwiftUI
 /// sitting empty.
 ///
 /// Esc: first out of zoom, then out of playback, then up a level, and finally
-/// closes full screen. ⌃⌘F closes at once. Space, ← and → control playback,
+/// closes it. ⇧⌘F (or ⌃⌘F) closes at once. Space, ← and → control playback,
 /// which loops here — a living screen.
 @MainActor
 final class FullscreenController {
@@ -24,11 +24,14 @@ final class FullscreenController {
     private var window: NSWindow?
     private var monitor: Any?
     private var savedOptions: NSApplication.PresentationOptions = []
+    /// Back to the main window on close, if that is where it was opened from.
+    private var returnToWindow = false
 
     var isShowing: Bool { window != nil }
 
     func show() {
         guard window == nil else { return }
+        returnToWindow = MainWindow.shared.isKey
         MenuBarPanel.current?.hide()
         AppState.shared.resetZoom()
 
@@ -44,7 +47,9 @@ final class FullscreenController {
         window.backgroundColor = .black
         window.hasShadow = false
         window.isReleasedWhenClosed = false
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenNone]
+        // fullScreenAuxiliary: it may open on the Space of the main window in
+        // macOS full screen.
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.setFrame(screen.frame, display: false)
 
         let host = NSHostingView(rootView: FullscreenView(topInset: screen.safeAreaInsets.top))
@@ -52,23 +57,23 @@ final class FullscreenController {
         window.contentView = host
         self.window = window
 
-        // An LSUIElement app must be active to hide the menu bar and Dock — and to
-        // receive key presses.
+        // The app must be active to hide the menu bar and Dock — and to
+        // receive key presses (the panel does not activate it).
         NSApp.activate(ignoringOtherApps: true)
         savedOptions = NSApp.presentationOptions
         // Auto-hidden, not gone: move the mouse to the top and the menu bar slides
         // in, and a click on the Stockmote icon closes full screen.
         NSApp.presentationOptions = [.autoHideDock, .autoHideMenuBar]
         window.makeKeyAndOrderFront(nil)
-        MarketStore.shared.panelVisible = true
+        LiveRefresh.update()
         ReplayStore.shared.loops = true
         if ReplayStore.shared.isReady, !ReplayStore.shared.isPlaying { ReplayStore.shared.play() }
 
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.window != nil else { return event }
+            guard let self, let window = self.window, event.window === window else { return event }
             if ReplayKeys.handle(event) { return nil }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if event.keyCode == 3, flags == [.command, .control] {      // ⌃⌘F
+            if event.keyCode == 3, flags == [.command, .shift] || flags == [.command, .control] {   // ⇧⌘F, ⌃⌘F
                 self.close()
                 return nil
             }
@@ -85,8 +90,10 @@ final class FullscreenController {
         window = nil
         NSApp.presentationOptions = savedOptions
         AppState.shared.resetZoom()
-        MarketStore.shared.panelVisible = false
         ReplayStore.shared.loops = false
+        LiveRefresh.update()
+        if returnToWindow { MainWindow.shared.show() }
+        returnToWindow = false
     }
 
     func toggle() {
@@ -131,7 +138,7 @@ struct FullscreenView: View {
                                                        : tr("Afspil \(market.period.longName)", "Replay \(market.period.longName)")) {
                                     replay.toggle()
                                 }
-                                Button(tr("Afslut fuld skærm (⌃⌘F)", "Exit full screen (⌃⌘F)")) {
+                                Button(tr("Luk Kun kortet (⇧⌘F)", "Exit Map Only (⇧⌘F)")) {
                                     FullscreenController.shared.close()
                                 }
                             })

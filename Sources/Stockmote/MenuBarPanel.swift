@@ -3,14 +3,16 @@ import StockmoteShared
 import Combine
 import SwiftUI
 
-/// The menu bar icon and the panel below it.
+/// The menu bar icon and the compact panel below it — the quick look. The
+/// main window (MainWindow) is the full app; "Open window" in the panel's
+/// sidebar or ⌘O goes there.
 ///
 /// Built in AppKit as in DRmote: a window we create ourselves can be painted fully
 /// black, and it can change size when you pick another panel size.
 /// `MenuBarExtra(.window)` can do neither.
 @MainActor
 final class MenuBarPanel: NSObject {
-    /// The one menu bar — so full screen can close the panel.
+    /// The one menu bar — so full screen and the main window can close the panel.
     static weak var current: MenuBarPanel?
 
     private let statusItem: NSStatusItem
@@ -104,6 +106,14 @@ final class MenuBarPanel: NSObject {
         close()
     }
 
+    var isOpen: Bool { panel?.isVisible == true }
+
+    /// "Dock only" in settings hides the icon (and with it the panel).
+    func setStatusItemVisible(_ visible: Bool) {
+        statusItem.isVisible = visible
+        if !visible { close() }
+    }
+
     /// Click on the icon: opens the panel, or closes it if it is open.
     @objc private func toggle() {
         // In full screen the icon closes full screen — same button, opposite direction.
@@ -136,7 +146,7 @@ final class MenuBarPanel: NSObject {
         self.panel = panel
         applySize(to: panel)
         panel.makeKeyAndOrderFront(nil)
-        MarketStore.shared.panelVisible = true
+        LiveRefresh.update()
 
         // A global monitor only sees clicks in *other* apps, so it does not get in
         // the way of our own icon, panel, menus or popovers.
@@ -153,22 +163,18 @@ final class MenuBarPanel: NSObject {
                     self.close()
                 }
             },
+            // A click in one of our own windows (the main window, Settings)
+            // closes the panel too. The icon is left to toggle(), as above.
+            NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+                guard let self, let window = event.window, window !== self.panel,
+                      window !== self.statusItem.button?.window else { return event }
+                self.close()
+                return event
+            },
+            // Only keys meant for the panel: the main window has its own monitor.
             NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                if ReplayKeys.handle(event) { return nil }
-                guard event.keyCode == 53 else { return event }   // 53 = Escape
-                // An open dialog takes Esc first, even from a text field with
-                // text in it: Esc cancels the dialog and never closes the panel.
-                if AppState.shared.dialog != nil {
-                    AppState.shared.dialog = nil
-                    return nil
-                }
-                // A text field with content gets to clear itself first.
-                if let editor = event.window?.firstResponder as? NSTextView, !editor.string.isEmpty {
-                    return event
-                }
-                if AppState.shared.handleEscape() { return nil }
-                Task { @MainActor in self?.close() }
-                return nil
+                guard let self, event.window === self.panel else { return event }
+                return PanelKeys.handle(event) { self.close() }
             }
         ].compactMap { $0 }
     }
@@ -178,7 +184,7 @@ final class MenuBarPanel: NSObject {
         monitors.forEach(NSEvent.removeMonitor)
         monitors = []
         panel?.orderOut(nil)
-        MarketStore.shared.panelVisible = false
+        LiveRefresh.update()
     }
 
     private func resize() {
@@ -206,7 +212,9 @@ final class MenuBarPanel: NSObject {
         panel.level = .popUpMenu
         panel.isMovable = false
         panel.animationBehavior = .utilityWindow
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        // fullScreenAuxiliary: the panel also opens over the main window when
+        // that is in full screen on its own Space.
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient, .fullScreenAuxiliary]
 
         let backdrop = NSView()
         backdrop.wantsLayer = true
@@ -217,7 +225,7 @@ final class MenuBarPanel: NSObject {
         backdrop.layer?.borderWidth = 0.5
         backdrop.layer?.borderColor = NSColor(white: 0.5, alpha: 0.25).cgColor
 
-        let host = NSHostingView(rootView: PanelRoot())
+        let host = NSHostingView(rootView: PanelRoot(context: .panel))
         // Light, dark or as the system — see Preferences.theme.
         host.appearance = Preferences.shared.appearance
         host.autoresizingMask = [.width, .height]

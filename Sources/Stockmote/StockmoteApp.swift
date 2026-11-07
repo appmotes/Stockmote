@@ -1,86 +1,67 @@
 import AppKit
+import Combine
 import StockmoteShared
 import SwiftUI
 
 @main
-struct StockmoteApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-
-    var body: some Scene {
-        // The menu bar icon and the panel are made in AppKit by MenuBarPanel. The Settings
-        // scene is only something to give SwiftUI — but it is not invisible: when
-        // the app is active (after full screen or "About Stockmote"), ⌘, opens
-        // it as an empty window — and SwiftUI now and then shows it by itself at
-        // launch. So the menu item is replaced, making ⌘, open the panel's own
-        // settings, and the window closes itself, invisibly, if it
-        // shows up anyway.
-        Settings { SettingsRedirect() }
-            .commands {
-                CommandGroup(replacing: .appSettings) {
-                    Button(tr("Indstillinger…", "Settings…")) { openPanelSettings() }
-                        .keyboardShortcut(",")
-                }
-            }
+enum StockmoteMain {
+    /// A plain AppKit app rather than a SwiftUI `App`: the main menu is built
+    /// by hand so its titles follow the in-app language (SwiftUI names the
+    /// standard menus in the system's language), and with no SwiftUI scenes
+    /// there is no stray, empty Settings window that SwiftUI can show by
+    /// itself. The windows are MainWindow and SettingsWindow.
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
     }
 }
 
-/// Shows the settings in the panel — the only place they exist.
-@MainActor
-func openPanelSettings() {
-    if FullscreenController.shared.isShowing { FullscreenController.shared.close() }
-    AppState.shared.tab = .settings
-    MenuBarPanel.current?.show()
-}
-
-/// The content of SwiftUI's settings window: closes the window right away.
-/// It does not open the panel — the window can show up by itself at launch, and then
-/// nothing should happen. ⌘, goes through the menu command above.
-private struct SettingsRedirect: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { Closer() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-
-    private final class Closer: NSView {
-        private var observers: [NSObjectProtocol] = []
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            observers.forEach(NotificationCenter.default.removeObserver)
-            observers = []
-            guard let window else { return }
-            for name in [NSWindow.didBecomeKeyNotification, NSWindow.didBecomeMainNotification] {
-                observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { _ in
-                    Self.redirect(window)
-                })
-            }
-            window.alphaValue = 0
-            if window.isVisible { Self.redirect(window) }
-        }
-
-        private static func redirect(_ window: NSWindow) {
-            window.alphaValue = 0
-            DispatchQueue.main.async { window.close() }
-        }
-    }
-}
-
-/// Keeps the app out of the Dock even when it runs via `swift run` (in the .app bundle
-/// LSUIElement does the same) and builds the menu bar icon.
+/// Builds the menu bar icon, the main menu and — unless the app was opened at
+/// login — the main window, and applies the Dock / menu bar setting.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarPanel?
     /// A click on the widget can launch the app; then the URL arrives before the menu bar
     /// is built.
     private var pendingURL: URL?
+    /// Opened as a login item: then the app starts quietly, without the window.
+    private var launchedAtLogin = false
+    private var cancellables: Set<AnyCancellable> = []
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // The open-application event says whether this is a login item
+        // ('oapp' with keyAEPropData = keyAELaunchedAsLogInItem, 'lgit').
+        if let event = NSAppleEventManager.shared().currentAppleEvent,
+           event.eventID == 0x6F61_7070,                                                    // 'oapp'
+           event.paramDescriptor(forKeyword: 0x7072_6474)?.enumCodeValue == 0x6C67_6974 {   // 'prdt' = 'lgit'
+            launchedAtLogin = true
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
-
         if let snapshot = Snapshot(arguments: CommandLine.arguments) {
+            // No Dock icon for the moment a snapshot takes.
+            NSApp.setActivationPolicy(.accessory)
             Task { @MainActor in await snapshot.run() }
             return
         }
 
+        // AppKit would otherwise add its own "Enter Full Screen" (in the
+        // system's language) and tab items to the menus.
+        UserDefaults.standard.set(false, forKey: "NSFullScreenMenuItemEverywhere")
+        NSWindow.allowsAutomaticWindowTabbing = false
+
         MainActor.assumeIsolated {
+            MainMenu.shared.install()
             menuBar = MenuBarPanel()
+            applyPresence()
+            Preferences.shared.$presence
+                .dropFirst()
+                .receive(on: RunLoop.main)
+                .sink { [weak self] _ in self?.applyPresence() }
+                .store(in: &cancellables)
+
             MarketStore.shared.start()
             // The funds' holdings are fetched again when they are a week old.
             FundStore.shared.refreshStale()
@@ -88,9 +69,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let pendingURL {
                 self.pendingURL = nil
                 handle(pendingURL)
+            } else if Preferences.shared.openWindowAtLaunch, !launchedAtLogin {
+                MainWindow.shared.show()
             }
         }
     }
+
+    /// Dock icon or not, menu bar icon or not — never neither (see AppPresence).
+    @MainActor
+    private func applyPresence() {
+        let presence = Preferences.shared.presence
+        menuBar?.setStatusItemVisible(presence.showsStatusItem)
+        let policy: NSApplication.ActivationPolicy = presence.showsDockIcon ? .regular : .accessory
+        guard NSApp.activationPolicy() != policy else { return }
+        let front = NSApp.keyWindow
+        NSApp.setActivationPolicy(policy)
+        // Changing the policy deactivates the app; bring back the window the
+        // setting was changed in.
+        if let front {
+            DispatchQueue.main.async {
+                NSApp.activate(ignoringOtherApps: true)
+                front.makeKeyAndOrderFront(nil)
+            }
+        }
+    }
+
+    /// The Dock icon clicked: bring the window back if it is closed or minimised.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        MainActor.assumeIsolated {
+            if !MainWindow.shared.isOnScreen { MainWindow.shared.show() }
+        }
+        return true
+    }
+
+    /// Closing the window keeps the app (and the menu bar icon) running.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
 
     /// `stockmote://open?tab=favorites&index=ndx` — from the widget.
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -104,18 +119,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Opens the main window on the view the widget showed.
     @MainActor
     private func handle(_ url: URL) {
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let app = AppState.shared
-        if let tab = items.first(where: { $0.name == "tab" })?.value.flatMap(PanelTab.init(rawValue:)) {
-            app.tab = tab
-        }
         if let index = items.first(where: { $0.name == "index" })?.value,
            UniverseStore.shared.index(withID: index) != nil {
             app.indexID = index
         }
-        menuBar?.show()
+        if let tab = items.first(where: { $0.name == "tab" })?.value.flatMap(PanelTab.init(rawValue:)), tab != .settings {
+            app.tab = tab
+        }
+        if FullscreenController.shared.isShowing { FullscreenController.shared.close() }
+        MainWindow.shared.show()
     }
 }
 
@@ -124,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// [--industry "…"] [--size small|medium|large|huge] [--list] [--zoom 2.5]
 /// [--theme light|dark] [--lang da|en] [--no-sidebar] [--fullscreen [--notch 32]]
 /// [--replay 0.4] [--fund SPY] [--fund-search "MSCI World" [--fund-pick URTH] [--fund-add]]
-/// [--dialog new-list|rename-list]`
+/// [--dialog new-list|rename-list] [--window 1200x780] [--settings]`
 ///
 /// Fetches real data, renders the panel to a PNG and quits. Used for
 /// the images in docs/ and to see the UI without clicking around.
@@ -152,6 +169,13 @@ struct Snapshot {
         }
         self.options = options
         self.flags = flags
+    }
+
+    /// "1200x780" (or "1200×780").
+    private static func parseSize(_ text: String) -> CGSize? {
+        let parts = text.lowercased().split(whereSeparator: { $0 == "x" || $0 == "×" }).compactMap { Double($0) }
+        guard parts.count == 2, parts[0] >= 200, parts[1] >= 200 else { return nil }
+        return CGSize(width: parts[0], height: parts[1])
     }
 
     func run() async {
@@ -223,8 +247,14 @@ struct Snapshot {
         }
 
         // --fullscreen: the map alone, as in full screen, on a 1440×900 screen.
+        // --window 1200x780: the main window's content at that size (without
+        // the real title bar, which AppKit draws; the traffic lights' space
+        // is left empty as in the window). --settings: the Settings window.
         let fullscreen = flags.contains("fullscreen")
-        let size = fullscreen ? CGSize(width: 1440, height: 900) : prefs.panelSize.size
+        let windowSize = options["window"].flatMap(Self.parseSize)
+        let settings = flags.contains("settings")
+        let size = fullscreen ? CGSize(width: 1440, height: 900)
+            : windowSize ?? (settings ? CGSize(width: 540, height: 700) : prefs.panelSize.size)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         // --replay 0.4: replay paused 40 % into the period.
@@ -237,7 +267,17 @@ struct Snapshot {
         }
         // --notch 32: full screen as on a display with a notch.
         let notch = CGFloat(options["notch"].flatMap(Double.init) ?? 0)
-        let host = NSHostingView(rootView: fullscreen ? AnyView(FullscreenView(topInset: notch)) : AnyView(PanelRoot()))
+        let root: AnyView
+        if fullscreen {
+            root = AnyView(FullscreenView(topInset: notch))
+        } else if let windowSize {
+            root = AnyView(PanelRoot(context: .window, size: windowSize))
+        } else if settings {
+            root = AnyView(SettingsWindowContent())
+        } else {
+            root = AnyView(PanelRoot(context: .panel))
+        }
+        let host = NSHostingView(rootView: root)
         host.appearance = prefs.appearance
         host.frame = NSRect(origin: .zero, size: size)
         window.contentView = host
