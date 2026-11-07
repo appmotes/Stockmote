@@ -445,6 +445,7 @@ private struct Toolbar: View {
                           help: tr("Fuld skærm (⌃⌘F)", "Full screen (⌃⌘F)")) {
                 FullscreenController.shared.toggle()
             }
+            ThemeToggleButton()
             RefreshButton()
         }
         .fixedSize()
@@ -1307,5 +1308,43 @@ private struct ReplayButton: View {
               ? tr("Afspil dagen (⌘P)", "Replay the day (⌘P)")
               : tr("Afspil \(market.period.longName) (⌘P)", "Replay \(market.period.longName) (⌘P)"))
         .onHover { isHovering = $0 }
+    }
+}
+
+/// Sun/moon in the toolbar: switches between light and dark with one click.
+/// The icon shows the theme you'd switch to, like macOS' own Control Centre
+/// toggle. If the theme follows the system, the click flips away from what
+/// the system shows right now. Right-click to go back to following the system.
+private struct ThemeToggleButton: View {
+    @ObservedObject private var prefs = Preferences.shared
+    @Environment(\.colorScheme) private var scheme
+    @State private var isHovering = false
+
+    private var isDark: Bool { scheme == .dark }
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                prefs.theme = isDark ? .light : .dark
+            }
+        } label: {
+            Image(systemName: isDark ? "sun.max.fill" : "moon.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(isDark ? Color.yellow : Color.indigo)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isHovering ? Palette.raised : .clear))
+                .contentShape(Rectangle())
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+        .help(isDark ? tr("Skift til lyst tema (⇧⌘T)", "Switch to light theme (⇧⌘T)")
+                     : tr("Skift til mørkt tema (⇧⌘T)", "Switch to dark theme (⇧⌘T)"))
+        .keyboardShortcut("t", modifiers: [.command, .shift])
+        .onHover { isHovering = $0 }
+        .contextMenu {
+            ForEach(ThemeMode.allCases) { mode in
+                Toggle(mode.label, isOn: Binding(get: { prefs.theme == mode }, set: { _ in prefs.theme = mode }))
+            }
+        }
     }
 }
