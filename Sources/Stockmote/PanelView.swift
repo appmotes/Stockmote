@@ -179,9 +179,7 @@ private struct Toolbar: View {
             SearchButton(compact: compact)
             ThemeToggleButton()
             RefreshButton()
-            ToolbarButton(symbol: "slider.horizontal.3", help: tr("Indstillinger (⌘,)", "Settings (⌘,)")) {
-                SettingsWindow.shared.show()
-            }
+            SettingsButton()
         }
         .fixedSize()
     }
@@ -543,6 +541,43 @@ private struct RefreshButton: View {
         .animation(spin ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: spin)
         .onChange(of: market.isLoading || market.loadingPeriod != nil) { _, loading in spin = loading }
         .onAppear { spin = market.isLoading }
+    }
+}
+
+/// Opens the Settings window. Its icon is two sliders, drawn here because
+/// SF Symbols only has the three-slider version.
+private struct SettingsButton: View {
+    @State private var isHovering = false
+
+    var body: some View {
+        Button { SettingsWindow.shared.show() } label: {
+            SlidersIcon()
+                .stroke(style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                .frame(width: 15, height: 15)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isHovering ? Palette.raised : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(tr("Indstillinger (⌘,)", "Settings (⌘,)"))
+        .onHover { isHovering = $0 }
+    }
+}
+
+/// Two horizontal sliders, each a line with a round knob (on a 24-point grid).
+private struct SlidersIcon: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 24
+        let p = { (x: CGFloat, y: CGFloat) in CGPoint(x: rect.minX + x * s, y: rect.minY + y * s) }
+        var path = Path()
+        for (from, to) in [((4, 7), (13, 7)), ((17, 7), (20, 7)), ((4, 17), (7, 17)), ((11, 17), (20, 17))] {
+            path.move(to: p(CGFloat(from.0), CGFloat(from.1)))
+            path.addLine(to: p(CGFloat(to.0), CGFloat(to.1)))
+        }
+        path.addEllipse(in: CGRect(origin: p(13, 5), size: CGSize(width: 4 * s, height: 4 * s)))
+        path.addEllipse(in: CGRect(origin: p(7, 15), size: CGSize(width: 4 * s, height: 4 * s)))
+        return path
     }
 }
 
