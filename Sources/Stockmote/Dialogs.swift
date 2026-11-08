@@ -24,17 +24,17 @@ struct DialogHost: View {
                         .onTapGesture { app.dialog = nil }
                     Group {
                         switch dialog {
-                        case .addFund:
-                            // The result list gets what is left of the window's
+                        case .search:
+                            // The results get what is left of the window's
                             // height, so the dialog fits the smallest window too.
-                            AddFundDialog(listHeight: max(110, min(250, geometry.size.height - 300)))
+                            SearchDialog(listHeight: max(150, min(420, geometry.size.height - 190)))
                         case .newWatchlist(let symbols):
                             NewWatchlistDialog(symbols: symbols)
                         case .renameWatchlist(let id):
                             RenameWatchlistDialog(id: id)
                         }
                     }
-                    .frame(width: min(440, geometry.size.width - 48))
+                    .frame(width: min(dialog == .search ? 580 : 440, geometry.size.width - 48))
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
             }
@@ -181,10 +181,14 @@ private struct NewWatchlistDialog: View {
             initial: ""
         ) { name in
             let id = ListsStore.shared.createWatchlist(named: name, with: symbols)
-            app.watchlistID = id
-            // From the sidebar the new, empty list is shown; from the map's
-            // context menu the user stays on the map.
-            if symbols.isEmpty { app.tab = .watchlists }
+            // From the search the new, empty list is shown; from the map's
+            // context menu or a stock page the user stays where they are.
+            if symbols.isEmpty {
+                app.openWatchlist(id)
+            } else {
+                app.watchlistID = id
+                app.show(tr("\(name) er oprettet", "\(name) was created"))
+            }
         }
     }
 }
@@ -206,149 +210,7 @@ private struct RenameWatchlistDialog: View {
 
 // MARK: - Funds
 
-/// Search, pick and check a fund before it is added. The picked fund's
-/// holdings are loaded right here, and only a fund whose holdings could be
-/// loaded can be added — the sidebar never gets a fund that can't be shown.
-private struct AddFundDialog: View {
-    let listHeight: CGFloat
-    @ObservedObject private var picker = FundPicker.shared
-    @ObservedObject private var app = AppState.shared
-
-    var body: some View {
-        DialogCard(
-            title: tr("Tilføj ETF eller fond", "Add ETF or fund"),
-            message: tr("Søg på navn eller ticker. Beholdningen hentes, før fonden tilføjes.",
-                        "Search by name or ticker. The holdings are loaded before the fund is added."),
-            primary: picker.isAdded ? tr("Vis", "Show") : tr("Tilføj", "Add"),
-            primaryEnabled: picker.canCommit,
-            onPrimary: { picker.commit() },
-            onCancel: { app.dialog = nil }
-        ) {
-            DialogField(placeholder: tr("SPY, MSCI World, SEC0, C25 …", "SPY, MSCI World, SEC0, C25 …"),
-                        text: $picker.query, icon: "magnifyingglass", busy: picker.searching) {
-                // The focused field gets Return before the Add button's
-                // default-action shortcut does, so Return is handled here:
-                // it picks the first result, and once the holdings are
-                // loaded, adds the fund.
-                Task { await picker.submit() }
-            }
-            results
-            FundPickerStatus()
-        }
-        .task(id: picker.query) { await picker.search(debounce: true) }
-        .onDisappear { picker.reset() }
-    }
-
-    @ViewBuilder private var results: some View {
-        if !picker.results.isEmpty {
-            ScrollView {
-                VStack(spacing: 1) {
-                    ForEach(picker.results) { result in
-                        FundResultRow(result: result, isSelected: picker.selected == result,
-                                      isAdded: FundStore.shared.contains(result.symbol)) {
-                            picker.select(result)
-                        }
-                    }
-                }
-            }
-            .frame(height: min(listHeight, CGFloat(picker.results.count) * 37))
-        } else if !picker.searching, picker.hasSearched {
-            Text(tr("Ingen ETF'er eller fonde fundet", "No ETFs or funds found"))
-                .font(.system(size: 11.5)).foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
-        }
-    }
-}
-
-/// What happened to the picked fund: loading, ready (with a preview of the
-/// holdings) or failed.
-private struct FundPickerStatus: View {
-    @ObservedObject private var picker = FundPicker.shared
-    @ObservedObject private var funds = FundStore.shared
-
-    var body: some View {
-        if let selected = picker.selected {
-            HStack(alignment: .top, spacing: 8) {
-                switch picker.phase {
-                case .loading(let text):
-                    ProgressView().controlSize(.small).frame(width: 16, height: 16)
-                    lines(text, selected.name)
-                case .ready(let loaded):
-                    icon("checkmark.circle.fill", .green)
-                    lines(funds.preview(loaded), funds.sourceNote(for: loaded))
-                case .failed(let reason):
-                    icon("exclamationmark.triangle.fill", .orange)
-                    lines(reason ?? tr("Kunne ikke finde beholdningen for \(selected.name). Fonden kan ikke vises.",
-                                       "Couldn't find the holdings for \(selected.name). The fund can't be shown."), nil)
-                case .idle:
-                    if picker.isAdded {
-                        icon("checkmark.circle", .secondary)
-                        lines(tr("\(selected.name) er allerede i sidebjælken.", "\(selected.name) is already in the sidebar."), nil)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.raised.opacity(0.6)))
-        }
-    }
-
-    private func icon(_ name: String, _ color: Color) -> some View {
-        Image(systemName: name).font(.system(size: 14)).foregroundStyle(color).frame(width: 16, height: 16)
-    }
-
-    private func lines(_ first: String, _ second: String?) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(first).font(.system(size: 12, weight: .medium)).fixedSize(horizontal: false, vertical: true)
-            if let second {
-                Text(second).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
-            }
-        }
-    }
-}
-
-private struct FundResultRow: View {
-    let result: FundSearchResult
-    let isSelected: Bool
-    let isAdded: Bool
-    let action: () -> Void
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(result.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
-                    HStack(spacing: 5) {
-                        Text(Symbols.display(result.symbol)).font(.system(size: 10.5, weight: .bold))
-                        Text(result.fund.kindLabel + (result.exchange.isEmpty ? "" : " · \(result.exchange)"))
-                            .font(.system(size: 10.5)).foregroundStyle(.secondary)
-                    }
-                    .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                if isAdded {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.green)
-                        .help(tr("Allerede i sidebjælken", "Already in the sidebar"))
-                }
-            }
-            .padding(.horizontal, 8)
-            .frame(height: 36)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.22) : (isHovering ? Palette.raised : .clear))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-    }
-}
-
-/// The add-fund dialog's state: search, the picked result and its holdings.
+/// The fund half of the search dialog: fund results, the picked fund and its holdings.
 /// A model rather than view state, so snapshot mode can drive it and wait
 /// for the holdings (`--fund-search`, `--fund-pick`).
 @MainActor
@@ -406,7 +268,7 @@ final class FundPicker: ObservableObject {
         searched = text
     }
 
-    /// Picks a result and loads its holdings, unless it is in the sidebar already.
+    /// Picks a result and loads its holdings, unless it has been added already.
     func select(_ result: FundSearchResult) {
         guard selected != result else { return }
         selected = result
@@ -461,11 +323,14 @@ final class FundPicker: ObservableObject {
     func commit() {
         guard let selected, canCommit else { return }
         let funds = FundStore.shared
+        let added = !funds.contains(selected.symbol)
         if case .ready(let loaded) = phase { funds.add(selected.fund, holdings: loaded) }
         let app = AppState.shared
-        app.indexID = selected.fund.id
-        app.tab = .map
         app.dialog = nil
+        app.openIndex(selected.fund.id)
+        if added {
+            app.show(tr("\(selected.fund.displaySymbol) er tilføjet under Mine", "\(selected.fund.displaySymbol) was added under Mine"))
+        }
         reset()
     }
 

@@ -24,11 +24,13 @@ struct ThemeProvider<Content: View>: View {
     }
 }
 
-/// The main window's content: sidebar on the left, toolbar and map on the right.
+
+/// The main window's content: the toolbar row, the screen — the overview,
+/// a map or a stock — and the status line.
 ///
-/// Built like a Mac app — source list, toolbar, status bar — and not
-/// like a phone with tabs at the bottom. It fills the window and runs up
-/// under the transparent title bar.
+/// No sidebar: the overview is the start screen, and every level has a way
+/// back (the chevron, the breadcrumb and Esc). It fills the window and runs
+/// up under the transparent title bar.
 struct PanelRoot: View {
     /// A fixed size, for snapshots of the window; otherwise the window's.
     var size: CGSize? = nil
@@ -38,38 +40,33 @@ struct PanelRoot: View {
 
     var body: some View {
         ThemeProvider {
-            HStack(spacing: 0) {
-                if prefs.sidebarVisible {
-                    Sidebar()
-                        .frame(width: 212)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
-                    Rectangle().fill(Palette.separator).frame(width: 1)
-                }
+            GeometryReader { geometry in
                 VStack(spacing: 0) {
                     Toolbar()
                         .frame(minWidth: 0, maxWidth: .infinity)
                     Rectangle().fill(Palette.separator).frame(height: 1)
                     Content()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if replay.isActive {
-                        ReplayBar()
+                    if replay.isActive, app.isMap {
+                        SeismographDrawer(maxRows: geometry.size.height < 620 ? 6 : 12)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     StatusLine()
                 }
                 .background(Palette.background)
+                .overlay(alignment: .bottom) { ToastView().padding(.bottom, 34) }
+                .overlay { DialogHost() }
             }
-            .overlay { DialogHost() }
         }
         .frame(width: size?.width, height: size?.height)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.background)
         // In the window the content runs under the title bar; the toolbar row
-        // and the sidebar header make room for the traffic lights themselves.
+        // makes room for the traffic lights itself.
         .ignoresSafeArea()
-        .animation(.easeInOut(duration: 0.2), value: prefs.sidebarVisible)
         .animation(.easeInOut(duration: 0.2), value: replay.isActive)
         .animation(.easeOut(duration: 0.15), value: app.dialog)
+        .animation(.easeOut(duration: 0.2), value: app.toast?.id)
         .modifier(ReplayReloader())
         .background { KeyboardShortcuts() }
         // When the language changes, everything is rebuilt so every text is read again.
@@ -81,315 +78,47 @@ private struct Content: View {
     @ObservedObject private var app = AppState.shared
 
     var body: some View {
-        switch app.tab {
-        case .map: MapContent()
-        case .favorites: FavoritesContent()
-        case .watchlists: WatchlistContent()
+        switch app.screen {
+        case .overview:
+            OverviewView()
+        case .stock(let symbol):
+            StockPage(symbol: symbol)
+        case .map:
+            switch app.tab {
+            case .map: MapContent()
+            case .favorites: FavoritesContent()
+            case .watchlists: WatchlistContent()
+            }
         }
     }
 }
 
-// MARK: - Sidebar
-
-private struct Sidebar: View {
-    @ObservedObject private var universe = UniverseStore.shared
-    @ObservedObject private var market = MarketStore.shared
-    @ObservedObject private var lists = ListsStore.shared
-    @ObservedObject private var funds = FundStore.shared
-    @ObservedObject private var app = AppState.shared
-    @ObservedObject private var prefs = Preferences.shared
-    @ObservedObject private var chrome = WindowChrome.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // The traffic lights sit here, over the sidebar, as in Mail and
-            // Notes; the app's name is in the menu bar.
-            HStack(spacing: 7) {
-                Spacer()
-                SidebarIconButton(symbol: "sidebar.left", help: tr("Skjul sidebjælke (⌃⌘S)", "Hide sidebar (⌃⌘S)")) {
-                    prefs.sidebarVisible = false
-                }
-            }
-            .padding(.horizontal, 12)
-            .frame(height: chrome.titlebarHeight)
-            .background { WindowDragArea() }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 1) {
-                    SectionTitle(text: tr("USA", "United States"))
-                    ForEach(universe.indices.filter { !$0.isEuropean }) { IndexRow(index: $0) }
-
-                    SectionTitle(text: tr("Europa", "Europe"))
-                    ForEach(universe.indices.filter(\.isEuropean)) { IndexRow(index: $0) }
-
-                    SectionTitle(text: tr("Fonde", "Funds"),
-                                 addHelp: tr("Tilføj ETF eller fond", "Add ETF or fund")) {
-                        app.dialog = .addFund
-                    }
-                    ForEach(funds.funds) { FundRow(fund: $0) }
-                    if funds.funds.isEmpty {
-                        Button { app.dialog = .addFund } label: {
-                            Text(tr("Tilføj en ETF eller indeksfond …", "Add an ETF or index fund …"))
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 7)
-                                .frame(height: 24)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    SectionTitle(text: tr("Mine lister", "My lists")) {
-                        app.dialog = .newWatchlist(symbols: [])
-                    }
-                    ListRow(
-                        symbol: "star.fill", tint: .yellow, title: tr("Favoritter", "Favorites"),
-                        symbols: lists.favorites, isSelected: app.tab == .favorites
-                    ) { app.tab = .favorites }
-                    ForEach(lists.watchlists) { list in
-                        WatchlistRow(list: list)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
-            }
-
-            Rectangle().fill(Palette.separator).frame(height: 1)
-            // Opens the standard Settings window (⌘,).
-            SidebarRowButton(symbol: "gearshape", title: tr("Indstillinger …", "Settings…"), isSelected: false) {
-                SettingsWindow.shared.show()
-            }
-            .padding(8)
-        }
-        .background(Palette.sidebar)
-    }
-}
-
-private struct SectionTitle: View {
-    let text: String
-    var addHelp = tr("Ny watchliste", "New watchlist")
-    var onAdd: (() -> Void)? = nil
-
-    var body: some View {
-        HStack {
-            Text(text.uppercased())
-                .font(.system(size: 10, weight: .bold))
-                .tracking(0.6)
-                .foregroundStyle(.secondary)
-            Spacer()
-            if let onAdd {
-                Button(action: onAdd) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .bold))
-                        .frame(width: 18, height: 18)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help(addHelp)
-            }
-        }
-        .padding(.horizontal, 6)
-        .padding(.top, 12)
-        .padding(.bottom, 3)
-    }
-}
-
-/// Shared row: icon or flag, title, and the change on the right.
-private struct SidebarRow<Leading: View>: View {
-    let title: String
-    let figure: Figure
-    let isSelected: Bool
-    var detail: String? = nil
-    @ViewBuilder let leading: Leading
-    let action: () -> Void
-
-    @ObservedObject private var prefs = Preferences.shared
-    @Environment(\.heatTheme) private var theme
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                leading.frame(width: 18)
-                Text(title)
-                    .font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if let detail {
-                    Text(detail).font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.tertiary)
-                }
-                Text(figure.text)
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
-                    .help(figure.help)
-            }
-            .padding(.horizontal, 7)
-            .frame(height: 27)
-            .background {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.22) : (isHovering ? Palette.raised : .clear))
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-    }
-}
-
-private struct IndexRow: View {
-    let index: MarketIndex
-    @ObservedObject private var market = MarketStore.shared
+/// The message at the bottom of the window: "SPY was removed · Undo".
+private struct ToastView: View {
     @ObservedObject private var app = AppState.shared
 
     var body: some View {
-        SidebarRow(
-            title: index.name,
-            figure: market.indexFigure(index, market.period),
-            isSelected: app.tab == .map && app.indexID == index.id
-        ) {
-            Text(index.flag ?? "🏳️").font(.system(size: 13))
-        } action: {
-            app.selectIndex(index.id)
-        }
-        .help(tr("\(index.name) · \(index.symbols.count) aktier · \(index.hours.statusText)",
-                 "\(index.name) · \(index.symbols.count) stocks · \(index.hours.statusText)"))
-    }
-}
-
-/// A fund in the sidebar. Right-click reloads its holdings or removes it.
-private struct FundRow: View {
-    let fund: Fund
-    @ObservedObject private var market = MarketStore.shared
-    @ObservedObject private var funds = FundStore.shared
-    @ObservedObject private var app = AppState.shared
-
-    var body: some View {
-        let index = funds.index(for: fund)
-        SidebarRow(
-            title: fund.shortName,
-            figure: market.indexFigure(index, market.period),
-            isSelected: app.tab == .map && app.indexID == fund.id
-        ) {
-            if funds.progress[fund.symbol] != nil {
-                ProgressView().controlSize(.mini)
-            } else if funds.errors[fund.symbol] != nil {
-                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.orange)
-            } else {
-                Image(systemName: "chart.pie.fill").font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-        } action: {
-            app.selectIndex(fund.id)
-        }
-        .help(help(index))
-        .contextMenu {
-            Button(tr("Hent beholdningen igen", "Reload holdings")) { funds.load(fund.symbol, force: true) }
-            Button(tr("Kopiér symbol", "Copy symbol")) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(fund.displaySymbol, forType: .string)
-            }
-            Divider()
-            Button(tr("Fjern \(fund.displaySymbol)", "Remove \(fund.displaySymbol)"), role: .destructive) {
-                funds.remove(fund.symbol)
-            }
-        }
-    }
-
-    private func help(_ index: MarketIndex) -> String {
-        var lines = ["\(fund.name) · \(fund.displaySymbol) · \(fund.kindLabel)"]
-        if let note = funds.sourceNote(fund.symbol) { lines.append(note) }
-        lines.append(index.hours.statusText)
-        return lines.joined(separator: "\n")
-    }
-}
-
-private struct ListRow: View {
-    let symbol: String
-    let tint: Color
-    let title: String
-    let symbols: [String]
-    let isSelected: Bool
-    let action: () -> Void
-
-    @ObservedObject private var market = MarketStore.shared
-
-    var body: some View {
-        SidebarRow(title: title, figure: market.listFigure(symbols, market.period), isSelected: isSelected,
-                   detail: "\(symbols.count)") {
-            Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(tint)
-        } action: { action() }
-    }
-}
-
-private struct WatchlistRow: View {
-    let list: Watchlist
-    @ObservedObject private var lists = ListsStore.shared
-    @ObservedObject private var app = AppState.shared
-
-    var body: some View {
-        ListRow(symbol: "list.bullet", tint: .secondary, title: list.name, symbols: list.symbols,
-                isSelected: app.tab == .watchlists && app.watchlistID == list.id) {
-            app.watchlistID = list.id
-            app.tab = .watchlists
-        }
-        .contextMenu {
-            Button(tr("Omdøb …", "Rename …")) { app.dialog = .renameWatchlist(list.id) }
-            Button(tr("Slet \(list.name)", "Delete \(list.name)"), role: .destructive) {
-                lists.delete(list.id)
-                if app.watchlistID == list.id {
-                    app.watchlistID = lists.watchlists.first?.id
-                    if app.watchlistID == nil { app.tab = .favorites }
+        if let toast = app.toast {
+            HStack(spacing: 12) {
+                Text(toast.text).font(.system(size: 12, weight: .medium))
+                if let undo = toast.undo {
+                    Button(tr("Fortryd", "Undo")) {
+                        undo()
+                        app.toast = nil
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
                 }
             }
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(Capsule().fill(Palette.surface))
+            .overlay(Capsule().strokeBorder(Palette.outline))
+            .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .id(toast.id)
         }
-    }
-}
-
-private struct SidebarRowButton: View {
-    let symbol: String
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                Image(systemName: symbol).font(.system(size: 12, weight: .semibold)).frame(width: 18)
-                Text(title).font(.system(size: 12.5, weight: isSelected ? .semibold : .regular))
-                Spacer()
-            }
-            .padding(.horizontal, 7)
-            .frame(height: 27)
-            .background {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.22) : (isHovering ? Palette.raised : .clear))
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-    }
-}
-
-private struct SidebarIconButton: View {
-    let symbol: String
-    let help: String
-    let action: () -> Void
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 27, height: 27)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isHovering ? Palette.raised : .clear))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .help(help)
-        .onHover { isHovering = $0 }
     }
 }
 
@@ -401,25 +130,27 @@ private struct Toolbar: View {
     @ObservedObject private var app = AppState.shared
     @ObservedObject private var chrome = WindowChrome.shared
 
-    /// With the sidebar hidden, the row starts at the window's edge, under the
-    /// traffic lights — except in full screen, where they are gone.
+    /// The row starts at the window's edge, under the traffic lights —
+    /// except in full screen, where they are gone.
     private var leadingInset: CGFloat {
-        guard !prefs.sidebarVisible, !chrome.isFullScreen else { return 0 }
-        return max(0, chrome.trafficLightsInset - 12)
+        chrome.isFullScreen ? 0 : max(0, chrome.trafficLightsInset - 12)
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            if !prefs.sidebarVisible {
-                ToolbarButton(symbol: "sidebar.left", help: tr("Vis sidebjælke (⌃⌘S)", "Show sidebar (⌃⌘S)")) {
-                    prefs.sidebarVisible = true
+        HStack(spacing: 8) {
+            if app.screen != .overview {
+                Button { app.goBack() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 28)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help(tr("Et niveau op (Esc)", "Up one level (Esc)"))
             }
-            // The title gives way first: it is truncated with … rather than pushing
-            // the rest. It used to be locked to its full width, and a long name
-            // like "Euro Stoxx 50" in a narrow window made all the content
-            // wider than the window — so the sidebar slid out past the left
-            // edge.
+            // The title gives way first: it is truncated with … rather than
+            // pushing the controls out of a narrow window.
             TitleBlock()
                 .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
             // If there is no room for the whole period picker, it becomes a menu.
@@ -437,16 +168,240 @@ private struct Toolbar: View {
     }
 
     private func controls(compact: Bool) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             if compact { PeriodMenu() } else { PeriodPicker() }
-            ReplayButton()
-            ViewModePicker()
-            // No full-screen button: the window has the green one (⌃⌘F),
-            // and "Map only" is on ⇧⌘F and in the View menu.
+            if app.isMap {
+                SeismographButton()
+                ViewModePicker()
+            }
+            SearchButton(compact: compact)
             ThemeToggleButton()
             RefreshButton()
         }
         .fixedSize()
+    }
+}
+
+/// "Søg ⌘K": the one search for indices, stocks and funds.
+private struct SearchButton: View {
+    let compact: Bool
+    @ObservedObject private var app = AppState.shared
+    @State private var isHovering = false
+
+    var body: some View {
+        Button { app.dialog = .search } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "magnifyingglass").font(.system(size: 11.5, weight: .semibold))
+                if !compact {
+                    Text(tr("Søg", "Search")).font(.system(size: 11.5, weight: .medium))
+                    Text("⌘K").font(.system(size: 10, weight: .medium)).foregroundStyle(.tertiary)
+                }
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, compact ? 0 : 9)
+            .frame(minWidth: 28, minHeight: 28)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isHovering ? Palette.hover : Palette.raised))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(tr("Søg aktie, indeks eller fond (⌘K)", "Search for a stock, index or fund (⌘K)"))
+        .onHover { isHovering = $0 }
+    }
+}
+
+/// The seismograph on and off (⌘P): one row per sector, industry or stock
+/// under the map, coloured step by step through the range.
+private struct SeismographButton: View {
+    @ObservedObject private var replay = ReplayStore.shared
+    @State private var isHovering = false
+
+    var body: some View {
+        Button { replay.toggle() } label: {
+            Image(systemName: "waveform.path.ecg")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(replay.isActive ? Color.accentColor : .secondary)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(replay.isActive ? Color.accentColor.opacity(0.18) : (isHovering ? Palette.raised : .clear)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(tr("Seismograf (⌘P) · mellemrum afspiller", "Seismograph (⌘P) · space plays"))
+        .onHover { isHovering = $0 }
+    }
+}
+
+/// The source the map shows, for titles and breadcrumbs.
+@MainActor
+enum Source {
+    static var title: String {
+        let app = AppState.shared
+        switch app.tab {
+        case .map: return UniverseStore.shared.index(withID: app.indexID)?.title ?? ""
+        case .favorites: return tr("Favoritter", "Favorites")
+        case .watchlists: return ListsStore.shared.watchlist(app.watchlistID)?.name ?? tr("Watchliste", "Watchlist")
+        }
+    }
+
+    /// The current index or fund, when the source is one.
+    static var index: MarketIndex? {
+        let app = AppState.shared
+        return app.tab == .map ? UniverseStore.shared.index(withID: app.indexID) : nil
+    }
+}
+
+/// One step of the breadcrumb: its label and where a click takes you.
+private struct Crumb: Identifiable {
+    let id = UUID()
+    let label: String
+    let action: () -> Void
+}
+
+/// The title: the breadcrumb on top ("Overblik › S&P 500 › Information
+/// Technology"), then what you are looking at with its change.
+private struct TitleBlock: View {
+    @ObservedObject private var replay = ReplayStore.shared
+    @ObservedObject private var market = MarketStore.shared
+    @ObservedObject private var universe = UniverseStore.shared
+    @ObservedObject private var lists = ListsStore.shared
+    @ObservedObject private var funds = FundStore.shared
+    @ObservedObject private var prefs = Preferences.shared
+    @ObservedObject private var app = AppState.shared
+    @Environment(\.heatTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            let crumbs = crumbs
+            if !crumbs.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(Array(crumbs.enumerated()), id: \.element.id) { position, crumb in
+                        if position > 0 { Text("›").foregroundStyle(.tertiary) }
+                        Button(action: crumb.action) {
+                            Text(crumb.label).lineLimit(1).truncationMode(.tail)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                .font(.system(size: 10.5, weight: .medium))
+                .lineLimit(1)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Text(title)
+                    .font(.system(size: 15, weight: .bold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    // Lets a drag on the title move the window, as on a real title bar.
+                    .allowsHitTesting(false)
+                    .layoutPriority(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .allowsHitTesting(false)
+                }
+                if app.screen != .overview {
+                    let figure = figure
+                    Text(figure.text)
+                        .font(.system(size: 12, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
+                        .help(figure.help)
+                        .fixedSize()
+                    // What kind of number it is, when it isn't read straight
+                    // from a price: "indicative" or "average".
+                    if let kind = figure.kindLabel, figure.change != nil {
+                        Text(kind).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary).help(figure.help)
+                    }
+                    Group {
+                        if replay.isReady, app.isMap {
+                            // With the seismograph on, the moment shown.
+                            Text("▶ \(replay.timeLabel())")
+                        } else {
+                            Text(figure.rangeLabel)
+                        }
+                    }
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                }
+            }
+            .lineLimit(1)
+        }
+    }
+
+    private var title: String {
+        switch app.screen {
+        case .overview: return tr("Overblik", "Overview")
+        case .stock(let symbol): return Symbols.display(symbol)
+        case .map: return app.focus.title ?? Source.title
+        }
+    }
+
+    private var subtitle: String? {
+        if case .stock(let symbol) = app.screen { return market.info(symbol).name }
+        if app.screen == .overview { return market.period.longName }
+        return nil
+    }
+
+    private var crumbs: [Crumb] {
+        var crumbs: [Crumb] = []
+        guard app.screen != .overview else { return crumbs }
+        crumbs.append(Crumb(label: tr("Overblik", "Overview")) { app.showOverview() })
+        let source = Source.title
+        let toMap: (Focus) -> Void = { focus in
+            app.focus = focus
+            app.screen = .map
+        }
+        switch app.screen {
+        case .map:
+            if app.focus != .all { crumbs.append(Crumb(label: source) { toMap(.all) }) }
+            if case .industry(let sector, _) = app.focus { crumbs.append(Crumb(label: sector) { toMap(.sector(sector)) }) }
+        case .stock(let symbol):
+            guard app.stockReturn.screen == .map else { break }
+            crumbs.append(Crumb(label: source) { toMap(.all) })
+            // In an index or fund: the stock's sector and industry there.
+            if let index = Source.index, index.symbols.contains(symbol) {
+                let info = market.info(symbol)
+                crumbs.append(Crumb(label: info.sector) { toMap(.sector(info.sector)) })
+                crumbs.append(Crumb(label: info.industry) { toMap(.industry(sector: info.sector, industry: info.industry)) })
+            }
+        case .overview:
+            break
+        }
+        return crumbs
+    }
+
+    private var figure: Figure {
+        let period = market.period
+        if case .stock(let symbol) = app.screen {
+            return Figure(change: market.change(symbol, period), since: market.since(symbol, period), period: period)
+        }
+        if replay.isReady, app.tab != .map || app.focus == .all {
+            return Figure(change: replay.curveValue, isIndicative: replay.curveIsIndicative,
+                          isAverage: replay.curveIsAverage, period: period)
+        }
+        switch app.tab {
+        case .map:
+            guard let index = Source.index else { return Figure(period: period) }
+            guard app.focus != .all else { return market.indexFigure(index, period) }
+            // The sector's or industry's own change, weighted by market cap.
+            let items = Items.make(index.symbols, weights: index.weights).filter { $0.matches(app.focus) }
+            return Figure(change: Items.weightedChange(items), isAverage: true, isWeighted: true, period: period)
+        case .favorites, .watchlists: return market.viewFigure(period)
+        }
+    }
+}
+
+extension HeatItem {
+    /// In the sector or industry `focus`.
+    func matches(_ focus: Focus) -> Bool {
+        switch focus {
+        case .all: return true
+        case .sector(let s): return sector == s
+        case .industry(let s, let i): return sector == s && industry == i
+        }
     }
 }
 
@@ -481,126 +436,6 @@ private struct PeriodMenu: View {
     }
 }
 
-/// The title: what you are looking at, large, with the change below.
-///
-/// When you have gone into a sector or industry, that level is the title, with a
-/// back arrow in front, and the way up ("🇩🇰 C25 › Health Care") in small type below.
-/// The whole path on one line did not fit in a narrow window.
-private struct TitleBlock: View {
-    @ObservedObject private var replay = ReplayStore.shared
-    @ObservedObject private var market = MarketStore.shared
-    @ObservedObject private var universe = UniverseStore.shared
-    @ObservedObject private var lists = ListsStore.shared
-    @ObservedObject private var funds = FundStore.shared
-    @ObservedObject private var prefs = Preferences.shared
-    @ObservedObject private var app = AppState.shared
-    @Environment(\.heatTheme) private var theme
-
-    private var index: MarketIndex? { universe.index(withID: app.indexID) }
-    private var isDrilled: Bool { app.tab == .map && app.focus != .all }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 6) {
-                if isDrilled {
-                    Button {
-                        if let parent = app.focus.parent { app.focus = parent }
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 18, height: 20)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(tr("Tilbage (Esc)", "Back (Esc)"))
-                }
-                Text(title)
-                    .font(.system(size: 16, weight: .bold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    // Lets a drag on the title move the window, as on a real title bar.
-                    .allowsHitTesting(false)
-            }
-
-            HStack(spacing: 5) {
-                let figure = figure
-                Text(figure.text)
-                    .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
-                    .help(figure.help)
-                // What kind of number it is, when it isn't read straight from a
-                // price: "indicative" or "average".
-                if let kind = figure.kindLabel, figure.change != nil {
-                    Text(kind).foregroundStyle(.secondary).help(figure.help)
-                }
-                if isDrilled {
-                    Button {
-                        app.focus = .all
-                    } label: {
-                        Text(path).lineLimit(1).truncationMode(.tail)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help(tr("Tilbage til \(index?.name ?? "")", "Back to \(index?.name ?? "")"))
-                } else if replay.isReady {
-                    // During replay, the time stands where the period usually does.
-                    Text("▶ \(replay.timeLabel())").foregroundStyle(.secondary)
-                } else if app.tab == .map, let index, index.isFund {
-                    // A fund: the ticker next to the period, so you can see which one.
-                    Text("\(Symbols.display(index.benchmark)) · \(figure.rangeLabel)").foregroundStyle(.tertiary)
-                } else {
-                    Text(figure.rangeLabel).foregroundStyle(.tertiary)
-                }
-            }
-            .font(.system(size: 11, weight: .semibold).monospacedDigit())
-            .lineLimit(1)
-        }
-    }
-
-    private var title: String {
-        switch app.tab {
-        case .map:
-            if let focus = app.focus.title { return focus }
-            return index?.title ?? ""
-        case .favorites: return tr("Favoritter", "Favorites")
-        case .watchlists: return lists.watchlist(app.watchlistID)?.name ?? tr("Watchliste", "Watchlist")
-        }
-    }
-
-    /// The way up: "🇪🇺 Euro Stoxx 50" or "🇪🇺 Euro Stoxx 50 › Information Technology".
-    private var path: String {
-        let root = index?.title ?? ""
-        if case .industry(let sector, _) = app.focus { return "\(root) › \(sector)" }
-        return root
-    }
-
-    private var figure: Figure {
-        let period = market.period
-        if replay.isReady, app.tab != .map || app.focus == .all {
-            return Figure(change: replay.curveValue, isIndicative: replay.curveIsIndicative,
-                          isAverage: replay.curveIsAverage, period: period)
-        }
-        switch app.tab {
-        case .map:
-            guard let index else { return Figure(period: period) }
-            guard app.focus != .all else { return market.indexFigure(index, period) }
-            // The sector's or industry's own change, weighted by market cap.
-            let items = Items.make(index.symbols, weights: index.weights).filter { item in
-                switch app.focus {
-                case .all: return true
-                case .sector(let s): return item.sector == s
-                case .industry(let s, let i): return item.sector == s && item.industry == i
-                }
-            }
-            let known = items.filter { $0.change != nil }
-            let weight = known.reduce(0) { $0 + $1.weight }
-            let change = weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
-            return Figure(change: change, isAverage: true, isWeighted: true, period: period)
-        case .favorites, .watchlists: return market.viewFigure(period)
-        }
-    }
-}
-
 /// 1D · 1U · 1M · 3M · 6M · ÅTD · 1Å · 3Å · 5Å · Alt as a segmented control,
 /// where the selection slides over to the chosen one. Under each range, the
 /// view's own change over it (the index, the fund, the list's average) —
@@ -624,13 +459,16 @@ private struct PeriodPicker: View {
                         Text(period.label)
                             .font(.system(size: 11, weight: isSelected ? .bold : .medium))
                             .foregroundStyle(isSelected ? .primary : .secondary)
-                        Text(figure.change == nil ? "–" : (figure.isIndicative ? "≈" : "") + Format.shortPercent(figure.change))
-                            .font(.system(size: 9.5, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
+                        // The overview has no one figure per range.
+                        if app.screen != .overview {
+                            Text(figure.change == nil ? "–" : (figure.isIndicative ? "≈" : "") + Format.shortPercent(figure.change))
+                                .font(.system(size: 9.5, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
+                        }
                     }
                         .frame(minWidth: 30)
                         .padding(.horizontal, 3)
-                        .frame(height: 34)
+                        .frame(height: app.screen == .overview ? 26 : 34)
                         .background {
                             if isSelected {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -730,7 +568,7 @@ private struct StatusLine: View {
 
     /// For a fund: where the holdings come from, and whether they are truncated.
     private var fundNote: String? {
-        guard app.tab == .map, let symbol = FundStore.symbol(fromID: app.indexID) else { return nil }
+        guard app.isMap, app.tab == .map, let symbol = FundStore.symbol(fromID: app.indexID) else { return nil }
         return funds.progress[symbol] ?? funds.sourceNote(symbol)
     }
 
@@ -797,8 +635,7 @@ private struct StatusLine: View {
 private struct KeyboardShortcuts: View {
     var body: some View {
         ZStack {
-            Button("") { Preferences.shared.sidebarVisible.toggle() }.keyboardShortcut("0")
-            // ⌘1 … ⌘9: the indices in the sidebar's order.
+            // ⌘1 … ⌘9: the indices in the overview's order.
             ForEach(1..<10) { number in
                 Button("") {
                     let indices = UniverseStore.shared.indices
@@ -893,6 +730,14 @@ enum Items {
         }
     }
 
+    /// The change of a group of stocks, weighted by tile size (market value,
+    /// or the fund's weights). Only stocks with a figure count.
+    static func weightedChange(_ items: [HeatItem]) -> Double? {
+        let known = items.filter { $0.change != nil }
+        let weight = known.reduce(0) { $0 + $1.weight }
+        return weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
+    }
+
     static func key(_ parts: AnyHashable...) -> Int {
         var hasher = Hasher()
         hasher.combine(MarketStore.shared.version)
@@ -979,7 +824,7 @@ private struct FundStatusView: View {
                     .multilineTextAlignment(.center).frame(maxWidth: 420)
                 HStack {
                     Button(tr("Prøv igen", "Try again")) { funds.load(fund.symbol, force: true) }
-                    Button(tr("Fjern \(fund.displaySymbol)", "Remove \(fund.displaySymbol)")) { funds.remove(fund.symbol) }
+                    Button(tr("Fjern \(fund.displaySymbol)", "Remove \(fund.displaySymbol)")) { AppState.shared.removeFund(fund.symbol) }
                 }
             } else {
                 ProgressView()
@@ -1004,14 +849,10 @@ private struct FavoritesContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            AddSymbolBar(placeholder: tr("Tilføj favorit — symbol eller navn", "Add favorite — symbol or name"),
-                         contains: { lists.isFavorite($0) },
-                         onAdd: { if !lists.isFavorite($0) { lists.toggleFavorite($0) } },
-                         onToggle: { lists.toggleFavorite($0) })
             if lists.favorites.isEmpty {
                 EmptyListView(text: tr("Ingen favoritter endnu", "No favorites yet"),
-                              detail: tr("Søg ovenfor, eller højreklik på en aktie på kortet og vælg “Føj til favoritter”.",
-                                         "Search above, or right-click a stock on the map and choose “Add to favorites”."))
+                              detail: tr("Søg med ⌘K og klik ☆, eller højreklik på en aktie på kortet og vælg “Føj til favoritter”.",
+                                         "Search with ⌘K and click ☆, or right-click a stock on the map and choose “Add to favorites”."))
             } else {
                 let current = Items.current()
                 StocksView(items: current.items, grouping: .flat, contentKey: current.key, allowsDrillDown: false)
@@ -1030,14 +871,10 @@ private struct WatchlistContent: View {
     var body: some View {
         VStack(spacing: 0) {
             if let list = lists.watchlist(app.watchlistID) ?? lists.watchlists.first {
-                AddSymbolBar(placeholder: tr("Tilføj til \(list.name) — symbol eller navn", "Add to \(list.name) — symbol or name"),
-                             contains: { lists.contains($0, in: list.id) },
-                             onAdd: { if !lists.contains($0, in: list.id) { lists.toggle($0, in: list.id) } },
-                             onToggle: { lists.toggle($0, in: list.id) })
                 if list.symbols.isEmpty {
                     EmptyListView(text: tr("\(list.name) er tom", "\(list.name) is empty"),
-                                  detail: tr("Søg ovenfor, eller højreklik på en aktie på kortet og vælg Watchlister.",
-                                             "Search above, or right-click a stock on the map and choose Watchlists."))
+                                  detail: tr("Søg med ⌘K og klik + \(list.name), eller højreklik på en aktie på kortet og vælg Watchlister.",
+                                             "Search with ⌘K and click + \(list.name), or right-click a stock on the map and choose Watchlists."))
                 } else {
                     let current = Items.current()
                     StocksView(
@@ -1052,7 +889,7 @@ private struct WatchlistContent: View {
                 }
             } else {
                 EmptyListView(text: tr("Ingen watchlister", "No watchlists"),
-                              detail: tr("Lav en med + i sidebjælken.", "Make one with + in the sidebar."))
+                              detail: tr("Lav en med “+ Ny watchliste” i søgningen (⌘K).", "Make one with “+ New watchlist” in the search (⌘K)."))
             }
         }
         .onAppear {
@@ -1073,100 +910,6 @@ private struct EmptyListView: View {
         }
         .padding(30)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-/// Search field that suggests stocks as you type. Return adds the first
-/// suggestion.
-private struct AddSymbolBar: View {
-    let placeholder: String
-    let contains: (String) -> Bool
-    /// Return: adds the first suggestion (never removes by accident).
-    let onAdd: (String) -> Void
-    /// Click on a suggestion: adds it, or removes it if it is already included (✓).
-    let onToggle: (String) -> Void
-
-    @ObservedObject private var market = MarketStore.shared
-    @State private var text = ""
-    @FocusState private var isFocused: Bool
-
-    var body: some View {
-        let matches = market.search(text)
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField(placeholder, text: $text)
-                    .textFieldStyle(.plain)
-                    .focused($isFocused)
-                    .onSubmit {
-                        if let first = matches.first { add(first.symbol) }
-                    }
-                if !text.isEmpty {
-                    Button { text = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .font(.system(size: 12.5))
-            .padding(.horizontal, 10)
-            .frame(height: 30)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.raised))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-
-            if !matches.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(matches) { match in
-                        SuggestionRow(info: match, isAdded: contains(match.symbol)) { onToggle(match.symbol) }
-                    }
-                }
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.surface))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Palette.outline))
-                .padding(.horizontal, 10)
-                .padding(.bottom, 6)
-            }
-        }
-    }
-
-    private func add(_ symbol: String) {
-        onAdd(symbol)
-        text = ""
-    }
-}
-
-private struct SuggestionRow: View {
-    let info: StockInfo
-    let isAdded: Bool
-    let action: () -> Void
-
-    @ObservedObject private var market = MarketStore.shared
-    @ObservedObject private var prefs = Preferences.shared
-    @Environment(\.heatTheme) private var theme
-    @State private var isHovering = false
-
-    var body: some View {
-        let dayChange = market.change(info.symbol, .day)
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Text(info.displaySymbol).font(.system(size: 12, weight: .bold)).frame(width: 72, alignment: .leading)
-                Text(info.name).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
-                Spacer()
-                Text(Format.percent(dayChange))
-                    .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Heat.textColor(dayChange, style: prefs.colorStyle, theme: theme))
-                Image(systemName: isAdded ? "checkmark" : "plus")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(isAdded ? .green : .secondary)
-                    .frame(width: 16)
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 26)
-            .background(isHovering ? Palette.raised : .clear)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
     }
 }
 
@@ -1279,7 +1022,7 @@ private struct StockRow: View {
 
     var body: some View {
         Button {
-            Preferences.shared.openQuote(item.symbol)
+            AppState.shared.openStock(item.symbol)
         } label: {
             HStack(spacing: 10) {
                 HStack(spacing: 4) {
@@ -1318,31 +1061,6 @@ private struct StockRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-    }
-}
-
-/// ▶ in the toolbar: turns "Replay the day" on and off (⌘P).
-private struct ReplayButton: View {
-    @ObservedObject private var replay = ReplayStore.shared
-    @ObservedObject private var market = MarketStore.shared
-    @State private var isHovering = false
-
-    var body: some View {
-        Button {
-            replay.toggle()
-        } label: {
-            Image(systemName: replay.isActive ? "play.circle.fill" : "play.circle")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(replay.isActive ? Color.accentColor : .secondary)
-                .frame(width: 28, height: 28)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isHovering ? Palette.raised : .clear))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(market.period == .day
-              ? tr("Afspil dagen (⌘P)", "Replay the day (⌘P)")
-              : tr("Afspil \(market.period.longName) (⌘P)", "Replay \(market.period.longName) (⌘P)"))
         .onHover { isHovering = $0 }
     }
 }

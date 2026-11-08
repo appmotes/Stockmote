@@ -18,7 +18,10 @@ WIN="--window 1200x780"
 
 # Remove the old screenshots — but not the app icon, which the README shows at the top.
 find docs -name '*.png' ! -name 'app-icon.png' -delete
+"$BIN" --snapshot docs/overview.png $WIN --screen overview
 "$BIN" --snapshot docs/map.png $WIN
+"$BIN" --snapshot docs/stock.png $WIN --stock NVDA --period 1M
+"$BIN" --snapshot docs/stock-light.png $WIN --stock NOVO-B.CO --index c25 --theme light
 "$BIN" --snapshot docs/light.png $WIN --theme light --index dax
 "$BIN" --snapshot docs/c25.png $WIN --index c25
 "$BIN" --snapshot docs/sector.png $WIN --sector "Information Technology"
@@ -28,6 +31,6 @@ find docs -name '*.png' ! -name 'app-icon.png' -delete
 "$BIN" --snapshot docs/settings.png --settings
 "$BIN" --snapshot docs/english.png $WIN --lang en --index ftse
 "$BIN" --snapshot docs/fullscreen.png --fullscreen --notch 32 --replay 0.6 --index c25
-"$BIN" --snapshot docs/replay.png $WIN --replay 0.35
+"$BIN" --snapshot docs/seismograph.png $WIN --seismograph 0.35
 "$BIN" --snapshot docs/fund.png $WIN --fund IWDA.AS
-"$BIN" --snapshot docs/fund-dialog.png --fund-search "semiconductor ucits" --fund-pick SEC0.DE
+"$BIN" --snapshot docs/search.png $WIN --search "semiconductor ucits" --fund-pick SEC0.DE

@@ -131,16 +131,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let tab = items.first(where: { $0.name == "tab" })?.value.flatMap(PanelTab.init(rawValue:)) {
             app.tab = tab
         }
+        // A watchlist widget names its list.
+        if let name = items.first(where: { $0.name == "list" })?.value,
+           let list = ListsStore.shared.watchlists.first(where: { $0.name == name }) {
+            app.watchlistID = list.id
+        }
+        app.focus = .all
+        app.screen = .map
         if FullscreenController.shared.isShowing { FullscreenController.shared.close() }
         MainWindow.shared.show()
     }
 }
 
-/// `Stockmote --snapshot out.png [--tab map|favorites|watchlists]
+/// `Stockmote --snapshot out.png [--screen overview|map] [--tab map|favorites|watchlists]
 /// [--index sp500|ndx|dji] [--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt] [--sector "…"]
-/// [--industry "…"] [--size small|medium|large|huge] [--list] [--zoom 2.5]
-/// [--theme light|dark] [--lang da|en] [--no-sidebar] [--fullscreen [--notch 32]]
-/// [--replay 0.4] [--fund SPY] [--fund-search "MSCI World" [--fund-pick URTH] [--fund-add]]
+/// [--industry "…"] [--stock NVDA] [--size small|medium|large|huge] [--list] [--zoom 2.5]
+/// [--theme light|dark] [--lang da|en] [--fullscreen [--notch 32]]
+/// [--seismograph 0.4] [--fund SPY] [--search "MSCI World" [--fund-pick URTH] [--fund-add]]
 /// [--dialog new-list|rename-list] [--window 1200x780] [--settings]`
 ///
 /// Fetches real data, renders the main window's content (or Map Only, or
@@ -197,9 +204,14 @@ struct Snapshot {
 
         if let theme = options["theme"].flatMap(ThemeMode.init(rawValue:)) { prefs.theme = theme }
         if let lang = options["lang"] { prefs.language = lang == "en" ? .english : .danish }
-        if flags.contains("no-sidebar") { prefs.sidebarVisible = false }
         if let index = options["index"] { app.indexID = index }
         if let tab = options["tab"].flatMap(PanelTab.init(rawValue:)) { app.tab = tab }
+        // The map unless told otherwise, as the images in docs/ were made.
+        app.screen = options["screen"] == "overview" ? .overview : .map
+        if let watchlist = options["watchlist"],
+           let list = ListsStore.shared.watchlists.first(where: { $0.name == watchlist }) {
+            app.watchlistID = list.id
+        }
         app.showList = flags.contains("list")
         if let period = options["period"].flatMap(Period.init(rawValue:)) { market.period = period }
 
@@ -217,10 +229,10 @@ struct Snapshot {
             await funds.ensureLoaded(found?.symbol ?? symbol.uppercased())
             if let error = funds.errors[found?.symbol ?? symbol.uppercased()] { print("Fond: \(error)") }
         }
-        // --fund-search "MSCI World": the add-fund dialog, open with results.
-        // --fund-pick SEC0.DE: and with that result picked and its holdings
+        // --search "MSCI World": the search dialog, open with results.
+        // --fund-pick SEC0.DE: and with that fund picked and its holdings
         // loaded (or failed).
-        if let query = options["fund-search"] {
+        if let query = options["search"] ?? options["fund-search"] {
             let picker = FundPicker.shared
             picker.query = query
             await picker.search(debounce: false)
@@ -229,7 +241,7 @@ struct Snapshot {
                 picker.select(result)
                 await picker.waitForHoldings()
             }
-            app.dialog = .addFund
+            app.dialog = .search
             // --fund-add: and then the Add button pressed.
             if flags.contains("fund-add") {
                 picker.commit()
@@ -256,6 +268,12 @@ struct Snapshot {
         } else if let sector = options["sector"] {
             app.focus = .sector(sector)
         }
+        // --stock NVDA: the stock page, with its chart loaded.
+        if let stock = options["stock"] {
+            app.openStock(stock)
+            await market.loadPeriod(market.period, force: true)
+            await StockChartStore.shared.waitForLoad(stock, period: market.period)
+        }
 
         // The main window's content, at --window 1200x780 or a --size (without
         // the real title bar, which AppKit draws; the traffic lights' space
@@ -269,8 +287,8 @@ struct Snapshot {
             : settings ? CGSize(width: 540, height: 700) : windowSize
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.borderless], backing: .buffered, defer: false)
-        // --replay 0.4: replay paused 40 % into the period.
-        if let fraction = options["replay"].flatMap(Double.init) {
+        // --seismograph 0.4: the seismograph open, paused 40 % into the range.
+        if let fraction = (options["seismograph"] ?? options["replay"]).flatMap(Double.init) {
             let replay = ReplayStore.shared
             replay.start()
             for _ in 0..<120 where !replay.isReady { try? await Task.sleep(for: .milliseconds(250)) }

@@ -63,7 +63,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
         menu.addItem(item(tr("Åbn vindue", "Open Window"), #selector(openWindow), "o"))
         menu.addItem(.separator())
         menu.addItem(item(tr("Ny watchliste …", "New Watchlist…"), #selector(newWatchlist), "n"))
-        menu.addItem(item(tr("Tilføj fond …", "Add Fund…"), #selector(addFund), "n", [.command, .shift]))
+        menu.addItem(item(tr("Søg …", "Search…"), #selector(search), "k"))
         menu.addItem(.separator())
         menu.addItem(item(tr("Luk vindue", "Close Window"), #selector(NSWindow.performClose(_:)), "w", system: true))
         return menu
@@ -93,9 +93,10 @@ final class MainMenu: NSObject, NSMenuItemValidation {
         }
         menu.addItem(.separator())
         menu.addItem(item(tr("Vis som liste", "Show as List"), #selector(toggleList), "l"))
-        menu.addItem(item(tr("Skjul sidebjælke", "Hide Sidebar"), #selector(toggleSidebar), "s", [.command, .control]))
+        menu.addItem(item(tr("Overblik", "Overview"), #selector(showOverview), "0"))
+        menu.addItem(item(tr("Tilbage", "Back"), #selector(goBack), "["))
         menu.addItem(.separator())
-        menu.addItem(item(tr("Afspil dagen", "Replay the Day"), #selector(toggleReplay), "p"))
+        menu.addItem(item(tr("Seismograf", "Seismograph"), #selector(toggleReplay), "p"))
         menu.addItem(item(tr("Skift til lyst tema", "Switch to Light Theme"), #selector(toggleTheme), "t", [.command, .shift]))
         menu.addItem(item(tr("Opdatér", "Refresh"), #selector(refresh), "r"))
         menu.addItem(.separator())
@@ -142,16 +143,11 @@ final class MainMenu: NSObject, NSMenuItemValidation {
             item.state = (item.representedObject as? String) == market.period.rawValue ? .on : .off
         case #selector(toggleList):
             item.state = AppState.shared.showList ? .on : .off
-        case #selector(toggleSidebar):
-            item.title = Preferences.shared.sidebarVisible ? tr("Skjul sidebjælke", "Hide Sidebar")
-                                                           : tr("Vis sidebjælke", "Show Sidebar")
         case #selector(toggleReplay):
-            if ReplayStore.shared.isActive {
-                item.title = tr("Stop afspilning", "Stop Replay")
-            } else {
-                item.title = market.period == .day ? tr("Afspil dagen", "Replay the Day")
-                                                   : tr("Afspil \(market.period.longName)", "Replay \(market.period.longName)")
-            }
+            item.state = ReplayStore.shared.isActive ? .on : .off
+            return AppState.shared.isMap
+        case #selector(goBack):
+            return AppState.shared.screen != .overview
         case #selector(toggleTheme):
             item.title = isDark ? tr("Skift til lyst tema", "Switch to Light Theme")
                                 : tr("Skift til mørkt tema", "Switch to Dark Theme")
@@ -177,7 +173,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
     @objc private func openSettings() { SettingsWindow.shared.show() }
     @objc private func openWindow() { MainWindow.shared.show() }
     @objc private func newWatchlist() { present(.newWatchlist(symbols: [])) }
-    @objc private func addFund() { present(.addFund) }
+    @objc private func search() { present(.search) }
 
     /// Dialogs live inside the main window, which is opened first.
     private func present(_ dialog: PanelDialog) {
@@ -191,7 +187,8 @@ final class MainMenu: NSObject, NSMenuItemValidation {
     }
 
     @objc private func toggleList() { AppState.shared.showList.toggle() }
-    @objc private func toggleSidebar() { Preferences.shared.sidebarVisible.toggle() }
+    @objc private func showOverview() { MainWindow.shared.show(); AppState.shared.showOverview() }
+    @objc private func goBack() { AppState.shared.goBack() }
     @objc private func toggleReplay() { ReplayStore.shared.toggle() }
     @objc private func toggleTheme() { Preferences.shared.theme = isDark ? .light : .dark }
     @objc private func refresh() { Task { await MarketStore.shared.refresh() } }
@@ -202,31 +199,31 @@ final class MainMenu: NSObject, NSMenuItemValidation {
         let alert = NSAlert()
         alert.messageText = tr("Tastaturgenveje", "Keyboard Shortcuts")
         alert.informativeText = tr("""
-            ⌘1 … ⌘9  Indeks i sidebjælken
+            ⌘K eller /  Søg aktie, indeks eller fond
+            ⌘0  Overblik · ⌘1 … ⌘9  Indeks
+            Esc eller ⌘[  Et niveau op: aktie → kort → overblik
             ⌥⌘1 … ⌥⌘0  Tidsrum: 1D … Alt
             ⌘L  Kort / liste
-            ⌘P  Afspil dagen · mellemrum, ← → under afspilning
+            ⌘P  Seismograf · mellemrum afspiller, ← → et trin
             ⇧⌘T  Lyst / mørkt tema
             ⌘R  Opdatér
-            ⌃⌘S  Vis / skjul sidebjælke (også ⌘0)
             ⌃⌘F  Fuld skærm
             ⇧⌘F  Kun kortet, kant til kant
-            ⌘N  Ny watchliste · ⇧⌘N  Tilføj fond
+            ⌘N  Ny watchliste
             ⌘O  Åbn vindue · ⌘,  Indstillinger
-            Esc  Luk dialog, zoom ud, stop afspilning, gå et niveau op
             """, """
-            ⌘1 … ⌘9  Index in the sidebar
+            ⌘K or /  Search for a stock, index or fund
+            ⌘0  Overview · ⌘1 … ⌘9  Index
+            Esc or ⌘[  Up one level: stock → map → overview
             ⌥⌘1 … ⌥⌘0  Time range: 1D … All
             ⌘L  Map / list
-            ⌘P  Replay the day · space, ← → while replaying
+            ⌘P  Seismograph · space plays, ← → one step
             ⇧⌘T  Light / dark theme
             ⌘R  Refresh
-            ⌃⌘S  Show / hide sidebar (also ⌘0)
             ⌃⌘F  Full screen
             ⇧⌘F  Map only, edge to edge
-            ⌘N  New watchlist · ⇧⌘N  Add fund
+            ⌘N  New watchlist
             ⌘O  Open window · ⌘,  Settings
-            Esc  Close dialog, zoom out, stop replay, go up a level
             """)
         alert.addButton(withTitle: tr("Luk", "Close"))
         NSApp.activate(ignoringOtherApps: true)

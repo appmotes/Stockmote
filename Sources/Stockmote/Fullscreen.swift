@@ -65,6 +65,9 @@ final class FullscreenController {
         NSApp.presentationOptions = [.autoHideDock, .autoHideMenuBar]
         window.makeKeyAndOrderFront(nil)
         LiveRefresh.update()
+        // Map Only shows the map of the current source, never the overview
+        // or a stock page.
+        if AppState.shared.screen != .map { AppState.shared.screen = .map }
         ReplayStore.shared.loops = true
         if ReplayStore.shared.isReady, !ReplayStore.shared.isPlaying { ReplayStore.shared.play() }
 
@@ -77,7 +80,7 @@ final class FullscreenController {
                 return nil
             }
             guard event.keyCode == 53 else { return event }               // Esc
-            if !AppState.shared.handleEscape() { self.close() }
+            if !AppState.shared.handleEscape(toOverview: false) { self.close() }
             return nil
         }
     }

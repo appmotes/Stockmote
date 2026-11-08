@@ -110,6 +110,13 @@ final class ListsStore: ObservableObject {
         watchlists.removeAll { $0.id == id }
     }
 
+    /// Undo of `delete`: the list back where it was.
+    func restore(_ list: Watchlist, at position: Int) {
+        guard !watchlists.contains(where: { $0.id == list.id }) else { return }
+        watchlists.insert(list, at: min(max(position, 0), watchlists.count))
+        fetchIfNeeded()
+    }
+
     func contains(_ symbol: String, in id: UUID) -> Bool {
         watchlist(id)?.symbols.contains(symbol) ?? false
     }

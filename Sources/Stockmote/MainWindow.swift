@@ -36,6 +36,13 @@ enum LiveRefresh {
 enum PanelKeys {
     static func handle(_ event: NSEvent, unhandledEscape: () -> Void) -> NSEvent? {
         if ReplayKeys.handle(event) { return nil }
+        // "/" opens the search, as in many apps — but not while typing.
+        if event.charactersIgnoringModifiers == "/",
+           event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+           AppState.shared.dialog == nil, !(event.window?.firstResponder is NSTextView) {
+            AppState.shared.dialog = .search
+            return nil
+        }
         guard event.keyCode == 53 else { return event }   // 53 = Escape
         // An open dialog takes Esc first, even from a text field with text in
         // it: Esc cancels the dialog and never closes the window.
