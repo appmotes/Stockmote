@@ -14,14 +14,20 @@ struct OverviewView: View {
     @ObservedObject private var universe = UniverseStore.shared
     @ObservedObject private var lists = ListsStore.shared
     @ObservedObject private var market = MarketStore.shared
+    @ObservedObject private var prefs = Preferences.shared
 
     private let columns = [GridItem(.adaptive(minimum: 190, maximum: 360), spacing: 12)]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
-                TradingHoursBand()
-                    .padding(.bottom, 6)
+                // Only when asked for (the clock in the toolbar): the status
+                // line already says when the market opens.
+                if prefs.showTradingHours {
+                    TradingHoursBand()
+                        .padding(.bottom, 6)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
 
                 section(tr("Mine", "Mine"))
                 if lists.watchlists.isEmpty {
@@ -259,24 +265,58 @@ private struct MiniMap: View {
 }
 
 /// The opening hours of Europe's and America's exchanges today, in your own
-/// time, with a marker for now. Holidays are not known.
+/// time, with a marker for now. Shown when asked for (the clock in the
+/// toolbar, or View → Trading Hours on Overview).
+///
+/// An exchange that doesn't trade today — Saturday or Sunday in its own time
+/// zone — is drawn as an empty outline, and the band says when it opens
+/// next. Holidays are not known, so a holiday is drawn as a normal day.
 private struct TradingHoursBand: View {
+    /// One exchange's session.
+    private struct Session {
+        let name: String
+        let color: Color
+        let hours: MarketHours
+        let open: (Int, Int)
+        let close: (Int, Int)
+    }
+
+    private let sessions = [
+        Session(name: tr("Europa", "Europe"), color: .blue,
+                hours: MarketHours(timezone: "Europe/Berlin", open: "09:00", close: "17:30"), open: (9, 0), close: (17, 30)),
+        Session(name: tr("USA", "USA"), color: .purple,
+                hours: MarketHours(timezone: "America/New_York", open: "09:30", close: "16:00"), open: (9, 30), close: (16, 0))
+    ]
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let now = context.date
-            let europe = Self.span(timezone: "Europe/Berlin", open: (9, 0), close: (17, 30), on: now)
-            let usa = Self.span(timezone: "America/New_York", open: (9, 30), close: (16, 0), on: now)
-            let weekend = Calendar.current.isDateInWeekend(now)
+            let days = sessions.map { session in
+                (session: session,
+                 span: Self.span(timezone: session.hours.timezone, open: session.open, close: session.close, on: now),
+                 trades: Self.tradesToday(session, on: now))
+            }
+            let closed = days.filter { !$0.trades }
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 10) {
                     Text(tr("Handelstider i dag, din tid", "Trading hours today, your time"))
                         .foregroundStyle(.secondary)
-                    if weekend {
-                        Text(tr("Lukket i weekenden", "Closed for the weekend")).foregroundStyle(.tertiary)
+                    if !closed.isEmpty {
+                        // "Lukket i weekenden · Europa åbner man. 9.00, USA man. 15.30"
+                        let next = closed.map { day in
+                            let opens = day.session.hours.nextOpen(after: now).map(Self.dayAndClock) ?? "–"
+                            return tr("\(day.session.name) åbner \(opens)", "\(day.session.name) opens \(opens)")
+                        }
+                        Text((closed.count == days.count ? tr("Lukket i weekenden", "Closed for the weekend")
+                                                         : tr("Lukket i dag", "Closed today"))
+                             + " · " + next.joined(separator: ", "))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
                     }
                     Spacer(minLength: 6)
-                    legend(tr("Europa", "Europe"), europe, .blue)
-                    legend(tr("USA", "USA"), usa, .purple)
+                    ForEach(days, id: \.session.name) { day in
+                        legend(day.session, day.span, trades: day.trades)
+                    }
                 }
                 .font(.system(size: 10.5, weight: .medium))
                 .lineLimit(1)
@@ -286,8 +326,9 @@ private struct TradingHoursBand: View {
                     let x: (Double) -> CGFloat = { CGFloat($0 / 24) * width }
                     ZStack(alignment: .topLeading) {
                         Rectangle().fill(Palette.separator).frame(height: 1).offset(y: 10)
-                        bar(europe, color: .blue, x: x, y: 2)
-                        bar(usa, color: .purple, x: x, y: 12)
+                        ForEach(Array(days.enumerated()), id: \.element.session.name) { position, day in
+                            bar(day.span, color: day.session.color, trades: day.trades, x: x, y: position == 0 ? 2 : 12)
+                        }
                         ForEach([0, 6, 12, 18, 24], id: \.self) { hour in
                             Text("\(hour)")
                                 .font(.system(size: 9).monospacedDigit())
@@ -299,7 +340,6 @@ private struct TradingHoursBand: View {
                             .frame(width: 2, height: 22)
                             .offset(x: x(Self.hours(now, in: .current)) - 1)
                     }
-                    .opacity(weekend ? 0.5 : 1)
                 }
                 .frame(height: 34)
             }
@@ -309,19 +349,42 @@ private struct TradingHoursBand: View {
         }
     }
 
-    private func bar(_ span: (Double, Double), color: Color, x: (Double) -> CGFloat, y: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 2)
-            .fill(color.opacity(0.75))
-            .frame(width: max(x(span.1) - x(span.0), 2), height: 8)
-            .offset(x: x(span.0), y: y)
+    /// A trading day: a filled bar. A closed day: only a faint dashed
+    /// outline where the session would have been.
+    @ViewBuilder
+    private func bar(_ span: (Double, Double), color: Color, trades: Bool, x: (Double) -> CGFloat, y: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 2)
+        Group {
+            if trades {
+                shape.fill(color.opacity(0.75))
+            } else {
+                shape.strokeBorder(color.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+            }
+        }
+        .frame(width: max(x(span.1) - x(span.0), 2), height: 8)
+        .offset(x: x(span.0), y: y)
     }
 
-    private func legend(_ name: String, _ span: (Double, Double), _ color: Color) -> some View {
+    private func legend(_ session: Session, _ span: (Double, Double), trades: Bool) -> some View {
         HStack(spacing: 4) {
-            Circle().fill(color.opacity(0.8)).frame(width: 7, height: 7)
-            Text("\(name) \(Self.clock(span.0))–\(Self.clock(span.1))").monospacedDigit()
+            Circle().fill(session.color.opacity(trades ? 0.8 : 0.3)).frame(width: 7, height: 7)
+            Text(trades ? "\(session.name) \(Self.clock(span.0))–\(Self.clock(span.1))"
+                        : tr("\(session.name) lukket", "\(session.name) closed"))
+                .monospacedDigit()
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(trades ? .secondary : .tertiary)
+    }
+
+    /// Whether the session on your calendar day falls on a weekday in the
+    /// exchange's own time zone.
+    private static func tradesToday(_ session: Session, on date: Date) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: session.hours.timezone) ?? .current
+        var parts = calendar.dateComponents([.year, .month, .day], from: date)
+        parts.hour = session.open.0
+        parts.minute = session.open.1
+        let start = calendar.date(from: parts) ?? date
+        return (2...6).contains(calendar.component(.weekday, from: start))
     }
 
     /// An exchange's hours today, as hours since your own midnight.
@@ -349,5 +412,13 @@ private struct TradingHoursBand: View {
     static func clock(_ hours: Double) -> String {
         let total = Int((hours * 60).rounded())
         return String(format: Lang.isEnglish ? "%d:%02d" : "%d.%02d", total / 60, total % 60)
+    }
+
+    /// "man. 9.00" / "Mon 9:00", in your own time.
+    static func dayAndClock(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Lang.locale
+        formatter.dateFormat = "EEE"
+        return "\(formatter.string(from: date)) \(clock(hours(date, in: .current)))"
     }
 }

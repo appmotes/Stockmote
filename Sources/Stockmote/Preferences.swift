@@ -79,6 +79,8 @@ final class Preferences: ObservableObject {
     @Published var presence: AppPresence { didSet { defaults.set(presence.rawValue, forKey: "presence") } }
     /// Open the main window when the app is launched by hand (not at login).
     @Published var openWindowAtLaunch: Bool { didSet { defaults.set(openWindowAtLaunch, forKey: "openWindowAtLaunch") } }
+    /// The trading-hours band on the overview. Off unless asked for: it takes room.
+    @Published var showTradingHours: Bool { didSet { defaults.set(showTradingHours, forKey: "showTradingHours") } }
 
     @Published private(set) var launchAtLogin = false
     @Published private(set) var launchAtLoginError: String?
@@ -96,6 +98,7 @@ final class Preferences: ObservableObject {
         refreshSeconds = seconds > 0 ? seconds : 60
         presence = AppPresence(rawValue: defaults.string(forKey: "presence") ?? "") ?? .both
         openWindowAtLaunch = defaults.object(forKey: "openWindowAtLaunch") as? Bool ?? true
+        showTradingHours = defaults.bool(forKey: "showTradingHours")
         launchAtLogin = SMAppService.mainApp.status == .enabled
         Lang.isEnglish = language.isEnglish
     }

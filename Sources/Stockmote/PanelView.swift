@@ -175,6 +175,7 @@ private struct Toolbar: View {
                 SeismographButton()
                 ViewModePicker()
             }
+            if app.screen == .overview { TradingHoursButton() }
             SearchButton(compact: compact)
             ThemeToggleButton()
             RefreshButton()
@@ -230,6 +231,27 @@ private struct SeismographButton: View {
         }
         .buttonStyle(.plain)
         .help(tr("Seismograf (⌘P) · mellemrum afspiller", "Seismograph (⌘P) · space plays"))
+        .onHover { isHovering = $0 }
+    }
+}
+
+/// The overview's trading-hours band on and off. Highlighted when on.
+private struct TradingHoursButton: View {
+    @ObservedObject private var prefs = Preferences.shared
+    @State private var isHovering = false
+
+    var body: some View {
+        Button { withAnimation(.easeInOut(duration: 0.2)) { prefs.showTradingHours.toggle() } } label: {
+            Image(systemName: "clock")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(prefs.showTradingHours ? Color.accentColor : .secondary)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(prefs.showTradingHours ? Color.accentColor.opacity(0.18) : (isHovering ? Palette.raised : .clear)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(tr("Handelstider", "Trading hours"))
         .onHover { isHovering = $0 }
     }
 }

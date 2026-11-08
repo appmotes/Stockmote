@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// [--theme light|dark] [--lang da|en] [--fullscreen [--notch 32]]
 /// [--seismograph 0.4] [--fund SPY] [--search "MSCI World" [--fund-pick URTH] [--fund-add]]
 /// [--dialog new-list|rename-list] [--window 1200x780] [--settings]
-/// [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-repeat]`
+/// [--trading-hours] [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-list "Tech:AAPL"] [--legacy-repeat]`
 ///
 /// Fetches real data, renders the main window's content (or Map Only, or
 /// the Settings window) to a PNG and quits. Used for the images in docs/
@@ -292,6 +292,8 @@ struct Snapshot {
 
         if let theme = options["theme"].flatMap(ThemeMode.init(rawValue:)) { prefs.theme = theme }
         if let lang = options["lang"] { prefs.language = lang == "en" ? .english : .danish }
+        // --trading-hours: the overview's trading-hours band shown.
+        prefs.showTradingHours = flags.contains("trading-hours")
         if let index = options["index"] { app.indexID = index }
         if let tab = options["tab"].flatMap(PanelTab.init(rawValue:)) { app.tab = tab }
         // The map unless told otherwise, as the images in docs/ were made.
