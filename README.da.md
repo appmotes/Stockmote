@@ -26,11 +26,11 @@ eller nyere.
 ## Ansvarsfraskrivelse
 
 Ikke investeringsrådgivning. Appen viser offentlige kurser som de er. Den er ikke lavet af eller forbundet med Nasdaq,
-Yahoo, S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, Vanguard, DWS, Amundi, State Street, Invesco eller nogen anden børs,
+Yahoo, S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, Vanguard, DWS, Amundi, State Street, Invesco, Nordnet, Morningstar eller nogen anden børs,
 indeks- eller fondsudbyder.
 
 Kurserne kommer fra offentlige adresser hos Yahoo Finance og Nasdaq, fondenes beholdninger fra BlackRock (iShares),
-Vanguard, DWS (Xtrackers), Amundi, State Street og Invesco, alle uden konto eller API-nøgle. Ingen af
+Vanguard, DWS (Xtrackers), Amundi, State Street, Invesco og Nordnet, indre værdi for unoterede fonde fra Morningstar, alle uden konto eller API-nøgle. Ingen af
 dem er et dokumenteret, lovet API. De kan alle ændre sig eller lukke uden varsel; så bliver kortet gråt, og
 statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 
@@ -55,7 +55,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 - **13 indekser.** USA: S&P 500, Nasdaq 100, Dow Jones. Europa: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50, 🇬🇧 FTSE 100,
   🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI og 🇳🇱 AEX. ⌘1 … ⌘9 hopper til de første ni.
 - **Fonde.** + ved **Fonde** i sidebjælken åbner en dialog midt i panelet: skriv navn eller ticker på en ETF eller
-  indeksfond (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`) og vælg et resultat. Beholdningen hentes med det
+  indeksfond (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`, `Nordnet Danmark Indeks`) og vælg et resultat. Beholdningen hentes med det
   samme, med en smagsprøve som "237 aktier · største: Taiwan Semiconductor 8,81%", og kun en fond hvis beholdning
   kunne findes, kan tilføjes — ellers siger dialogen det, og **Tilføj** forbliver slået fra. En obligations-, pengemarkeds-
   eller blandet fond får en besked om at den ikke ejer aktier, i stedet for et tomt kort. Retur tilføjer og åbner
@@ -65,7 +65,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   kursændring. Hover viser vægten, listen har en vægt-kolonne, og statuslinjen siger hvor beholdningen kommer fra — og for
   Vanguard, der offentliggør månedligt, hvilken dato den er fra ("Beholdning fra Vanguard pr. 30. sep.").
   Store fonde (iShares Core MSCI World: ~1200 aktier) beskæres til de 500 største efter vægt, og det står i
-  statuslinjen.
+  statuslinjen. Danske investeringsforeninger og de fonde Nordnet sælger, kan også findes (se *Hvor data kommer fra*).
   Fondene huskes på tværs af genstart; højreklik for at hente beholdningen igen eller fjerne fonden.
 - **Seks tidsrum** i den segmenterede kontrol øverst: 1D, 1U, 1M, 3M, ÅTD og 1Å. Farveskalaen følger tidsrummet: fuld
   farve ved ±3 % for en dag, ±35 % for et år.
@@ -163,6 +163,8 @@ skrivebordet → **Rediger widgets** → søg efter Stockmote.
 | Fondes beholdning: Vanguards UCITS-ETF'er (VWRL, VWCE, VUSA …) | vanguard.co.uk: fondenes id'er fra produktsidens model (`product.model.json`), navne, ISIN og alle noteringers tickere, og beholdningen fra sitets GraphQL-tjeneste (`gpx/graphql`) | Som ovenfor; produktlisten ugentligt |
 | Fondes beholdning: Xtrackers-ETF'er (XDWD, XMME, XDAX …) | etf.dws.com: fondssiderne i sitemaps (ISIN og navn) og beholdnings-JSON'en bag hver side (`api/pdp/en-gb/etf/<ISIN>/holdings`) | Som ovenfor; sitemaps ugentligt |
 | Fondes beholdning: Amundi- og tidligere Lyxor-ETF'er (MWRD, CW8, PANX …) | amundietf.co.uk's produkt-API (`mapi/ProductAPI/getProductsData`): produktlisten (britisk og fransk site) og hver fonds sammensætning | Som ovenfor; produktlisten ugentligt |
+| Fondssøgning og beholdning: danske investeringsforeninger (DKIDKIX, SPIC25KL …) og fonde solgt hos Nordnet (Nordnet Danmark Indeks, Nordnet Global Indeks …) | Nordnets offentlige API bag nordnet.dk (header `client-id: NEXT`, ingen konto): `api/2/main_search` til søgningen, `api/2/instruments/<id>/fund/info` til de største beholdninger med vægt, `api/2/instruments/<ids>` til deres ticker, børs og ISIN | Mens du skriver; beholdningen når fonden tilføjes, derefter højst ugentligt |
+| Daglig indre værdi for fonde der ikke er børsnoterede (Nordnets egne fonde og andre Yahoo ikke kender) | Morningstars offentlige kursserie (`lt.morningstar.com/api/rest.svc/timeseries_price`, med Morningstar-id, i fondens valuta) | Med kurserne for 1U og længere perioder |
 | Aktiesymboler for fonde der skriver ISIN (Vanguard, Xtrackers, Amundi) | Yahoo Finance `v1/finance/search` med ISIN | Én gang pr. ny aktie |
 
 **Nasdaq's screener halter.** Målt en fredag eftermiddag viste den stadig torsdagens lukkekurs, så den bruges kun til
@@ -200,6 +202,22 @@ sektornavne, så alle indekser deler sprog; brancherne beholder Yahoo's navne (`
    er en tilnærmelse — de største aktier er de samme.
 4. Ellers: "Kunne ikke hente beholdningen for …".
 
+Før alt det får en **dansk fond eller en fond solgt hos Nordnet** sin beholdning fra Nordnet: en fond fra Nordnets
+søgning har Nordnets id med, og en fond noteret i København fundet i Yahoos søgning (`DKIDKIX.CO`) slås op i
+Nordnets søgning på ticker. Nordnet offentliggør kun de **25 største beholdninger** (Morningstars data, som regel fra
+seneste månedsskifte). Dækker de under 95 % af fonden, og navnet passer på trin 2 eller 3 (Nordnet Global Indeks →
+SPGM), foretrækkes erstatningen, fordi den viser hele fonden; ellers viser kortet de 25, og statuslinjen siger det
+("Beholdning fra Nordnet pr. 30. okt. · kun fondens 25 største beholdninger"). Udløbne indeksfutures og kontanter i
+Nordnets liste springes over.
+
+**Kurser for danske fonde og Nordnets fonde.** En børsnoteret investeringsforening har et Yahoo-symbol
+(`DKIDKIX.CO`) og prissættes som enhver ETF. En fond der ikke er noteret, og som Yahoo ikke kender, har kun en daglig
+indre værdi, der offentliggøres aftenen efter: appen henter den fra Morningstar for 1U og længere, og søgeresultatet
+viser `NAV` i stedet for en ticker. For 1D findes der endnu ingen indre værdi for i dag, så dagens ændring i titlen og
+afspilningens kurve er beholdningens ændringer vægtet efter deres vægt i fonden — et skøn, ikke det officielle tal.
+Yahoo kender mange af Nordnets fonde under et Morningstar-id (`0P000134KA.CO` = Nordnet Danmark Indeks A); så beholdes
+Yahoo-resultatet, med Nordnets beholdning.
+
 Obligations-, pengemarkeds- og blandede fonde (efter udbyderens aktivklasse, eller fordi beholdningen ikke har
 aktier) stopper i stedet med en besked: de kan ikke tegnes som et aktiekort. Swap-baserede ETF'er (Amundis `CW8`,
 `500`, `ANX` …) ejer en erstatningskurv af andre aktier, ikke indekset, så appen springer kurven over og går videre til
@@ -209,7 +227,7 @@ trin 2 og 3; uden erstatning siger den at fonden er swap-baseret.
 |---|---|---|
 | iShares, Vanguard, Xtrackers, Amundi/Lyxor, SPDR (USA), Invesco (USA) | Ja | Fuld beholdning, se ovenfor |
 | SPDR Europe (UCITS), WisdomTree, VanEck, HSBC, J.P. Morgan, Franklin Templeton, Global X, Schwab, First Trust, Fidelity | Ikke endnu | Ikke undersøgt endnu; fonde på et kendt indeks får en erstatning |
-| Sparindex, Danske Invest, Nordnet indeksfonde | Via erstatning | Fonde der følger C25, MSCI World, S&P 500 osv. får appens eget indeks eller en fond på samme indeks |
+| Danske investeringsforeninger (Sparindex, Danske Invest, Nykredit Invest, Jyske Invest, BankInvest …) og fonde solgt hos Nordnet | Ja, top 25 | De 25 største beholdninger fra Nordnet; en erstatning når fonden følger et bredt indeks appen kender (se ovenfor); indre værdi fra Morningstar for unoterede fonde |
 
 Fonde med en drejning i navnet — sektor, faktor, ESG, gearing, obligationer — følger ikke det brede indeks og får
 ingen erstatning. Zacks og stockanalysis.com blev prøvet og fravalgt: de afviser alt andet end en browser.
@@ -289,6 +307,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/Stockmote/Universe.swift](Sources/Stockmote/Universe.swift) | Indlæsning af `Indices.json` |
 | [Sources/Stockmote/Funds.swift](Sources/Stockmote/Funds.swift) | Fonde: søgning, beholdninger fra iShares, State Street og Invesco, erstatningsindekser, opslag af udenlandske aktier, cache, .xlsx- og CSV-læsere |
 | [Sources/Stockmote/FundIssuers.swift](Sources/Stockmote/FundIssuers.swift) | Fondes beholdning fra Vanguard, Xtrackers og Amundi, produktlister, ISIN-rækker |
+| [Sources/Stockmote/Nordnet.swift](Sources/Stockmote/Nordnet.swift) | Nordnets offentlige API: søgning efter danske fonde og Nordnets fonde, deres største beholdninger |
 | [Sources/Stockmote/Lists.swift](Sources/Stockmote/Lists.swift) | Favoritter og watchlister |
 | [Sources/Stockmote/Preferences.swift](Sources/Stockmote/Preferences.swift) | Indstillinger |
 | [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | Hvad der er valgt, sektor/branche, zoom og den åbne dialog |
@@ -299,7 +318,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/StockmoteShared/Style.swift](Sources/StockmoteShared/Style.swift) | Tidsrum, temaer, farveskala, talformater, panelets farver |
 | [Sources/StockmoteShared/Lang.swift](Sources/StockmoteShared/Lang.swift) | Dansk og engelsk |
 | [Sources/StockmoteShared/Market.swift](Sources/StockmoteShared/Market.swift) | Symboler, åbningstider, valutaer |
-| [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo-klient |
+| [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo-klient; daglig indre værdi fra Morningstar for unoterede fonde |
 | [Sources/StockmoteShared/WidgetShare.swift](Sources/StockmoteShared/WidgetShare.swift) | Filen der deles med widget'en |
 | [Sources/StockmoteWidget/StockmoteWidget.swift](Sources/StockmoteWidget/StockmoteWidget.swift) | Widget'en og dens indstillinger |
 | [Scripts/make-app.sh](Scripts/make-app.sh) | Pakker og signerer app og widget, laver AppIntents-metadata |

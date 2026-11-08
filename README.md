@@ -26,11 +26,11 @@ later.
 ## Disclaimer
 
 Not investment advice. The app shows public quotes as they are. It is not made by or affiliated with Nasdaq, Yahoo,
-S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, Vanguard, DWS, Amundi, State Street, Invesco or any other exchange, index
+S&P Dow Jones Indices, Nasdaq Copenhagen, Deutsche Börse, BlackRock, Vanguard, DWS, Amundi, State Street, Invesco, Nordnet, Morningstar or any other exchange, index
 or fund provider.
 
 Quotes come from public endpoints at Yahoo Finance and Nasdaq, fund holdings from BlackRock (iShares), Vanguard,
-DWS (Xtrackers), Amundi, State Street and Invesco, none of which need an account or API key. None of them is a
+DWS (Xtrackers), Amundi, State Street, Invesco and Nordnet, NAV prices for unlisted funds from Morningstar, none of which need an account or API key. None of them is a
 documented, promised API. Any of them can change or close without notice, and then the map goes grey and the status
 line says which source failed. No analytics and no tracking.
 
@@ -55,7 +55,7 @@ line says which source failed. No analytics and no tracking.
 - **13 indices.** United States: S&P 500, Nasdaq 100, Dow Jones. Europe: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50,
   🇬🇧 FTSE 100, 🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI and 🇳🇱 AEX. ⌘1 … ⌘9 jump to the first nine.
 - **Funds.** + next to **Funds** in the sidebar opens a dialog in the middle of the panel: type the name or ticker of
-  an ETF or index fund (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`) and pick a result. Its holdings are loaded
+  an ETF or index fund (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`, `Nordnet Danmark Indeks`) and pick a result. Its holdings are loaded
   right there, with a preview such as "237 stocks · largest: Taiwan Semiconductor 8.81%", and only a fund whose
   holdings could be found can be added — otherwise the dialog says so and **Add** stays off. A bond, money market
   or multi-asset fund gets a message saying it holds no stocks, instead of an empty map. Return adds and opens
@@ -64,7 +64,8 @@ line says which source failed. No analytics and no tracking.
   size is the stock's **weight in the fund**, not its market value. The title shows the fund's own name and its own
   price change. Hover shows the weight, the list has a weight column, and the status line says where the holdings
   come from, and for Vanguard, which publishes monthly, their date ("Holdings from Vanguard as of Sep 30"). Large funds (iShares Core MSCI World: ~1,200 stocks) are cut to the 500 largest by weight, and the status
-  line says so. Funds are remembered across restarts; right-click to reload the holdings or remove the fund.
+  line says so. Danish investeringsforeninger and the funds Nordnet sells are found too (see *Where the data comes
+  from*). Funds are remembered across restarts; right-click to reload the holdings or remove the fund.
 - **Six time ranges** in the segmented control at the top: 1D, 1U/1W (week), 1M, 3M, ÅTD/YTD and 1Å/1Y. The colour
   scale follows the range: full colour at ±3 % for a day, ±35 % for a year.
 - **Sectors and industries.** Click a sector or industry header to go into it. The title becomes that level, with a
@@ -159,6 +160,8 @@ The widget appears in the gallery once the app is in `/Applications` and has bee
 | Fund holdings: Vanguard UCITS ETFs (VWRL, VWCE, VUSA …) | vanguard.co.uk: the fund ids from the product page's model (`product.model.json`), names, ISINs and tickers of every listing, and the holdings from its GraphQL service (`gpx/graphql`) | As above; the product list weekly |
 | Fund holdings: Xtrackers ETFs (XDWD, XMME, XDAX …) | etf.dws.com: the fund pages in the sitemaps (ISIN and name) and the holdings JSON behind each page (`api/pdp/en-gb/etf/<ISIN>/holdings`) | As above; the sitemaps weekly |
 | Fund holdings: Amundi and ex-Lyxor ETFs (MWRD, CW8, PANX …) | amundietf.co.uk's product API (`mapi/ProductAPI/getProductsData`): the product list (UK and French sites) and each fund's composition | As above; the product list weekly |
+| Fund search and holdings: Danish investeringsforeninger (DKIDKIX, SPIC25KL …) and funds sold by Nordnet (Nordnet Danmark Indeks, Nordnet Global Indeks …) | Nordnet's public API behind nordnet.dk (header `client-id: NEXT`, no account): `api/2/main_search` for the search, `api/2/instruments/<id>/fund/info` for the largest holdings with weights, `api/2/instruments/<ids>` for their ticker, exchange and ISIN | As you type; holdings when the fund is added, then at most weekly |
+| Daily NAV for funds that are not listed (Nordnet's own funds and others Yahoo doesn't know) | Morningstar's public price series (`lt.morningstar.com/api/rest.svc/timeseries_price`, by Morningstar id, in the fund's currency) | With the prices for 1U and longer ranges |
 | Stock symbols for funds that write ISINs (Vanguard, Xtrackers, Amundi) | Yahoo Finance `v1/finance/search` with the ISIN | Once per new stock |
 
 **Nasdaq's screener lags.** Measured on a Friday afternoon it still showed Thursday's close, so it is used only for
@@ -197,6 +200,22 @@ index shares one vocabulary; their industries keep Yahoo's names (`Drug Manufact
    largest stocks are the same.
 4. Otherwise: "Could not load the holdings for …".
 
+Before all of this, a **Danish fund or one sold by Nordnet** gets its holdings from Nordnet: a fund from Nordnet's
+search carries Nordnet's id, and a Copenhagen-listed fund found in Yahoo's search (`DKIDKIX.CO`) is looked up in
+Nordnet's search by ticker. Nordnet publishes only the **25 largest holdings** (Morningstar's data, usually from the
+last month end). When they cover less than 95 % of the fund and the name matches step 2 or 3 (Nordnet Global Indeks →
+SPGM), the stand-in is preferred because it shows the whole fund; otherwise the map shows the 25, and the status
+line says so ("Holdings from Nordnet as of Oct 30 · only the fund's 25 largest holdings"). Expired index futures and
+cash in Nordnet's list are left out.
+
+**Prices for Danish and Nordnet funds.** A listed investeringsforening has a Yahoo symbol (`DKIDKIX.CO`) and is
+priced like any ETF. A fund that isn't listed and that Yahoo doesn't know only has a daily NAV, published the
+evening after: the app fetches it from Morningstar for 1U and longer, and the search result shows `NAV` instead of a
+ticker. For 1D there is no NAV for today yet, so the day's change in the title and the replay curve are the
+holdings' changes weighted by their weight in the fund — an estimate, not the official figure. Yahoo knows many of
+Nordnet's funds under a Morningstar id (`0P000134KA.CO` = Nordnet Danmark Indeks A); then the Yahoo result is kept,
+with Nordnet's holdings.
+
 Bond, money market and multi-asset funds (by the provider's asset class, or because their holdings contain no
 stocks) stop with a message instead: they cannot be drawn as a stock map. Swap-based ETFs (Amundi's `CW8`, `500`,
 `ANX` …) hold a substitute basket of other stocks, not the index, so the app skips their basket and goes on to step 2
@@ -206,7 +225,7 @@ and 3; without a stand-in it says the fund is swap-based.
 |---|---|---|
 | iShares, Vanguard, Xtrackers, Amundi/Lyxor, SPDR (US), Invesco (US) | Yes | Full holdings, see above |
 | SPDR Europe (UCITS), WisdomTree, VanEck, HSBC, J.P. Morgan, Franklin Templeton, Global X, Schwab, First Trust, Fidelity | Not yet | Not researched yet; funds on a known index get a stand-in |
-| Sparindex, Danske Invest, Nordnet index funds | Via stand-in | Funds that track C25, MSCI World, S&P 500 etc. get the app's own index or a fund on the same index |
+| Danish investeringsforeninger (Sparindex, Danske Invest, Nykredit Invest, Jyske Invest, BankInvest …) and funds sold by Nordnet | Yes, top 25 | The 25 largest holdings from Nordnet; a stand-in when the fund tracks a broad index the app knows (see above); NAV from Morningstar for unlisted funds |
 
 Funds with a twist in the name — sector, factor, ESG, leverage, bonds — do not track the broad index and get no
 stand-in. Zacks and stockanalysis.com were tried and left out: they turn away anything but a browser.
@@ -288,6 +307,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/Stockmote/Universe.swift](Sources/Stockmote/Universe.swift) | Loading `Indices.json` |
 | [Sources/Stockmote/Funds.swift](Sources/Stockmote/Funds.swift) | Funds: search, holdings from iShares, State Street and Invesco, stand-in indices, foreign stock lookup, cache, .xlsx and CSV readers |
 | [Sources/Stockmote/FundIssuers.swift](Sources/Stockmote/FundIssuers.swift) | Fund holdings from Vanguard, Xtrackers and Amundi, product lists, ISIN rows |
+| [Sources/Stockmote/Nordnet.swift](Sources/Stockmote/Nordnet.swift) | Nordnet's public API: search for Danish and Nordnet funds, their largest holdings |
 | [Sources/Stockmote/Lists.swift](Sources/Stockmote/Lists.swift) | Favourites and watchlists |
 | [Sources/Stockmote/Preferences.swift](Sources/Stockmote/Preferences.swift) | Settings |
 | [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | What is selected, drill-down, zoom and the open dialog |
@@ -298,7 +318,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/StockmoteShared/Style.swift](Sources/StockmoteShared/Style.swift) | Time ranges, themes, colour scale, number formats, panel colours |
 | [Sources/StockmoteShared/Lang.swift](Sources/StockmoteShared/Lang.swift) | Danish and English |
 | [Sources/StockmoteShared/Market.swift](Sources/StockmoteShared/Market.swift) | Symbols, opening hours, currencies |
-| [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo client |
+| [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo client; daily NAV from Morningstar for unlisted funds |
 | [Sources/StockmoteShared/WidgetShare.swift](Sources/StockmoteShared/WidgetShare.swift) | The file shared with the widget |
 | [Sources/StockmoteWidget/StockmoteWidget.swift](Sources/StockmoteWidget/StockmoteWidget.swift) | The widget and its settings |
 | [Scripts/make-app.sh](Scripts/make-app.sh) | Packages and signs app and widget, makes the AppIntents metadata |

@@ -79,7 +79,7 @@ struct FundHoldings: Codable {
     /// Number of stocks in the fund before trimming.
     var total: Int
     /// Where the holdings came from: "iShares", "Vanguard", "Xtrackers", "Amundi",
-    /// "SSGA", "Invesco" or "index".
+    /// "SSGA", "Invesco", "Nordnet" or "index".
     var source: String
     /// When the fund's own holdings aren't available: the ETF or index that
     /// tracks the same index ("URTH", "dax").
@@ -88,6 +88,9 @@ struct FundHoldings: Codable {
     /// The date the provider's holdings are from, when it says so. Vanguard
     /// publishes its holdings monthly, a few weeks after month end.
     var asOf: Date? = nil
+    /// Only the fund's largest holdings, not all of it: Nordnet publishes at
+    /// most 25. Optional so holdings cached before it existed still load.
+    var partial: Bool? = nil
     /// Name and sector for stocks the app doesn't otherwise know (Japanese,
     /// Canadian …), looked up in Yahoo's search.
     var stocks: [StockInfo]
@@ -118,8 +121,8 @@ enum FundError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noSource(let name):
-            return tr("Kunne ikke hente beholdningen for \(name). Fulde beholdninger findes for ETF'er fra iShares, Vanguard, Xtrackers, Amundi, SPDR og Invesco og for fonde der følger et kendt indeks.",
-                      "Could not load the holdings for \(name). Full holdings are available for iShares, Vanguard, Xtrackers, Amundi, SPDR and Invesco ETFs and for funds that track a well-known index.")
+            return tr("Kunne ikke hente beholdningen for \(name). Fulde beholdninger findes for ETF'er fra iShares, Vanguard, Xtrackers, Amundi, SPDR og Invesco og for fonde der følger et kendt indeks; for danske investeringsforeninger og fonde solgt hos Nordnet de største beholdninger fra Nordnet.",
+                      "Could not load the holdings for \(name). Full holdings are available for iShares, Vanguard, Xtrackers, Amundi, SPDR and Invesco ETFs and for funds that track a well-known index; for Danish investment funds and funds sold by Nordnet, the largest holdings from Nordnet.")
         case .empty(let name):
             return tr("Kunne ikke hente beholdningen for \(name).", "Could not load the holdings for \(name).")
         case .notEquity(let name):
@@ -268,7 +271,11 @@ final class FundStore: ObservableObject {
         } else {
             parts.append(tr("Beholdning fra \(loaded.source)", "Holdings from \(loaded.source)"))
         }
-        if loaded.total > loaded.holdings.count {
+        if loaded.partial == true {
+            // Nordnet's top 25: the rest of the fund isn't known.
+            let count = Format.integer(loaded.total)
+            parts.append(tr("kun fondens \(count) største beholdninger", "only the fund's \(count) largest holdings"))
+        } else if loaded.total > loaded.holdings.count {
             let shown = Format.integer(loaded.holdings.count), total = Format.integer(loaded.total)
             parts.append(tr("de \(shown) største af \(total) aktier", "the \(shown) largest of \(total) stocks"))
         }
@@ -407,6 +414,7 @@ final class FundStore: ObservableObject {
             if !found.partial || FundProxy.match(fund.name) == nil {
                 var loaded = try await fromRows(found.rows, source: found.source, fund: fund, proxy: nil, report: report)
                 loaded.asOf = found.asOf
+                loaded.partial = found.partial
                 return loaded
             }
             partial = found
@@ -435,6 +443,7 @@ final class FundStore: ObservableObject {
         if let partial {
             var loaded = try await fromRows(partial.rows, source: partial.source, fund: fund, proxy: nil, report: report)
             loaded.asOf = partial.asOf
+            loaded.partial = true
             return loaded
         }
         throw swapError ?? FundError.noSource(fund.name)

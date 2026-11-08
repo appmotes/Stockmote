@@ -57,7 +57,7 @@ enum Nordnet {
                     // Not listed: priced by its NAV, by Morningstar id.
                     guard let morningstar = market?["identifier"] as? String, morningstar.hasPrefix("F0") else { continue }
                     results.append(FundSearchResult(symbol: "\(FundNAV.prefix)\(morningstar):\(currency)", name: name,
-                                                    kind: "MUTUALFUND", exchange: "NAV · Nordnet",
+                                                    kind: "MUTUALFUND", exchange: "Nordnet",
                                                     nordnet: id))
                 }
             }
@@ -124,7 +124,6 @@ enum Nordnet {
         }
         var found = FundSources.Found(rows: rows, source: "Nordnet", asOf: asOf)
         found.partial = covered < target * 0.95
-        if found.partial { found.source = "Nordnet · top \(rows.count)" }
         return found
     }
 }
