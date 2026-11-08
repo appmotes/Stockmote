@@ -21,6 +21,91 @@ struct PeriodSnapshot {
     var changes: [String: Double]
     var fetched: Date
     var symbols: Set<String>
+    /// The date each change is measured from, where the range doesn't say it
+    /// (3Å, Alt).
+    var since: [String: Date] = [:]
+}
+
+/// A headline figure — in the title, the sidebar and the period picker — and
+/// what kind of number it is.
+///
+/// The rule: every figure is read from real prices of that exact instrument.
+/// Where there is none, the figure is nil and shows "–". Two kinds of derived
+/// figure are allowed, because they are customary and named where they are
+/// shown: an indicative value (≈ … "indicative") for a NAV fund's day, and
+/// the equal-weight average of a list ("average").
+struct Figure {
+    var change: Double?
+    /// The customary indicative value (iNAV) of a fund priced by its daily NAV,
+    /// for the day before the NAV is out: the holdings' own changes, weighted
+    /// as in the fund. Shown as "≈ +1,98%" with "indicative" beside it.
+    var isIndicative = false
+    /// An average of stocks: a list's equal-weight average, or a sector's
+    /// weighted by market value (`isWeighted`).
+    var isAverage = false
+    var isWeighted = false
+    /// The date of the price the change is measured from (3Å, Alt).
+    var since: Date?
+    var period: Period
+
+    /// "+1,98%", "≈ +1,98%" or "–".
+    var text: String {
+        guard change != nil else { return "–" }
+        return (isIndicative ? "≈ " : "") + Format.percent(change)
+    }
+
+    /// Visible beside the figure: what kind of number it is.
+    var kindLabel: String? {
+        if isIndicative { return tr("indikativ", "indicative") }
+        if isAverage { return tr("gennemsnit", "average") }
+        return nil
+    }
+
+    /// "Siden 1927" for Alt, otherwise the range's name.
+    var rangeLabel: String {
+        if period == .all, let since {
+            let year = Calendar(identifier: .gregorian).component(.year, from: since)
+            return tr("Siden \(year)", "Since \(year)")
+        }
+        return period.longName
+    }
+
+    /// The tooltip: where the number comes from, or why there is none.
+    var help: String {
+        var lines: [String] = [period.longName]
+        let date = since.map { Self.dateText($0) }
+        if change == nil {
+            lines.append(tr("Ingen kurs for hele perioden endnu.", "No price for the whole range yet."))
+        } else if isIndicative {
+            lines.append(tr("Indikativ værdi: anslået ud fra fondens beholdning, vægtet som i fonden, indtil dagens indre værdi offentliggøres om aftenen.",
+                            "Indicative value: estimated from the fund's holdings, weighted as in the fund, until today's NAV is published in the evening."))
+        } else if isWeighted {
+            lines.append(tr("Gennemsnit vægtet efter markedsværdi (i en fond: fondens vægte).",
+                            "Average weighted by market value (in a fund: the fund's weights)."))
+        } else if isAverage {
+            lines.append(tr("Gennemsnit af aktierne på listen med lige vægt.", "Equal-weight average of the stocks on the list."))
+        }
+        if let date, change != nil, !isAverage {
+            switch period {
+            case .all: lines.append(tr("Siden første kurs, \(date).", "Since the first price, \(date)."))
+            default: lines.append(tr("Fra lukkekursen \(date).", "From the close on \(date)."))
+            }
+        }
+        if isAverage, period == .all || period.start() != nil {
+            lines.append(tr("Aktier uden kurs for hele perioden tæller ikke med.", "Stocks without a price for the whole range are left out."))
+        }
+        if isAverage, period == .all {
+            lines.append(tr("Hver aktie regnes fra sin egen første kurs.", "Each stock counts from its own first price."))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    static func dateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Lang.locale
+        formatter.dateFormat = Lang.isEnglish ? "MMM d, yyyy" : "d. MMM yyyy"
+        return formatter.string(from: date)
+    }
 }
 
 enum MarketError: LocalizedError {
@@ -123,27 +208,64 @@ final class MarketStore: ObservableObject {
         UniverseStore.shared.info[symbol]?.currency ?? FundStore.shared.info[symbol]?.currency ?? "USD"
     }
 
-    /// The percentage change for a symbol (also "^GSPC") over a time range.
+    /// The percentage change for a symbol (also "^GSPC") over a time range,
+    /// from Yahoo. Nasdaq's screener also has a day's change, but it can be
+    /// yesterday's, so it is never shown as today's.
     func change(_ symbol: String, _ period: Period) -> Double? {
-        if let value = snapshots[period]?.changes[symbol] { return value }
-        // Only until Yahoo has answered the first time: the screener's figures may
-        // be from yesterday.
-        if period == .day, snapshots[.day] == nil { return quotes[symbol]?.change1D }
-        return nil
+        snapshots[period]?.changes[symbol]
     }
 
-    /// The index's own change. Yahoo's figure if we have it, otherwise a weighted
-    /// average of the members — close, but not the official figure. For a fund
-    /// it's the fund's own price.
-    func indexChange(_ index: MarketIndex, _ period: Period) -> Double? {
-        if let value = snapshots[period]?.changes[index.benchmark] { return value }
+    /// The date a symbol's change is measured from (3Å, Alt).
+    func since(_ symbol: String, _ period: Period) -> Date? {
+        snapshots[period]?.since[symbol]
+    }
+
+    /// The index's own change (^GSPC, ^OMXC25 …); for a fund the fund's own
+    /// price or NAV. Without it the figure is "–" — an average of the members
+    /// would not be the index's figure.
+    ///
+    /// The one exception is a fund priced by its daily NAV, on the day: its
+    /// NAV comes in the evening, so until then it gets the customary
+    /// indicative value from its holdings, marked as such.
+    func indexFigure(_ index: MarketIndex, _ period: Period) -> Figure {
+        if let value = snapshots[period]?.changes[index.benchmark] {
+            return Figure(change: value, since: since(index.benchmark, period), period: period)
+        }
+        guard index.isFund, FundNAV.isNAV(index.benchmark), period == .day else {
+            return Figure(change: nil, period: period)
+        }
         var sum = 0.0, weight = 0.0
         for symbol in index.symbols {
-            guard let change = change(symbol, period), let cap = index.weight(symbol) else { continue }
-            sum += change * cap
-            weight += cap
+            guard let change = change(symbol, period), let share = index.weight(symbol) else { continue }
+            sum += change * share
+            weight += share
         }
-        return weight > 0 ? sum / weight : nil
+        return Figure(change: weight > 0 ? sum / weight : nil, isIndicative: true, period: period)
+    }
+
+    func indexChange(_ index: MarketIndex, _ period: Period) -> Double? {
+        indexFigure(index, period).change
+    }
+
+    /// The headline of what is on screen, for any range: the index's or
+    /// fund's own figure, or a list's average. Shown under each range in the
+    /// period picker.
+    func viewFigure(_ period: Period) -> Figure {
+        let app = AppState.shared
+        switch app.tab {
+        case .map:
+            guard let index = UniverseStore.shared.index(withID: app.indexID) else { return Figure(period: period) }
+            return indexFigure(index, period)
+        case .favorites: return listFigure(ListsStore.shared.favorites, period)
+        case .watchlists: return listFigure(ListsStore.shared.watchlist(app.watchlistID)?.symbols ?? [], period)
+        }
+    }
+
+    /// Equal-weight average of a list's stocks, of those that have a figure.
+    func listFigure(_ symbols: [String], _ period: Period) -> Figure {
+        let changes = symbols.compactMap { change($0, period) }
+        let average = changes.isEmpty ? nil : changes.reduce(0, +) / Double(changes.count)
+        return Figure(change: average, isAverage: true, period: period)
     }
 
     /// Name and classification. Indices.json wins; stocks outside the indices
@@ -250,6 +372,73 @@ final class MarketStore: ObservableObject {
 
         errorMessage = problems.isEmpty ? nil : problems.joined(separator: " ")
         version += 1
+        await loadHeadlines()
+    }
+
+    /// When the index, list or tab changes: the members for the chosen range,
+    /// and the headline for every range.
+    func viewChanged() {
+        Task {
+            await loadPeriod(period, force: false)
+            await loadHeadlines()
+        }
+    }
+
+    /// When each range's headline symbols were last fetched.
+    private var headlinesFetched: [Period: (symbols: Set<String>, at: Date)] = [:]
+
+    /// The figures under each range in the period picker: the view's own
+    /// symbol — the index's benchmark or the fund's price — for every range,
+    /// one small call per range. A list needs its members, since its figure is
+    /// their average; lists are short. The members of an index are only
+    /// fetched for the chosen range.
+    func loadHeadlines() async {
+        let app = AppState.shared
+        let symbols: Set<String>
+        switch app.tab {
+        case .map:
+            guard let index = UniverseStore.shared.index(withID: app.indexID) else { return }
+            symbols = [index.benchmark]
+        case .favorites: symbols = Set(ListsStore.shared.favorites)
+        case .watchlists: symbols = Set(ListsStore.shared.watchlist(app.watchlistID)?.symbols ?? [])
+        }
+        guard !symbols.isEmpty else { return }
+        let stale = Period.allCases.filter { period in
+            if let done = headlinesFetched[period], symbols.isSubset(of: done.symbols),
+               Date().timeIntervalSince(done.at) < 600 { return false }
+            if let snapshot = snapshots[period], symbols.isSubset(of: snapshot.symbols),
+               Date().timeIntervalSince(snapshot.fetched) < 600 { return false }
+            return true
+        }
+        guard !stale.isEmpty else { return }
+        let results = await withTaskGroup(of: (Period, [String: Yahoo.Value]).self) { group in
+            var iterator = stale.makeIterator()
+            for _ in 0..<3 {
+                guard let period = iterator.next() else { break }
+                group.addTask { (period, await Yahoo.fetch(Array(symbols), period: period, concurrency: 1)) }
+            }
+            var results: [(Period, [String: Yahoo.Value])] = []
+            while let result = await group.next() {
+                results.append(result)
+                if let period = iterator.next() {
+                    group.addTask { (period, await Yahoo.fetch(Array(symbols), period: period, concurrency: 1)) }
+                }
+            }
+            return results
+        }
+        for (period, values) in results {
+            // Merged in without touching `fetched`, so a full load of the range
+            // still happens when its members are stale.
+            var snapshot = snapshots[period] ?? PeriodSnapshot(changes: [:], fetched: Date(), symbols: [])
+            for (symbol, value) in values {
+                snapshot.changes[symbol] = value.change
+                snapshot.since[symbol] = value.since
+            }
+            snapshot.symbols.formUnion(symbols)
+            snapshots[period] = snapshot
+            headlinesFetched[period] = (symbols, Date())
+        }
+        version += 1
     }
 
     /// Fetches Yahoo data for a time range if it's missing or stale.
@@ -274,11 +463,13 @@ final class MarketStore: ObservableObject {
             return message
         }
         var changes = snapshots[period]?.changes ?? [:]
+        var since = snapshots[period]?.since ?? [:]
         for (symbol, value) in result {
             changes[symbol] = value.change
+            since[symbol] = value.since
             livePrices[symbol] = value.price
         }
-        snapshots[period] = PeriodSnapshot(changes: changes, fetched: Date(), symbols: wanted)
+        snapshots[period] = PeriodSnapshot(changes: changes, fetched: Date(), symbols: wanted, since: since)
         if self.period == period, errorMessage?.contains("Yahoo") == true { errorMessage = nil }
         version += 1
         return nil

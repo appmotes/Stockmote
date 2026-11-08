@@ -43,11 +43,13 @@ final class MenuBarItem: NSObject {
         let market = MarketStore.shared
         let prefs = Preferences.shared
         let index = prefs.menuBarIndexID.flatMap(UniverseStore.shared.index(withID:))
-        let change = index.flatMap { market.indexChange($0, .day) }
+        let figure = index.map { market.indexFigure($0, .day) }
+        let change = figure?.change
         let failed = market.quotes.isEmpty && market.errorMessage != nil
 
         let symbol = failed ? "exclamationmark.triangle" : "square.grid.2x2.fill"
-        let text = index.map { _ in Format.arrowPercent(change) } ?? ""
+        // "≈" marks a NAV fund's indicative value, as everywhere else.
+        let text = figure.map { ($0.isIndicative && change != nil ? "≈ " : "") + Format.arrowPercent(change) } ?? ""
         // Icon and number in the app's colours: green up, red down (or blue/orange).
         // The system colours, because they adjust themselves to a light and dark menu bar.
         // Without a number — or at exactly 0 — the icon is a plain template.

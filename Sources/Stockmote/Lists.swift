@@ -129,11 +129,10 @@ final class ListsStore: ObservableObject {
         watchlists[index].symbols.removeAll { $0 == symbol }
     }
 
-    /// A new stock outside the indices has no Yahoo data for 1U … 1Å yet.
+    /// A new stock outside the indices has no Yahoo data for the chosen range yet.
     private func fetchIfNeeded() {
-        let market = MarketStore.shared
-        guard market.period != .day else { return }
-        Task { await market.loadPeriod(market.period, force: false) }
+        // Also its figures under the other ranges, when a list is on screen.
+        MarketStore.shared.viewChanged()
     }
 }
 

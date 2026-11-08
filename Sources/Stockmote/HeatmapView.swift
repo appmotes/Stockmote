@@ -323,7 +323,9 @@ struct StockTooltip: View {
                     }
                 }
                 GridRow {
-                    Text(period.longName).foregroundStyle(.secondary)
+                    // Alt and 3Å say which price the change is measured from:
+                    // each stock's own first price, or its close three years ago.
+                    Text(sinceLabel).foregroundStyle(.secondary)
                     Text(Format.percent(item.change))
                         .foregroundStyle(Heat.textColor(item.change, style: style, theme: theme))
                 }
@@ -335,6 +337,12 @@ struct StockTooltip: View {
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
         }
+    }
+
+    private var sinceLabel: String {
+        guard let since = MarketStore.shared.since(item.symbol, period) else { return period.longName }
+        let date = Figure.dateText(since)
+        return period == .all ? tr("Siden \(date)", "Since \(date)") : tr("\(period.longName), fra \(date)", "\(period.longName), from \(date)")
     }
 
     private func row(_ label: String, _ value: String) -> some View {

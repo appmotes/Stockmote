@@ -198,7 +198,7 @@ private struct SectionTitle: View {
 /// Shared row: icon or flag, title, and the change on the right.
 private struct SidebarRow<Leading: View>: View {
     let title: String
-    let change: Double?
+    let figure: Figure
     let isSelected: Bool
     var detail: String? = nil
     @ViewBuilder let leading: Leading
@@ -219,9 +219,10 @@ private struct SidebarRow<Leading: View>: View {
                 if let detail {
                     Text(detail).font(.system(size: 10.5).monospacedDigit()).foregroundStyle(.tertiary)
                 }
-                Text(Format.percent(change))
+                Text(figure.text)
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Heat.textColor(change, style: prefs.colorStyle, theme: theme))
+                    .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
+                    .help(figure.help)
             }
             .padding(.horizontal, 7)
             .frame(height: 27)
@@ -244,7 +245,7 @@ private struct IndexRow: View {
     var body: some View {
         SidebarRow(
             title: index.name,
-            change: market.indexChange(index, market.period),
+            figure: market.indexFigure(index, market.period),
             isSelected: app.tab == .map && app.indexID == index.id
         ) {
             Text(index.flag ?? "🏳️").font(.system(size: 13))
@@ -267,7 +268,7 @@ private struct FundRow: View {
         let index = funds.index(for: fund)
         SidebarRow(
             title: fund.shortName,
-            change: market.indexChange(index, market.period),
+            figure: market.indexFigure(index, market.period),
             isSelected: app.tab == .map && app.indexID == fund.id
         ) {
             if funds.progress[fund.symbol] != nil {
@@ -302,14 +303,6 @@ private struct FundRow: View {
     }
 }
 
-/// Equal-weighted average of a list's stocks.
-@MainActor
-private func averageChange(_ symbols: [String]) -> Double? {
-    let market = MarketStore.shared
-    let changes = symbols.compactMap { market.change($0, market.period) }
-    return changes.isEmpty ? nil : changes.reduce(0, +) / Double(changes.count)
-}
-
 private struct ListRow: View {
     let symbol: String
     let tint: Color
@@ -321,7 +314,7 @@ private struct ListRow: View {
     @ObservedObject private var market = MarketStore.shared
 
     var body: some View {
-        SidebarRow(title: title, change: averageChange(symbols), isSelected: isSelected,
+        SidebarRow(title: title, figure: market.listFigure(symbols, market.period), isSelected: isSelected,
                    detail: "\(symbols.count)") {
             Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(tint)
         } action: { action() }
@@ -464,7 +457,8 @@ private struct PeriodMenu: View {
     var body: some View {
         Menu {
             ForEach(Period.allCases) { period in
-                Toggle("\(period.label)  ·  \(period.longName)", isOn: Binding(
+                let figure = market.viewFigure(period)
+                Toggle("\(period.label)  ·  \(period.longName)  ·  \(figure.text)", isOn: Binding(
                     get: { market.period == period },
                     set: { _ in market.period = period }
                 ))
@@ -530,8 +524,15 @@ private struct TitleBlock: View {
             }
 
             HStack(spacing: 5) {
-                Text(Format.percent(change))
-                    .foregroundStyle(Heat.textColor(change, style: prefs.colorStyle, theme: theme))
+                let figure = figure
+                Text(figure.text)
+                    .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
+                    .help(figure.help)
+                // What kind of number it is, when it isn't read straight from a
+                // price: "indicative" or "average".
+                if let kind = figure.kindLabel, figure.change != nil {
+                    Text(kind).foregroundStyle(.secondary).help(figure.help)
+                }
                 if isDrilled {
                     Button {
                         app.focus = .all
@@ -546,9 +547,9 @@ private struct TitleBlock: View {
                     Text("▶ \(replay.timeLabel())").foregroundStyle(.secondary)
                 } else if app.tab == .map, let index, index.isFund {
                     // A fund: the ticker next to the period, so you can see which one.
-                    Text("\(Symbols.display(index.benchmark)) · \(market.period.longName)").foregroundStyle(.tertiary)
+                    Text("\(Symbols.display(index.benchmark)) · \(figure.rangeLabel)").foregroundStyle(.tertiary)
                 } else {
-                    Text(market.period.longName).foregroundStyle(.tertiary)
+                    Text(figure.rangeLabel).foregroundStyle(.tertiary)
                 }
             }
             .font(.system(size: 11, weight: .semibold).monospacedDigit())
@@ -573,12 +574,16 @@ private struct TitleBlock: View {
         return root
     }
 
-    private var change: Double? {
+    private var figure: Figure {
+        let period = market.period
+        if replay.isReady, app.tab != .map || app.focus == .all {
+            return Figure(change: replay.curveValue, isIndicative: replay.curveIsIndicative,
+                          isAverage: replay.curveIsAverage, period: period)
+        }
         switch app.tab {
         case .map:
-            guard let index else { return nil }
-            if app.focus == .all, let value = replay.curveValue { return value }
-            guard app.focus != .all else { return market.indexChange(index, market.period) }
+            guard let index else { return Figure(period: period) }
+            guard app.focus != .all else { return market.indexFigure(index, period) }
             // The sector's or industry's own change, weighted by market cap.
             let items = Items.make(index.symbols, weights: index.weights).filter { item in
                 switch app.focus {
@@ -589,17 +594,22 @@ private struct TitleBlock: View {
             }
             let known = items.filter { $0.change != nil }
             let weight = known.reduce(0) { $0 + $1.weight }
-            return weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
-        case .favorites: return averageChange(lists.favorites)
-        case .watchlists: return averageChange(lists.watchlist(app.watchlistID)?.symbols ?? [])
+            let change = weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
+            return Figure(change: change, isAverage: true, isWeighted: true, period: period)
+        case .favorites, .watchlists: return market.viewFigure(period)
         }
     }
 }
 
-/// 1D · 1U · 1M · 3M · ÅTD · 1Å as a segmented control, where the selection
-/// slides over to the chosen one.
+/// 1D · 1U · 1M · 3M · 6M · ÅTD · 1Å · 3Å · 5Å · Alt as a segmented control,
+/// where the selection slides over to the chosen one. Under each range, the
+/// view's own change over it (the index, the fund, the list's average) —
+/// "–" until it is loaded or where there is no price that far back.
 private struct PeriodPicker: View {
     @ObservedObject private var market = MarketStore.shared
+    @ObservedObject private var prefs = Preferences.shared
+    @ObservedObject private var app = AppState.shared
+    @Environment(\.heatTheme) private var theme
     @Namespace private var namespace
 
     var body: some View {
@@ -609,12 +619,18 @@ private struct PeriodPicker: View {
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { market.period = period }
                 } label: {
-                    Text(period.label)
-                        .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
-                        .foregroundStyle(isSelected ? .primary : .secondary)
+                    let figure = market.viewFigure(period)
+                    VStack(spacing: 0) {
+                        Text(period.label)
+                            .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                            .foregroundStyle(isSelected ? .primary : .secondary)
+                        Text(figure.change == nil ? "–" : (figure.isIndicative ? "≈" : "") + Format.shortPercent(figure.change))
+                            .font(.system(size: 9.5, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
+                    }
                         .frame(minWidth: 30)
                         .padding(.horizontal, 3)
-                        .frame(height: 24)
+                        .frame(height: 34)
                         .background {
                             if isSelected {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -626,7 +642,7 @@ private struct PeriodPicker: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(period.longName)
+                .help(market.viewFigure(period).help)
             }
         }
         .padding(2)
@@ -718,6 +734,24 @@ private struct StatusLine: View {
         return funds.progress[symbol] ?? funds.sourceNote(symbol)
     }
 
+    /// For the long ranges: that Alt measures each stock from its own first
+    /// price, and how many stocks have no price for the whole range (listed
+    /// later) — they are grey, not measured over a shorter span.
+    private var periodNote: String? {
+        let period = market.period
+        guard period != .day, market.loadingPeriod != period, market.snapshots[period] != nil else { return nil }
+        var parts: [String] = []
+        if period == .all {
+            parts.append(tr("Hver aktie regnes fra sin egen første kurs", "Each stock counts from its own first price"))
+        } else {
+            let missing = Items.current().items.filter { $0.change == nil }.count
+            if missing > 0 {
+                parts.append(tr("\(missing) uden kurs for hele perioden", "\(missing) without a price for the whole range"))
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { _ in
             let hours = MarketClock.current
@@ -731,6 +765,11 @@ private struct StatusLine: View {
                 if let period = market.loadingPeriod, period != .day {
                     ProgressView().controlSize(.mini)
                     Text(tr("Henter \(period.longName)…", "Loading \(period.longName)…"))
+                }
+                if let periodNote, market.errorMessage == nil {
+                    Text("·").foregroundStyle(.tertiary)
+                    Text(periodNote).lineLimit(1).truncationMode(.tail).help(periodNote)
+                        .layoutPriority(-1)
                 }
                 if let fundNote, market.errorMessage == nil {
                     Text("·").foregroundStyle(.tertiary)

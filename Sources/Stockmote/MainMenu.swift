@@ -84,10 +84,10 @@ final class MainMenu: NSObject, NSMenuItemValidation {
 
     private func viewMenu() -> NSMenu {
         let menu = NSMenu(title: tr("Vis", "View"))
-        // ⌘1 … ⌘9 are the indices, so the time ranges get ⌥⌘1 … ⌥⌘6.
+        // ⌘1 … ⌘9 are the indices, so the ten time ranges get ⌥⌘1 … ⌥⌘9 and ⌥⌘0.
         for (number, period) in Period.allCases.enumerated() {
             let entry = item("\(period.label)  ·  \(period.longName)", #selector(setPeriod(_:)),
-                             "\(number + 1)", [.command, .option])
+                             "\((number + 1) % 10)", [.command, .option])
             entry.representedObject = period.rawValue
             menu.addItem(entry)
         }
@@ -203,7 +203,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
         alert.messageText = tr("Tastaturgenveje", "Keyboard Shortcuts")
         alert.informativeText = tr("""
             ⌘1 … ⌘9  Indeks i sidebjælken
-            ⌥⌘1 … ⌥⌘6  Tidsrum: 1D … 1Å
+            ⌥⌘1 … ⌥⌘0  Tidsrum: 1D … Alt
             ⌘L  Kort / liste
             ⌘P  Afspil dagen · mellemrum, ← → under afspilning
             ⇧⌘T  Lyst / mørkt tema
@@ -216,7 +216,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
             Esc  Luk dialog, zoom ud, stop afspilning, gå et niveau op
             """, """
             ⌘1 … ⌘9  Index in the sidebar
-            ⌥⌘1 … ⌥⌘6  Time range: 1D … 1Y
+            ⌥⌘1 … ⌥⌘0  Time range: 1D … All
             ⌘L  Map / list
             ⌘P  Replay the day · space, ← → while replaying
             ⇧⌘T  Light / dark theme

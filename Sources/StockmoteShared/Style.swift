@@ -9,8 +9,12 @@ public enum Period: String, CaseIterable, Identifiable, Codable {
     case week = "1U"
     case month = "1M"
     case quarter = "3M"
+    case halfYear = "6M"
     case ytd = "ÅTD"
     case year = "1Å"
+    case threeYears = "3Å"
+    case fiveYears = "5Å"
+    case all = "Alt"
 
     public var id: String { rawValue }
 
@@ -21,8 +25,12 @@ public enum Period: String, CaseIterable, Identifiable, Codable {
         case .week: return tr("1U", "1W")
         case .month: return "1M"
         case .quarter: return "3M"
+        case .halfYear: return "6M"
         case .ytd: return tr("ÅTD", "YTD")
         case .year: return tr("1Å", "1Y")
+        case .threeYears: return tr("3Å", "3Y")
+        case .fiveYears: return tr("5Å", "5Y")
+        case .all: return tr("Alt", "All")
         }
     }
 
@@ -32,43 +40,119 @@ public enum Period: String, CaseIterable, Identifiable, Codable {
         case .week: return tr("1 uge", "1 week")
         case .month: return tr("1 måned", "1 month")
         case .quarter: return tr("3 måneder", "3 months")
+        case .halfYear: return tr("6 måneder", "6 months")
         case .ytd: return tr("År til dato", "Year to date")
         case .year: return tr("1 år", "1 year")
+        case .threeYears: return tr("3 år", "3 years")
+        case .fiveYears: return tr("5 år", "5 years")
+        case .all: return tr("Hele historikken", "All time")
         }
     }
 
     /// Yahoo's `range`. `chartPreviousClose` in the response is the close just before
-    /// the range starts, so the change is price / chartPreviousClose − 1.
+    /// the range starts, so the change is price / chartPreviousClose − 1. With
+    /// `max` it is the first price Yahoo has for the symbol (checked: ^GSPC gives
+    /// 17.66, its price at the end of 1927).
+    ///
+    /// Yahoo has no documented 3-year range ("3y" happens to be accepted, but
+    /// isn't in the `validRanges` it lists), so 3Å reads the daily closes over
+    /// 5 years and takes the close on or just before the day three years ago
+    /// (see `Yahoo.fetch`).
     public var yahooRange: String {
         switch self {
         case .day: return "1d"
         case .week: return "5d"
         case .month: return "1mo"
         case .quarter: return "3mo"
+        case .halfYear: return "6mo"
         case .ytd: return "ytd"
         case .year: return "1y"
+        case .threeYears, .fiveYears: return "5y"
+        case .all: return "max"
         }
     }
 
-    /// We only read `meta`, so the interval is chosen to keep the response small.
+    /// We only read `meta`, so the interval is chosen to keep the response small —
+    /// except for 3Å, whose figure comes from the daily closes themselves.
     public var yahooInterval: String {
         switch self {
-        case .day, .week, .month: return "1d"
-        case .quarter, .ytd, .year: return "1wk"
+        case .day, .week, .month, .threeYears: return "1d"
+        case .quarter, .halfYear, .ytd, .year: return "1wk"
+        case .fiveYears: return "1mo"
+        case .all: return "3mo"
         }
     }
 
-    /// The percentage change that gives full colour. 3 % is a lot in a day but
-    /// nothing over a year, so the scale follows the time range.
-    public var colorScale: Double {
+    /// True when the change is measured from a close found in the series
+    /// (3Å), not from Yahoo's `chartPreviousClose`.
+    public var baseFromSeries: Bool { self == .threeYears }
+
+    /// When the range starts: the base date the change is measured from. Nil
+    /// for 1D (yesterday's close, whenever that was) and for Alt, which starts
+    /// at each symbol's first price.
+    public func start(now: Date = Date()) -> Date? {
+        let calendar = Calendar(identifier: .gregorian)
+        switch self {
+        case .day, .all: return nil
+        case .week: return calendar.date(byAdding: .day, value: -7, to: now)
+        case .month: return calendar.date(byAdding: .month, value: -1, to: now)
+        case .quarter: return calendar.date(byAdding: .month, value: -3, to: now)
+        case .halfYear: return calendar.date(byAdding: .month, value: -6, to: now)
+        case .ytd: return calendar.date(from: calendar.dateComponents([.year], from: now))
+        case .year: return calendar.date(byAdding: .year, value: -1, to: now)
+        case .threeYears: return calendar.date(byAdding: .year, value: -3, to: now)
+        case .fiveYears: return calendar.date(byAdding: .year, value: -5, to: now)
+        }
+    }
+
+    /// The change that gives full colour. 3 % is a lot in a day but nothing
+    /// over five years, so the scale follows the time range.
+    ///
+    /// Alt is logarithmic: since the first price, Apple is up some 270,000 %
+    /// and the S&P 500 40,000 %, while a stock listed last year may be at
+    /// +30 %. On a linear scale every tile would be full colour. Measured in
+    /// growth factors instead, full colour is ×100 up (+9,900 %) — ×2 is a
+    /// quarter of the way, ×10 a little over half — and ÷10 down (−90 %),
+    /// since a loss can't go below −100 %.
+    public var colorScale: ColorScale {
         switch self {
         case .day: return 3
         case .week: return 6
         case .month: return 10
         case .quarter: return 15
+        case .halfYear: return 20
         case .ytd: return 25
         case .year: return 35
+        case .threeYears: return 50
+        case .fiveYears: return 80
+        case .all: return ColorScale(full: 9_900, fullDown: 90, logarithmic: true)
         }
+    }
+}
+
+/// How a change maps to colour strength: full colour at `full` percent up
+/// and `fullDown` percent down. Logarithmic scales measure the growth factor
+/// (1 + change/100), so ×2 is as far from ×1 as ×4 is from ×2.
+public struct ColorScale: ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral, Sendable {
+    public let full: Double
+    public let fullDown: Double
+    public let logarithmic: Bool
+
+    public init(full: Double, fullDown: Double? = nil, logarithmic: Bool = false) {
+        self.full = full
+        self.fullDown = fullDown ?? full
+        self.logarithmic = logarithmic
+    }
+    public init(integerLiteral value: Int) { self.init(full: Double(value)) }
+    public init(floatLiteral value: Double) { self.init(full: value) }
+
+    /// 0 … 1: how far from neutral towards full colour.
+    public func strength(_ change: Double) -> Double {
+        let limit = change >= 0 ? full : fullDown
+        guard logarithmic else { return min(abs(change) / limit, 1) }
+        let factor = max(1 + change / 100, 1e-6)
+        let end = change >= 0 ? 1 + limit / 100 : 1 - min(limit, 99.99) / 100
+        return min(abs(log(factor)) / abs(log(end)), 1)
     }
 }
 
@@ -139,25 +223,25 @@ public struct Theme: Equatable {
 
 /// The colour scale. Neutral grey in the middle, full colour at `scale` percent.
 public enum Heat {
-    public static func rgb(_ change: Double?, scale: Double, style: ColorStyle, theme: Theme = .dark) -> Theme.RGB {
+    public static func rgb(_ change: Double?, scale: ColorScale, style: ColorStyle, theme: Theme = .dark) -> Theme.RGB {
         guard let change, change.isFinite else { return theme.missing }
         let (up, down) = theme.ends(style)
         let target = change >= 0 ? up : down
         let neutral = theme.neutral
         // Leaves the grey a little faster than linear, so small moves are visible.
-        let t = pow(min(abs(change) / scale, 1), 0.75)
+        let t = pow(scale.strength(change), 0.75)
         return (neutral.r + (target.r - neutral.r) * t,
                 neutral.g + (target.g - neutral.g) * t,
                 neutral.b + (target.b - neutral.b) * t)
     }
 
-    public static func color(_ change: Double?, scale: Double, style: ColorStyle, theme: Theme = .dark) -> Color {
+    public static func color(_ change: Double?, scale: ColorScale, style: ColorStyle, theme: Theme = .dark) -> Color {
         let c = rgb(change, scale: scale, style: style, theme: theme)
         return Color(.sRGB, red: c.r, green: c.g, blue: c.b)
     }
 
     /// White text on dark tiles, near-black on light ones.
-    public static func label(on change: Double?, scale: Double, style: ColorStyle, theme: Theme) -> Color {
+    public static func label(on change: Double?, scale: ColorScale, style: ColorStyle, theme: Theme) -> Color {
         let c = rgb(change, scale: scale, style: style, theme: theme)
         let luminance = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
         return luminance > (theme.isDark ? 0.75 : 0.50) ? Color(white: 0.1) : .white
@@ -181,11 +265,31 @@ public enum Format {
         String(format: "%.\(digits)f", value).replacingOccurrences(of: ".", with: decimal)
     }
 
-    /// "+3,03%"
+    /// "+3,03%". Large changes (Alt, 5Å) keep the label short: one decimal
+    /// from 100 %, none and thousands grouped from 1,000 % ("+9.439%" in
+    /// Danish, "+9,439%" in English), and thousands as K from 10,000 %
+    /// ("+41,7K%", "+424K%") and millions as M ("+1,1M%").
     public static func percent(_ value: Double?, digits: Int = 2) -> String {
         guard let value, value.isFinite else { return "–" }
         let sign = value > 0 ? "+" : value < 0 ? "−" : ""
-        return "\(sign)\(number(abs(value), digits: digits))%"
+        let size = abs(value)
+        if size >= 999_500 {
+            let millions = size / 1_000_000
+            return "\(sign)\(number(millions, digits: millions >= 99.95 ? 0 : 1))M%"
+        }
+        if size >= 9_999.5 {
+            let thousands = size / 1000
+            return "\(sign)\(number(thousands, digits: thousands >= 99.95 ? 0 : 1))K%"
+        }
+        if size >= 999.5 { return "\(sign)\(integer(Int(size.rounded())))%" }
+        return "\(sign)\(number(size, digits: size >= 99.95 ? min(digits, 1) : digits))%"
+    }
+
+    /// Short, for the period picker: one decimal under 100 %, none above —
+    /// "+8,4%", "+124%", "+41.672%".
+    public static func shortPercent(_ value: Double?) -> String {
+        guard let value, value.isFinite, abs(value) >= 99.95 else { return percent(value, digits: 1) }
+        return percent(value, digits: 0)
     }
 
     /// For the menu bar: "▲ 0,42%"

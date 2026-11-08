@@ -137,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// `Stockmote --snapshot out.png [--tab map|favorites|watchlists]
-/// [--index sp500|ndx|dji] [--period 1D|1U|1M|3M|ÅTD|1Å] [--sector "…"]
+/// [--index sp500|ndx|dji] [--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt] [--sector "…"]
 /// [--industry "…"] [--size small|medium|large|huge] [--list] [--zoom 2.5]
 /// [--theme light|dark] [--lang da|en] [--no-sidebar] [--fullscreen [--notch 32]]
 /// [--replay 0.4] [--fund SPY] [--fund-search "MSCI World" [--fund-pick URTH] [--fund-add]]

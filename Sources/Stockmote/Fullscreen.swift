@@ -193,9 +193,13 @@ private struct NotchBand: View {
             Text(title)
                 .font(.system(size: 13, weight: .bold))
                 .lineLimit(1)
-            Text(Format.percent(change))
+            let figure = figure
+            Text(figure.text)
                 .font(.system(size: 13, weight: .bold).monospacedDigit())
-                .foregroundStyle(Heat.textColor(change, style: prefs.colorStyle, theme: .dark))
+                .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: .dark))
+            if let kind = figure.kindLabel, figure.change != nil {
+                Text(kind).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+            }
             Spacer(minLength: 0)
             if replay.isReady {
                 Image(systemName: replay.isPlaying ? "play.fill" : "pause.fill")
@@ -205,7 +209,7 @@ private struct NotchBand: View {
                 ProgressLine(progress: replay.progress)
                     .frame(width: 90, height: 3)
             } else {
-                Text(market.period.longName)
+                Text(figure.rangeLabel)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
@@ -228,11 +232,17 @@ private struct NotchBand: View {
         }
     }
 
-    private var change: Double? {
-        if app.tab == .map, app.focus == .all, let value = replay.curveValue { return value }
-        if app.tab == .map, app.focus == .all, let index = universe.index(withID: app.indexID) {
-            return market.indexChange(index, market.period)
+    private var figure: Figure {
+        let period = market.period
+        if replay.isReady, app.tab != .map || app.focus == .all {
+            return Figure(change: replay.curveValue, isIndicative: replay.curveIsIndicative,
+                          isAverage: replay.curveIsAverage, period: period)
         }
+        if app.tab == .map, app.focus == .all, let index = universe.index(withID: app.indexID) {
+            return market.indexFigure(index, period)
+        }
+        if app.tab != .map { return market.viewFigure(period) }
+        // A sector or industry: weighted by market value, as in the window's title.
         let items = Items.current().items.filter { item in
             switch app.focus {
             case .all: return true
@@ -242,7 +252,8 @@ private struct NotchBand: View {
         }
         let known = items.filter { $0.change != nil }
         let weight = known.reduce(0) { $0 + $1.weight }
-        return weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
+        let change = weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
+        return Figure(change: change, isAverage: true, isWeighted: true, period: period)
     }
 }
 

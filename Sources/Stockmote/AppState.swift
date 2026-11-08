@@ -24,7 +24,11 @@ final class AppState: ObservableObject {
     static let shared = AppState()
 
     @Published var tab: PanelTab = .map {
-        didSet { if tab != oldValue { resetZoom() } }
+        didSet {
+            guard tab != oldValue else { return }
+            resetZoom()
+            MarketStore.shared.viewChanged()
+        }
     }
     @Published var indexID: String {
         didSet {
@@ -32,8 +36,7 @@ final class AppState: ObservableObject {
             guard indexID != oldValue else { return }
             focus = .all
             // A new index has members we have not fetched prices for yet.
-            let market = MarketStore.shared
-            Task { await market.loadPeriod(market.period, force: false) }
+            MarketStore.shared.viewChanged()
         }
     }
     @Published var focus: Focus = .all {
@@ -43,7 +46,9 @@ final class AppState: ObservableObject {
     @Published var showList: Bool {
         didSet { AppDefaults.store.set(showList, forKey: "showList") }
     }
-    @Published var watchlistID: UUID?
+    @Published var watchlistID: UUID? {
+        didSet { if watchlistID != oldValue, tab == .watchlists { MarketStore.shared.viewChanged() } }
+    }
     /// The dialog centred over the window, if one is open.
     @Published var dialog: PanelDialog?
 

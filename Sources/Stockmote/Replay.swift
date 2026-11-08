@@ -6,8 +6,9 @@ import SwiftUI
 ///
 /// A regular heatmap shows where the day ended. Here you see how it got
 /// there — the open, the lunchtime selling, the last hour. With 1D the day
-/// plays in 5-minute steps; with 1U in half hours; with 1M, 3M and ÅTD day by
-/// day; with 1Å week by week.
+/// plays in 5-minute steps; with 1U in half hours; with 1M, 3M, 6M, ÅTD and
+/// 3Å day by day; with 1Å and 5Å week by week; Alt month by month (or by
+/// quarter, as Yahoo gives long histories). At most 400 frames.
 ///
 /// The series come from the same Yahoo URL as the quotes, just with
 /// `interval` set. Tile sizes stay fixed while it runs; only the colours
@@ -29,6 +30,10 @@ final class ReplayStore: ObservableObject {
     @Published private(set) var errorMessage: String?
     /// The index's curve (or the list's average), one value per timestamp.
     @Published private(set) var curve: [Double] = []
+    /// The curve is a NAV fund's indicative value from its holdings (1D).
+    @Published private(set) var curveIsIndicative = false
+    /// The curve is a list's equal-weight average.
+    @Published private(set) var curveIsAverage = false
 
     /// Full screen loops like a living screen; the panel stops at the end.
     var loops = false
@@ -133,7 +138,8 @@ final class ReplayStore: ObservableObject {
         switch loadedPeriod {
         case .day: formatter.dateFormat = "HH.mm"
         case .week: formatter.dateFormat = "EEE HH.mm"
-        case .year: formatter.dateFormat = Lang.isEnglish ? "MMM d, yyyy" : "d. MMM yyyy"
+        case .year, .threeYears, .fiveYears: formatter.dateFormat = Lang.isEnglish ? "MMM d, yyyy" : "d. MMM yyyy"
+        case .all: formatter.dateFormat = Lang.isEnglish ? "MMM yyyy" : "MMM yyyy"
         default: formatter.dateFormat = Lang.isEnglish ? "MMM d" : "d. MMM"
         }
         return formatter.string(from: date)
@@ -208,25 +214,35 @@ final class ReplayStore: ObservableObject {
             prices[symbol] = priceRow
         }
 
-        // The curve: the index itself, otherwise an average of the list —
-        // weighted by the index's weights when it has them. A fund priced by its
-        // daily NAV has no intraday series, so the day is played from its
-        // holdings' own prices, weighted as in the fund.
-        var curve: [Double]
+        // The curve: the index's or fund's own series. A list has none, so it
+        // gets the equal-weight average of its stocks, labelled as such. A fund
+        // priced by its daily NAV has no intraday series: its day is the
+        // customary indicative value from the holdings' own prices, weighted as
+        // in the fund, and marked "≈ … indicative". Any other missing series
+        // gets no curve — an average of the members isn't the index.
+        var curve: [Double] = []
+        var indicative = false
+        func average(_ weight: (String) -> Double?) -> [Double] {
+            let rows = symbols.compactMap { symbol in changes[symbol].flatMap { row in weight(symbol).map { (row, $0) } } }
+            let total = rows.reduce(0) { $0 + $1.1 }
+            guard total > 0 else { return [] }
+            return (0..<sorted.count).map { i in rows.reduce(0) { $0 + $1.0[i] * $1.1 } / total }
+        }
         if let benchmark, let row = changes[benchmark] {
             curve = row
-        } else {
-            let index = benchmark == nil ? nil : UniverseStore.shared.index(withID: AppState.shared.indexID)
-            let rows = symbols.compactMap { symbol in changes[symbol].map { ($0, index?.weight(symbol) ?? 1) } }
-            let total = rows.reduce(0) { $0 + $1.1 }
-            curve = (0..<sorted.count).map { i in
-                total > 0 ? rows.reduce(0) { $0 + $1.0[i] * $1.1 } / total : 0
-            }
+        } else if let benchmark, FundNAV.isNAV(benchmark), period == .day,
+                  let index = UniverseStore.shared.index(withID: AppState.shared.indexID) {
+            curve = average { index.weight($0) }
+            indicative = true
+        } else if benchmark == nil {
+            curve = average { _ in 1 }
         }
 
         self.changes = changes
         self.prices = prices
         self.curve = curve
+        self.curveIsIndicative = indicative && !curve.isEmpty
+        self.curveIsAverage = benchmark == nil && !curve.isEmpty
         self.timeline = sorted
     }
 }
@@ -258,7 +274,7 @@ struct ReplayBar: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text(replay.isReady ? replay.timeLabel() : "–")
                     .font(.system(size: 13, weight: .bold).monospacedDigit())
-                Text(Format.percent(replay.curveValue))
+                Text((replay.curveIsIndicative && replay.curveValue != nil ? "≈ " : "") + Format.percent(replay.curveValue))
                     .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Heat.textColor(replay.curveValue, style: prefs.colorStyle, theme: theme))
             }

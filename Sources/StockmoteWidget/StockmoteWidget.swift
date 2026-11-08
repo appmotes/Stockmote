@@ -104,12 +104,13 @@ enum SectorChoice: String, AppEnum {
 }
 
 enum PeriodChoice: String, AppEnum {
-    case day, week, month, quarter, ytd, year
+    case day, week, month, quarter, halfYear, ytd, year, threeYears, fiveYears, all
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Tidsrum"
     static var caseDisplayRepresentations: [PeriodChoice: DisplayRepresentation] = [
         .day: "1 dag", .week: "1 uge", .month: "1 måned",
-        .quarter: "3 måneder", .ytd: "År til dato", .year: "1 år"
+        .quarter: "3 måneder", .halfYear: "6 måneder", .ytd: "År til dato", .year: "1 år",
+        .threeYears: "3 år", .fiveYears: "5 år", .all: "Hele historikken"
     ]
 
     var period: Period {
@@ -118,8 +119,12 @@ enum PeriodChoice: String, AppEnum {
         case .week: return .week
         case .month: return .month
         case .quarter: return .quarter
+        case .halfYear: return .halfYear
         case .ytd: return .ytd
         case .year: return .year
+        case .threeYears: return .threeYears
+        case .fiveYears: return .fiveYears
+        case .all: return .all
         }
     }
 }
@@ -301,13 +306,16 @@ struct Provider: AppIntentTimelineProvider {
         // has its own weights; an index uses market cap.
         let fundWeights = config.source == .index ? share?.weights?[config.index?.id ?? share?.indexList?.first?.id ?? ""] : nil
         let cap: (String) -> Double = { fundWeights?[$0] ?? share?.stocks[$0]?.cap ?? 0 }
+        // Without the index's own figure (a sector, a list), the headline is the
+        // average of all of them, not just the tiles that fit.
+        let everyone = symbols
         if config.source == .index {
             symbols = Array(symbols.sorted { cap($0) > cap($1) }.prefix(limit(for: family)))
         } else {
             symbols = Array(symbols.prefix(limit(for: family)))
         }
 
-        let values = await Yahoo.fetch(symbols + (benchmark.map { [$0] } ?? []), period: period, concurrency: 3)
+        let values = await Yahoo.fetch(benchmark.map { symbols + [$0] } ?? everyone, period: period, concurrency: 3)
         if values.isEmpty, !symbols.isEmpty, message == nil { message = tr("Ingen forbindelse til Yahoo", "No connection to Yahoo") }
 
         let byCap = config.source == .index
@@ -322,14 +330,18 @@ struct Provider: AppIntentTimelineProvider {
             )
         }
 
+        // The index's or fund's own figure, or "–" (a NAV fund's day, before
+        // its NAV is out). A sector or list: the average of all its stocks —
+        // weighted by market value for a sector, equal for a list.
         let change: Double?
         if let benchmark {
             change = values[benchmark]?.change
         } else {
-            // Average — weighted if the tiles are.
-            let known = items.filter { $0.change != nil }
-            let weight = known.reduce(0) { $0 + $1.weight }
-            change = weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
+            let known = everyone.compactMap { symbol in
+                values[symbol].map { ($0.change, byCap ? (fundWeights?[symbol] ?? max(share?.stocks[symbol]?.cap ?? 1, 1)) : 1) }
+            }
+            let weight = known.reduce(0) { $0 + $1.1 }
+            change = weight > 0 ? known.reduce(0) { $0 + $1.0 * $1.1 } / weight : nil
         }
 
         return Entry(date: Date(), title: title, change: change, period: period, style: style,
