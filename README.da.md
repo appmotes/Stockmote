@@ -34,6 +34,11 @@ Vanguard, DWS (Xtrackers), Amundi, State Street, Invesco og Nordnet, indre værd
 dem er et dokumenteret, lovet API. De kan alle ændre sig eller lukke uden varsel; så bliver kortet gråt, og
 statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 
+**Alle tal er læst af rigtige kurser.** Findes der ingen — en aktie noteret efter tidsrummets start, et indeks hvis
+historik Yahoo ikke har så langt tilbage — viser appen **–** i stedet for et tal regnet ud på anden vis. To afledte
+tal vises, fordi de er kutyme, og hvert er navngivet der hvor det står: en fonds **indikative** værdi for dagen (≈,
+se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste eller en sektor.
+
 ## Funktioner
 
 - **Et rigtigt Mac-vindue.** Trafiklys over sidebjælken, en gennemsigtig titellinje i højde med værktøjslinjen,
@@ -51,7 +56,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   afslutter. Vinduet åbner ved start (**Åbn vindue ved start**, slået til som standard), men ikke når Stockmote
   starter ved login: så venter den stille i menubaren.
 - **Menuer.** Stockmote (Om, Indstillinger … ⌘,, Skjul, Afslut), Arkiv (Åbn vindue ⌘O, Ny watchliste ⌘N, Tilføj fond
-  ⇧⌘N, Luk vindue ⌘W), Rediger, Vis (de seks tidsrum på ⌥⌘1 … ⌥⌘6, Vis som liste ⌘L, Skjul sidebjælke ⌃⌘S, Afspil
+  ⇧⌘N, Luk vindue ⌘W), Rediger, Vis (de ti tidsrum på ⌥⌘1 … ⌥⌘9 og ⌥⌘0, Vis som liste ⌘L, Skjul sidebjælke ⌃⌘S, Afspil
   dagen ⌘P, lyst/mørkt ⇧⌘T, Opdatér ⌘R, Kun kortet ⇧⌘F, Fuld skærm ⌃⌘F), Vindue og Hjælp (tastaturgenvejene).
   Menuerne følger appens sprog, ikke systemets.
 - **13 indekser.** USA: S&P 500, Nasdaq 100, Dow Jones. Europa: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50, 🇬🇧 FTSE 100,
@@ -70,15 +75,27 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   Store fonde (iShares Core MSCI World: ~1200 aktier) beskæres til de 500 største efter vægt, og det står i
   statuslinjen. Danske investeringsforeninger og de fonde Nordnet sælger, kan også findes (se *Hvor data kommer fra*).
   Fondene huskes på tværs af genstart; højreklik for at hente beholdningen igen eller fjerne fonden.
-- **Seks tidsrum** i den segmenterede kontrol øverst: 1D, 1U, 1M, 3M, ÅTD og 1Å. Farveskalaen følger tidsrummet: fuld
-  farve ved ±3 % for en dag, ±35 % for et år.
+- **Ti tidsrum** i den segmenterede kontrol øverst: 1D, 1U, 1M, 3M, 6M, ÅTD, 1Å, 3Å, 5Å og Alt (på engelsk 1W, YTD,
+  1Y, 3Y, 5Y og All). Under hvert står ændringen i det du ser på over det tidsrum — indeksets eget tal, fondens egen
+  kurs, en listes gennemsnit — så tidsrummene kan sammenlignes uden at klikke sig igennem dem; "–" mens det hentes,
+  eller hvis der ikke er en kurs så langt tilbage. Hold markøren over et tidsrum for at se hvorfra tallet er målt.
+  **3Å** regnes fra lukkekursen på eller lige før samme dag for tre år siden. **Alt** regnes fra den første kurs
+  Yahoo har: titlen skriver året ("Siden 1927" for S&P 500), og da hver aktie har sin egen første kurs — Apple 1980,
+  Airbnb 2020 — siger statuslinjen det, og hvert felts tooltip giver datoen. En aktie uden kurs for hele tidsrummet
+  (noteret senere) forbliver grå i stedet for at blive målt over et kortere stykke, og statuslinjen tæller dem. Store
+  ændringer får korte tal: `+9.439%`, `+41,7K%`, `+1,1M%`. Farveskalaen følger tidsrummet: fuld farve ved ±3 % for en
+  dag, 20 % for et halvt år, 35 % for et år, 50 % for tre og 80 % for fem. For Alt er den logaritmisk — fuld grøn ved
+  ×100, fuld rød ved −90 % — for ændringerne siden første kurs går fra −90 % til +500.000 %, og på en lige skala ville
+  alle felter have fuld farve.
 - **Sektorer og brancher.** Klik på en sektor- eller branchestrimmel for at gå ind i den. Titlen bliver det niveau,
   med en tilbagepil og vejen op nedenunder (`🇩🇰 C25 › Health Care`), som man kan klikke på; Esc gør det samme. Et
   klik på det valgte indeks i sidebjælken fører også tilbage til hele kortet.
 - **Zoom.** Knib på trackpad'en (eller ⌘-scroll) for at zoome der hvor markøren er; to-finger-scroll eller træk for
   at flytte rundt. Små felter får navn efterhånden som de vokser.
 - **Afspil dagen** (▶ i værktøjslinjen eller ⌘P): kortet animeret gennem tidsrummet — handelsdagen i 5-minutters
-  skridt, en uge i halve timer, måneder dag for dag, et år uge for uge. Under kortet løber indeksets kurve; træk i
+  skridt, en uge i halve timer, måneder og tre år dag for dag, et og fem år uge for uge, Alt måned for måned (eller
+  kvartal for kvartal for lange historikker), højst 400 billeder. Under kortet løber indeksets kurve — eller en
+  listes gennemsnit; et indeks hvis egen historik mangler, får ingen kurve i stedet for en erstatning; træk i
   den for at hoppe til et tidspunkt, eller brug mellemrum til afspil/pause og ← → til at gå et skridt. Titlen,
   farverne og kursen i tooltippen følger det viste tidspunkt. 1×, 2× eller 4× hastighed. Felternes størrelse står
   fast; kun farverne bevæger sig. I Kun kortet kører den i ring, som et levende billede af markedet.
@@ -96,6 +113,8 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 - **Favoritter** og **watchlister** i sidebjælken under **Mine lister**, hver med et søgefelt der finder enhver
   amerikansk aktie og enhver aktie i de europæiske indekser. Favoritter får en lille stjerne på kortet. + laver en ny
   watchliste, og højreklik → **Omdøb …** omdøber en, begge i en lille dialog over vinduet; højreklik for at slette en.
+  En listes tal er gennemsnittet af dens aktier med lige vægt, og titlen skriver **gennemsnit**; en sektors eller
+  branches er vægtet efter markedsværdi (efter fondens vægte i en fond).
 - **Listevisning** (⌘L): ethvert kort som en sortérbar liste.
 - **Lyst og mørkt tema**, skiftet med sol/måne-knappen i værktøjslinjen (⇧⌘T; højreklik for at følge systemet). Det lyse er ikke det mørke vendt om: hvide fuger mellem felterne, lysegrå for uændrede
   aktier og mørk tekst hvor et felt er lyst.
@@ -110,8 +129,8 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   hentede frem (og Kun kortet), ⌘0 sidebjælken, ⌘L kort/liste, ⌃⌘F fuld skærm, ⇧⌘F Kun kortet, og et klik på et
   søgeforslag der allerede er på listen (✓) fjerner det.
 - **Esc** lukker en dialog, zoomer så ud, stopper en afspilning og går et niveau op. Den lukker aldrig vinduet.
-- **Smalle vinduer.** I et smalt vindue forkortes lange titler med …, og tidsvælgeren bliver en kompakt menu, så
-  intet skubbes ud af vinduet.
+- **Smalle vinduer.** I et smalt vindue forkortes lange titler med …, og tidsvælgeren med sine tal bliver en
+  kompakt menu, der viser hvert tidsrum med sin ændring, så intet skubbes ud af vinduet.
 - **Indstillinger** (⌘, eller **Indstillinger …** nederst i sidebjælken åbner det almindelige indstillingsvindue):
   tema, farver (rød/grøn eller orange/blå ved rød-grøn farveblindhed), sprog, Dock og/eller menubar, hvad
   menubaren viser, åbn vindue ved start, start ved login, feltstørrelse i lister, opdateringsfrekvens, hvilken side og browser aktier åbnes
@@ -152,7 +171,7 @@ skrivebordet → **Rediger widgets** → søg efter Stockmote.
 | Hvad | Kilde | Hvor tit |
 | --- | --- | --- |
 | Kurs og ændring, alle tidsrum, alle indekser | Yahoo Finance `v7/finance/spark` | Hvert minut mens vinduet er åbent og en børs er åben; ellers hvert 5. minut; hver halve time når alle er lukket |
-| Forløb til afspilning | Samme adresse med `interval` sat (5m, 30m, 1d eller 1wk) | Når du starter en afspilning, og igen hvis du skifter indeks, liste eller tidsrum |
+| Forløb til afspilning | Samme adresse med `interval` sat (5m, 30m, 1d, 1wk eller 1mo) | Når du starter en afspilning, og igen hvis du skifter indeks, liste eller tidsrum |
 | Valutakurser (til at give europæiske aktier størrelse i dollar) | Yahoo Finance, `EURUSD=X` m.fl. | Sammen med kurserne |
 | Amerikansk markedsværdi, navn, søgning | Nasdaq's screener (alle ~7000 amerikanske aktier, 2 MB) | Hver halve time |
 | Indeksmedlemmer, sektorer, europæiske markedsværdier | `Indices.json`, bundtet med | Når du kører `update-indices.sh` |
@@ -176,8 +195,20 @@ S&P 500 koster 26 kald, fire ad gangen.
 tidspunkt. Appen skalerer dem med dagens kurs og omregner til dollar, så en watchliste med både Novo Nordisk og Apple
 får rimelige størrelser.
 
-**Indekstallet** øverst og i sidebjælken er indeksets eget (`^GSPC`, `^OMXC25`, `^GDAXI` …). Svarer Yahoo ikke, bruges
-et gennemsnit af medlemmerne vægtet efter markedsværdi — tæt på, men ikke det officielle tal.
+**Indekstallet** øverst, i sidebjælken og under hvert tidsrum er indeksets eget (`^GSPC`, `^OMXC25`, `^GDAXI` …).
+Svarer Yahoo ikke, står der –: et gennemsnit af medlemmerne ville ikke være indeksets tal.
+
+**Sådan måles hvert tidsrum.** Yahoos `chartPreviousClose` er lukkekursen lige før tidsrummet begynder, for hvert
+tidsrum Yahoo navngiver (`5d`, `1mo`, `3mo`, `6mo`, `ytd`, `1y`, `5y`). Med `max` er det den første kurs Yahoo har —
+efterprøvet: 17,66 for S&P 500, kursen ved udgangen af 1927. Yahoo navngiver intet treårs-tidsrum (`3y` bliver
+tilfældigvis accepteret, men står ikke blandt dem Yahoo oplister), så **3Å** læser de daglige lukkekurser over fem år
+og tager den sidste før tidspunktet for tre år siden; når serien ikke rækker så langt tilbage, eller har et hul på
+mere end ti dage der, er der intet tal. Tallene under tidsrummene koster ét lille kald pr. tidsrum, kun for indekset
+eller fonden; medlemmerne hentes kun for det valgte tidsrum. Et symbol hvis første handel ligger efter tidsrummets
+start, får intet tal for det. Yahoos udgangspunkt efterprøves også mod den serie det kom med: for nogle få symboler
+er det simpelthen gårsdagens lukkekurs uanset tidsrum (Oslos OBX.OL gav −1,33 % for et år, fem år og Alt), så et
+tidsrums tal bruges kun, når serien starter ved tidsrummets start, og dens første lukkekurs ligger inden for ×1,5 af
+udgangspunktet (×4 for Alt, hvis første søjle er en måned eller et kvartal, ofte lige efter en notering).
 
 **Felterne har størrelse efter markedsværdi i alle indekser.** Det rigtige Dow Jones er prisvægtet, men et kort hvor
 størrelsen er aktiekursen siger ikke meget.
@@ -213,9 +244,13 @@ Nordnets liste springes over.
 
 **Kurser for danske fonde og Nordnets fonde.** En børsnoteret investeringsforening har et Yahoo-symbol
 (`DKIDKIX.CO`) og prissættes som enhver ETF. En fond der ikke er noteret, og som Yahoo ikke kender, har kun en daglig
-indre værdi, der offentliggøres aftenen efter: appen henter den fra Morningstar for 1U og længere, og søgeresultatet
-viser `NAV` i stedet for en ticker. For 1D findes der endnu ingen indre værdi for i dag, så dagens ændring i titlen og
-afspilningens kurve er beholdningens ændringer vægtet efter deres vægt i fonden — et skøn, ikke det officielle tal.
+indre værdi, der offentliggøres aftenen efter: appen henter den fra Morningstar for 1U og længere — 3Å fra den indre værdi
+på eller lige før samme dag for tre år siden, Alt fra fondens første — og søgeresultatet viser `NAV` i stedet for en
+ticker. For 1D findes der endnu ingen indre værdi for i dag, så dagens ændring er fondens **indikative værdi**, den
+kutymemæssige iNAV: beholdningens ændringer vægtet efter deres vægt i fonden. Den er mærket som sådan overalt hvor
+den står — `≈ +0,84%` med **indikativ** ved siden af i titlen, `≈` i sidebjælken, tidsvælgeren, menubaren og
+afspilningen — og dens tooltip siger, at den er anslået ud fra beholdningen, indtil den indre værdi offentliggøres.
+Widgetten viser – i stedet.
 Yahoo kender mange af Nordnets fonde under et Morningstar-id (`0P000134KA.CO` = Nordnet Danmark Indeks A); så beholdes
 Yahoo-resultatet, med Nordnets beholdning.
 
@@ -338,7 +373,7 @@ sine indstillinger adskilt fra den rigtige apps, og sin fond-cache i `~/Library/
 
 Den tegner hovedvinduets indhold, 940 × 600 hvis intet andet er sagt.
 
-Valg: `--tab map|favorites|watchlists`, `--index <id>`, `--period 1D|1U|1M|3M|ÅTD|1Å`,
+Valg: `--tab map|favorites|watchlists`, `--index <id>`, `--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt`,
 `--sector "…"`, `--industry "…"`, `--size small|medium|large|huge` (vinduets indhold i 720 × 480, 940 × 600,
 1140 × 720 eller 1400 × 860), `--list`, `--zoom 2.5`,
 `--theme light|dark`, `--lang da|en`, `--no-sidebar`, `--fullscreen`, `--notch 32` (fuld skærm som på en skærm med

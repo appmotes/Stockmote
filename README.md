@@ -34,6 +34,12 @@ DWS (Xtrackers), Amundi, State Street, Invesco and Nordnet, NAV prices for unlis
 documented, promised API. Any of them can change or close without notice, and then the map goes grey and the status
 line says which source failed. No analytics and no tracking.
 
+**Every figure is read from real prices.** When there isn't one — a stock listed after the range began, an index
+whose history Yahoo doesn't have that far back — the app shows **–** rather than a number worked out some other
+way. Two derived figures are shown because they are customary, and each is named where it appears: a fund's
+**indicative** value for the day (≈, see *Prices for Danish and Nordnet funds*) and the **average** of a list or
+sector.
+
 ## Features
 
 - **A real Mac window.** Traffic lights over the sidebar, a transparent title bar level with the toolbar, resizing
@@ -51,7 +57,7 @@ line says which source failed. No analytics and no tracking.
   ⌘Q quits. The window opens at launch (**Open window at launch**, on by default), but not when Stockmote opens at
   login: then it waits quietly in the menu bar.
 - **Menus.** Stockmote (About, Settings… ⌘,, Hide, Quit), File (Open Window ⌘O, New Watchlist ⌘N, Add Fund ⇧⌘N,
-  Close Window ⌘W), Edit, View (the six time ranges on ⌥⌘1 … ⌥⌘6, Show as List ⌘L, Hide Sidebar ⌃⌘S, Replay the Day
+  Close Window ⌘W), Edit, View (the ten time ranges on ⌥⌘1 … ⌥⌘9 and ⌥⌘0, Show as List ⌘L, Hide Sidebar ⌃⌘S, Replay the Day
   ⌘P, light/dark ⇧⌘T, Refresh ⌘R, Map Only ⇧⌘F, Enter Full Screen ⌃⌘F), Window and Help (the keyboard shortcuts). The
   menus follow the app's language, not the system's.
 - **13 indices.** United States: S&P 500, Nasdaq 100, Dow Jones. Europe: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50,
@@ -69,16 +75,27 @@ line says which source failed. No analytics and no tracking.
   come from, and for Vanguard, which publishes monthly, their date ("Holdings from Vanguard as of Sep 30"). Large funds (iShares Core MSCI World: ~1,200 stocks) are cut to the 500 largest by weight, and the status
   line says so. Danish investeringsforeninger and the funds Nordnet sells are found too (see *Where the data comes
   from*). Funds are remembered across restarts; right-click to reload the holdings or remove the fund.
-- **Six time ranges** in the segmented control at the top: 1D, 1U/1W (week), 1M, 3M, ÅTD/YTD and 1Å/1Y. The colour
-  scale follows the range: full colour at ±3 % for a day, ±35 % for a year.
+- **Ten time ranges** in the segmented control at the top: 1D, 1W, 1M, 3M, 6M, YTD, 1Y, 3Y, 5Y and All (in Danish
+  1U, ÅTD, 1Å, 3Å, 5Å and Alt). Under each one stands the change of what you are looking at over that range — the
+  index's own figure, the fund's own price, a list's average — so you can compare the ranges without clicking
+  through them; "–" while it loads or when there is no price that far back. Hover a range for where the figure is
+  measured from. **3Y** runs from the close on or just before the same day three years ago. **All** runs from the
+  first price Yahoo has: the title says the year ("Since 1927" for the S&P 500), and since every stock has its own
+  first price — Apple 1980, Airbnb 2020 — the status line says so, and each tile's tooltip gives its date. A stock
+  without a price for the whole range (listed later) stays grey instead of being measured over a shorter span, and
+  the status line counts them. Large changes keep short labels: `+9,439%`, `+41.7K%`, `+1.1M%`. The colour scale
+  follows the range: full colour at ±3 % for a day, 20 % for six months, 35 % for a year, 50 % for three and 80 %
+  for five. For All it is logarithmic — full green at ×100, full red at −90 % — since the changes since the first
+  price run from −90 % to +500,000 % and on a straight scale every tile would be full colour.
 - **Sectors and industries.** Click a sector or industry header to go into it. The title becomes that level, with a
   back arrow and the way up underneath (`🇩🇰 C25 › Health Care`), which you can click; Esc does the same. Clicking
   the selected index in the sidebar again also takes you back to the whole map.
 - **Zoom.** Pinch on the trackpad (or ⌘-scroll) to zoom where the pointer is; two-finger scroll or drag to move.
   Small tiles get their labels as they grow.
 - **Replay the day** (▶ in the toolbar or ⌘P): the map animated through the time range — the trading
-  day in 5-minute steps, a week in half hours, months day by day, a year week by week. A curve of the index runs
-  under the map; drag in it to jump to a moment, or press space to play and pause, ← → to step. The title, the
+  day in 5-minute steps, a week in half hours, months and three years day by day, one and five years week by week,
+  All month by month (or by quarter for long histories), at most 400 frames. A curve of the index runs under the
+  map — or a list's average; an index whose own history is missing gets no curve rather than a stand-in; drag in it to jump to a moment, or press space to play and pause, ← → to step. The title, the
   colours and the tooltip's price all follow the moment shown. 1×, 2× or 4× speed. Tile sizes stay put; only the
   colours move. In Map Only it plays in a loop, like a living picture of the market.
 - **Full screen** (⌃⌘F or the green button): the window in macOS full screen, sidebar, toolbar and all, in its own
@@ -94,7 +111,8 @@ line says which source failed. No analytics and no tracking.
 - **Favorites** and **watchlists** in the sidebar under **My lists**, each with a
   search field that finds any US stock or any stock in the European indices. Favourites get a small star on the map.
   + makes a new watchlist and right-click → **Rename …** renames one, both in a small dialog over the window;
-  right-click to delete one.
+  right-click to delete one. A list's figure is the equal-weight average of its stocks, and the title says
+  **average**; a sector's or industry's is weighted by market value (by the fund's weights in a fund).
 - **List view** (⌘L): any map as a sortable list.
 - **Light and dark theme**, switched with the sun/moon button in the toolbar (⇧⌘T; right-click to follow the system). The light theme is not the dark one inverted: white grout between the tiles, light grey
   for unchanged stocks and dark text wherever a tile is light.
@@ -107,8 +125,8 @@ line says which source failed. No analytics and no tracking.
   it brought forward (and Map Only), ⌘0 the sidebar, ⌘L map/list, ⌃⌘F full screen, ⇧⌘F Map Only, and
   clicking a search suggestion that is already on the list (✓) removes it.
 - **Esc** closes a dialog, then zooms out, then stops a replay, then goes up a level. It never closes the window.
-- **Narrow windows.** In a narrow window long titles are shortened with … and the time-range control becomes a
-  compact menu, so nothing is pushed out of the window.
+- **Narrow windows.** In a narrow window long titles are shortened with … and the time-range control, with its
+  figures, becomes a compact menu that lists each range with its change, so nothing is pushed out of the window.
 - **Settings** (⌘, or **Settings…** at the bottom of the sidebar opens the standard Settings window): theme, colours
   (red/green or orange/blue for red–green colour blindness), language, Dock and/or menu bar, what the menu
   bar shows, open window at launch, launch at login, list tile size, refresh rate, which site and browser stocks
@@ -149,7 +167,7 @@ The widget appears in the gallery once the app is in `/Applications` and has bee
 | What | Source | How often |
 | --- | --- | --- |
 | Price and change, all ranges, all indices | Yahoo Finance `v7/finance/spark` | Every minute while the window is open and a market is open; every 5 min otherwise; every 30 min when all are closed |
-| History for replay | The same endpoint with `interval` set (5m, 30m, 1d or 1wk) | When you start a replay, and again if you change index, list or range |
+| History for replay | The same endpoint with `interval` set (5m, 30m, 1d, 1wk or 1mo) | When you start a replay, and again if you change index, list or range |
 | Exchange rates (for sizing European stocks in dollars) | Yahoo Finance, `EURUSD=X` and friends | With the prices |
 | US market value, name, search | Nasdaq screener (all ~7000 US stocks, 2 MB) | Every 30 min |
 | Index members, sectors, European market values | `Indices.json`, bundled | When you run `update-indices.sh` |
@@ -173,8 +191,20 @@ S&P 500 costs 26 calls, four at a time.
 time. The app scales them by today's price and converts them to dollars, so a watchlist with both Novo Nordisk and
 Apple gets fair sizes.
 
-The **index figure** at the top and in the sidebar is the index's own (`^GSPC`, `^OMXC25`, `^GDAXI` …). If Yahoo does
-not answer, the app falls back to a market-value-weighted average of the members, which is close but not official.
+The **index figure** at the top, in the sidebar and under each range is the index's own (`^GSPC`, `^OMXC25`,
+`^GDAXI` …). If Yahoo does not answer, it shows –: an average of the members would not be the index's figure.
+
+**How each range is measured.** Yahoo's `chartPreviousClose` is the close just before the range starts, for every
+range it names (`5d`, `1mo`, `3mo`, `6mo`, `ytd`, `1y`, `5y`). With `max` it is the first price Yahoo has — checked:
+17.66 for the S&P 500, its price at the end of 1927. Yahoo names no three-year range (`3y` happens to be accepted,
+but isn't among the ranges it lists), so **3Y** reads the daily closes over five years and takes the last one
+before the moment three years ago; if the series doesn't reach that far, or has a gap of more than ten days there,
+there is no figure. The figures under the ranges cost one small call per range, for the index or fund alone; the
+members are only fetched for the range you have chosen. A symbol whose first trade is after the range began gets no
+figure for it. Yahoo's base is also checked against the series it came with: for a few symbols it is simply
+yesterday's close whatever the range (Oslo's OBX.OL gave −1.33 % for one year, five years and All alike), so a range's
+figure is only used when the series starts at the range's start and its first close is within ×1.5 of the base (×4
+for All, whose first bar is a month or a quarter, often just after a listing).
 
 **Tiles are sized by market value in every index.** The real Dow Jones is price-weighted, but a map where the size is
 the share price says little.
@@ -211,9 +241,12 @@ cash in Nordnet's list are left out.
 
 **Prices for Danish and Nordnet funds.** A listed investeringsforening has a Yahoo symbol (`DKIDKIX.CO`) and is
 priced like any ETF. A fund that isn't listed and that Yahoo doesn't know only has a daily NAV, published the
-evening after: the app fetches it from Morningstar for 1U and longer, and the search result shows `NAV` instead of a
-ticker. For 1D there is no NAV for today yet, so the day's change in the title and the replay curve are the
-holdings' changes weighted by their weight in the fund — an estimate, not the official figure. Yahoo knows many of
+evening after: the app fetches it from Morningstar for 1W and longer — 3Y from the NAV on or just before the day
+three years ago, All from the fund's first NAV — and the search result shows `NAV` instead of a ticker. For 1D there
+is no NAV for today yet, so the day's change is the fund's **indicative value**, the customary iNAV: the holdings'
+changes weighted by their weight in the fund. It is marked as such wherever it appears — `≈ +0.84%` with
+**indicative** beside it in the title, `≈` in the sidebar, the period picker, the menu bar and the replay — and its
+tooltip says it is estimated from the holdings until the NAV is published. The widget shows – instead. Yahoo knows many of
 Nordnet's funds under a Morningstar id (`0P000134KA.CO` = Nordnet Danmark Indeks A); then the Yahoo result is kept,
 with Nordnet's holdings.
 
@@ -338,7 +371,7 @@ settings apart from the real app's, and its fund cache in `~/Library/Application
 
 It renders the main window's content, 940 × 600 unless told otherwise.
 
-Options: `--tab map|favorites|watchlists`, `--index <id>`, `--period 1D|1U|1M|3M|ÅTD|1Å`,
+Options: `--tab map|favorites|watchlists`, `--index <id>`, `--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt`,
 `--sector "…"`, `--industry "…"`, `--size small|medium|large|huge` (the window's content at 720 × 480, 940 × 600,
 1140 × 720 or 1400 × 860), `--list`, `--zoom 2.5`,
 `--theme light|dark`, `--lang da|en`, `--no-sidebar`, `--fullscreen`, `--notch 32` (full screen as on a screen

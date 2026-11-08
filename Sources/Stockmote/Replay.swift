@@ -188,10 +188,11 @@ final class ReplayStore: ObservableObject {
         for s in source { stamps.formUnion(s.timestamps) }
         if stamps.isEmpty { for s in series.values { stamps.formUnion(s.timestamps) } }
         var sorted = stamps.sorted()
-        // At most ~400 frames; you can't see more anyway.
+        // At most 400 frames; you can't see more anyway. The first and the last
+        // are always kept, so the replay ends on the figure in the title.
         if sorted.count > 400 {
-            let stride = Double(sorted.count) / 400
-            sorted = (0..<400).map { sorted[min(Int(Double($0) * stride), sorted.count - 1)] }
+            let stride = Double(sorted.count - 1) / 399
+            sorted = (0..<400).map { sorted[Int((Double($0) * stride).rounded())] }
         }
 
         var changes: [String: [Double]] = [:]
