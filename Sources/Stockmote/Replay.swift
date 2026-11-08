@@ -248,6 +248,12 @@ final class ReplayStore: ObservableObject {
     }
 }
 
+/// The drawer under the map (placeholder until the seismograph lands).
+struct SeismographDrawer: View {
+    let maxRows: Int
+    var body: some View { ReplayBar() }
+}
+
 // MARK: - The bar below the map
 
 /// ▶ · time · draggable curve · speed · ×

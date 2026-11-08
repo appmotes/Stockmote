@@ -112,7 +112,8 @@ struct HeatmapView: View {
         if allowsDrillDown, let header = layout.header(at: content) {
             onFocus(header.focus)
         } else if let tile = layout.tile(at: content) {
-            Preferences.shared.openQuote(tile.item.symbol)
+            // The stock page; the web is one button further, on that page.
+            AppState.shared.openStock(tile.item.symbol)
         }
     }
 
@@ -311,7 +312,7 @@ struct StockTooltip: View {
                 row(replay.isReady ? tr("Kurs \(replay.timeLabel())", "Price \(replay.timeLabel())") : tr("Kurs", "Price"),
                     Format.price(replay.price(item.symbol) ?? market.price(item.symbol), currency: market.currency(item.symbol)))
                 if let weight = FundStore.shared.weight(of: item.symbol, inIndex: AppState.shared.indexID),
-                   AppState.shared.tab == .map {
+                   AppState.shared.tab == .map, AppState.shared.isMap {
                     row(tr("Vægt i fonden", "Weight in fund"), Format.weight(weight))
                 }
                 row(tr("Markedsværdi", "Market value"), Format.marketCap(market.marketCap(item.symbol)))
@@ -332,7 +333,7 @@ struct StockTooltip: View {
             }
             .font(.system(size: 11).monospacedDigit())
 
-            Text(tr("Klik for at åbne · højreklik for mere", "Click to open · right-click for more"))
+            Text(tr("Klik for detaljer · højreklik for mere", "Click for details · right-click for more"))
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)
                 .padding(.top, 2)
@@ -426,6 +427,9 @@ struct StockMenu: View {
     private var shown: String { Symbols.display(item.symbol) }
 
     var body: some View {
+        Button(tr("Vis \(shown)", "Show \(shown)")) {
+            AppState.shared.openStock(item.symbol)
+        }
         Button(tr("Åbn \(shown) på \(prefs.quoteSite.label)", "Open \(shown) on \(prefs.quoteSite.label)")) {
             prefs.openQuote(item.symbol)
         }

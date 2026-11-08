@@ -252,6 +252,9 @@ final class MarketStore: ObservableObject {
     /// period picker.
     func viewFigure(_ period: Period) -> Figure {
         let app = AppState.shared
+        if let symbol = app.stockSymbol {
+            return Figure(change: change(symbol, period), since: since(symbol, period), period: period)
+        }
         switch app.tab {
         case .map:
             guard let index = UniverseStore.shared.index(withID: app.indexID) else { return Figure(period: period) }
@@ -394,7 +397,7 @@ final class MarketStore: ObservableObject {
     /// fetched for the chosen range.
     func loadHeadlines() async {
         let app = AppState.shared
-        let symbols: Set<String>
+        var symbols: Set<String>
         switch app.tab {
         case .map:
             guard let index = UniverseStore.shared.index(withID: app.indexID) else { return }
@@ -402,6 +405,7 @@ final class MarketStore: ObservableObject {
         case .favorites: symbols = Set(ListsStore.shared.favorites)
         case .watchlists: symbols = Set(ListsStore.shared.watchlist(app.watchlistID)?.symbols ?? [])
         }
+        if let symbol = app.stockSymbol { symbols = [symbol] }
         guard !symbols.isEmpty else { return }
         let stale = Period.allCases.filter { period in
             if let done = headlinesFetched[period], symbols.isSubset(of: done.symbols),
@@ -484,8 +488,20 @@ final class MarketStore: ObservableObject {
         symbols.formUnion(FundStore.shared.funds.map(\.symbol))
         // Exchange rates for converting European market caps to dollars.
         if period == .day { symbols.formUnion(Currency.yahooSymbols) }
-        if let index = universe.index(withID: AppState.shared.indexID) {
+        let app = AppState.shared
+        if let index = universe.index(withID: app.indexID) {
             symbols.formUnion(index.symbols)
+        }
+        // The overview draws every index and fund as a small map, each
+        // stock coloured by its own change.
+        if app.screen == .overview {
+            for index in universe.indices { symbols.formUnion(index.symbols) }
+            symbols.formUnion(FundStore.shared.allSymbols)
+        }
+        // The stock page: the stock and its peers in the same industry.
+        if let symbol = app.stockSymbol {
+            symbols.insert(symbol)
+            symbols.formUnion(StockPeers.symbols(for: symbol))
         }
         symbols.formUnion(ListsStore.shared.allSymbols)
         // Keep what we already have, so switching back and forth doesn't throw

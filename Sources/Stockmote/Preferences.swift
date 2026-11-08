@@ -68,7 +68,6 @@ final class Preferences: ObservableObject {
             Lang.isEnglish = language.isEnglish
         }
     }
-    @Published var sidebarVisible: Bool { didSet { defaults.set(sidebarVisible, forKey: "sidebarVisible") } }
     /// The index whose figure is shown in the menu bar. nil = icon only.
     @Published var menuBarIndexID: String? {
         didSet { defaults.set(menuBarIndexID ?? "none", forKey: "menuBarIndex") }
@@ -93,7 +92,6 @@ final class Preferences: ObservableObject {
         colorStyle = ColorStyle(rawValue: defaults.string(forKey: "colorStyle") ?? "") ?? .redGreen
         theme = ThemeMode(rawValue: defaults.string(forKey: "theme") ?? "") ?? .dark
         language = AppLanguage(rawValue: defaults.string(forKey: "language") ?? "") ?? .danish
-        sidebarVisible = defaults.object(forKey: "sidebarVisible") as? Bool ?? true
         let menuBar = defaults.string(forKey: "menuBarIndex") ?? "sp500"
         menuBarIndexID = menuBar == "none" ? nil : menuBar
         let seconds = defaults.integer(forKey: "refreshSeconds")
