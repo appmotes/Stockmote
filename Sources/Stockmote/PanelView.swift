@@ -151,8 +151,10 @@ private struct Toolbar: View {
             }
             // The title gives way first: it is truncated with … rather than
             // pushing the controls out of a narrow window.
+            // Below the overview the breadcrumb needs room too, so the picker
+            // turns into a menu a little sooner there.
             TitleBlock()
-                .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: app.screen == .overview ? 170 : 260, maxWidth: .infinity, alignment: .leading)
             // If there is no room for the whole period picker, it becomes a menu.
             ViewThatFits(in: .horizontal) {
                 controls(compact: false)
@@ -282,10 +284,14 @@ private struct TitleBlock: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
+                        // "Overblik" and the nearest level keep their full names;
+                        // the levels in between are shortened first.
+                        .layoutPriority(position == 0 || position == crumbs.count - 1 ? 1 : 0)
                     }
                 }
                 .font(.system(size: 10.5, weight: .medium))
                 .lineLimit(1)
+                .help(crumbs.map(\.label).joined(separator: " › "))
             }
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text(title)

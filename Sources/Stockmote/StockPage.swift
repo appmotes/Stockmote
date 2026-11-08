@@ -300,7 +300,8 @@ struct CandleChart: View {
             let high = candles.map(\.high).max() ?? 1
             let pad = max((high - low) * 0.06, high * 0.001)
             let top = high + pad, bottom = low - pad
-            let y: (Double) -> CGFloat = { 8 + CGFloat((top - $0) / (top - bottom)) * (priceHeight - 8) }
+            // The top grid line sits low enough for its price label to fit above the plot's edge.
+            let y: (Double) -> CGFloat = { 14 + CGFloat((top - $0) / (top - bottom)) * (priceHeight - 14) }
             let step = plot.width / CGFloat(max(candles.count, 1))
             let up = Heat.textColor(1, style: style, theme: theme)
             let down = Heat.textColor(-1, style: style, theme: theme)
