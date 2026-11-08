@@ -2,7 +2,8 @@ import AppKit
 import StockmoteShared
 import SwiftUI
 
-/// "Afspil dagen" (Replay the day): the map animated through the time range.
+/// The engine behind the seismograph (and Map Only's living picture): the
+/// map animated through the time range.
 ///
 /// A regular heatmap shows where the day ended. Here you see how it got
 /// there — the open, the lunchtime selling, the last hour. With 1D the day
@@ -38,7 +39,12 @@ final class ReplayStore: ObservableObject {
     /// Full screen loops like a living screen; the panel stops at the end.
     var loops = false
 
-    private var changes: [String: [Double]] = [:]
+    private var changes: [String: [Double]] = [:] {
+        didSet { rowCache = nil }
+    }
+    /// The seismograph's rows for the level on screen, until the data or
+    /// the level changes.
+    var rowCache: (key: String, rows: [SeismoRow])?
     private var prices: [String: [Double?]] = [:]
     private var loadedKey: String?
     private var loadTask: Task<Void, Never>?
@@ -112,6 +118,12 @@ final class ReplayStore: ObservableObject {
     func change(_ symbol: String) -> Double? {
         guard isReady, let series = changes[symbol], frame < series.count else { return nil }
         return series[frame]
+    }
+
+    /// A symbol's change at every step, for the seismograph.
+    func seriesOf(_ symbol: String) -> [Double]? {
+        guard isReady, let series = changes[symbol], series.count == timeline.count else { return nil }
+        return series
     }
 
     func price(_ symbol: String) -> Double? {
@@ -248,28 +260,127 @@ final class ReplayStore: ObservableObject {
     }
 }
 
-/// The drawer under the map (placeholder until the seismograph lands).
-struct SeismographDrawer: View {
-    let maxRows: Int
-    var body: some View { ReplayBar() }
+// MARK: - The seismograph
+
+/// One row of the seismograph: a name and its change at every step.
+struct SeismoRow: Identifiable {
+    enum Kind {
+        /// The index's or fund's own series (or a list's average).
+        case total
+        /// A sector or industry: the members' changes weighted by market value
+        /// (by the fund's weights in a fund).
+        case group(Focus)
+        /// One stock's own series.
+        case stock(String)
+    }
+
+    let id: String
+    let name: String
+    let kind: Kind
+    /// Empty when there is no series: the row shows "–".
+    let values: [Double]
+    var isAverage: Bool {
+        if case .group = kind { return true }
+        return false
+    }
 }
 
-// MARK: - The bar below the map
+extension ReplayStore {
+    /// The total row and one row per child of the level on screen: sectors
+    /// in an index, industries in a sector, stocks in an industry or a list.
+    /// The children are ranked by size; at most `limit`.
+    func seismoRows(limit: Int) -> [SeismoRow] {
+        let app = AppState.shared
+        let key = "\(timeline.first ?? 0)|\(timeline.count)|\(app.tab)|\(app.indexID)|\(String(describing: app.watchlistID))|\(app.focus)|\(limit)"
+        if let cached = rowCache, cached.key == key { return cached.rows }
 
-/// ▶ · time · draggable curve · speed · ×
-struct ReplayBar: View {
+        let current = Items.current()
+        let items = current.items.filter { $0.matches(app.focus) }
+        var rows: [SeismoRow] = []
+        let source = Source.title
+        // The total: the index's or fund's own series, never a stand-in.
+        rows.append(SeismoRow(id: "total", name: source, kind: .total, values: curve))
+
+        func average(_ members: [HeatItem]) -> [Double] {
+            let series = members.compactMap { item in seriesOf(item.symbol).map { ($0, item.weight) } }
+            let total = series.reduce(0) { $0 + $1.1 }
+            guard total > 0 else { return [] }
+            return (0..<timeline.count).map { i in series.reduce(0) { $0 + $1.0[i] * $1.1 } / total }
+        }
+
+        if let title = app.focus.title, current.grouping == .sectors {
+            rows.append(SeismoRow(id: "level", name: title, kind: .group(app.focus), values: average(items)))
+        }
+
+        var children: [(row: SeismoRow, size: Double)] = []
+        switch (current.grouping, app.focus) {
+        case (.sectors, .all):
+            for (sector, members) in Dictionary(grouping: items, by: \.sector) {
+                children.append((SeismoRow(id: "s:" + sector, name: sector, kind: .group(.sector(sector)), values: average(members)),
+                                 members.reduce(0) { $0 + $1.weight }))
+            }
+        case (.sectors, .sector(let sector)):
+            for (industry, members) in Dictionary(grouping: items, by: \.industry) {
+                let focus = Focus.industry(sector: sector, industry: industry)
+                children.append((SeismoRow(id: "i:" + industry, name: industry, kind: .group(focus), values: average(members)),
+                                 members.reduce(0) { $0 + $1.weight }))
+            }
+        default:
+            for item in items {
+                children.append((SeismoRow(id: "t:" + item.symbol, name: Symbols.display(item.symbol), kind: .stock(item.symbol),
+                                           values: seriesOf(item.symbol) ?? []), item.weight))
+            }
+        }
+        rows += children.sorted { $0.size > $1.size }.prefix(limit).map(\.row)
+        rowCache = (key, rows)
+        return rows
+    }
+}
+
+/// The drawer under the map: one stripe per sector, industry or stock,
+/// each step of the range coloured by that row's change — like a
+/// seismograph of the market. Drag the cursor (or press ← →) and the map
+/// shows that moment; space plays.
+struct SeismographDrawer: View {
+    let maxRows: Int
+
     @ObservedObject private var replay = ReplayStore.shared
     @ObservedObject private var prefs = Preferences.shared
+    @ObservedObject private var market = MarketStore.shared
+    @ObservedObject private var app = AppState.shared
     @Environment(\.heatTheme) private var theme
 
+    private let rowHeight: CGFloat = 15
+    private let labelWidth: CGFloat = 150
+    private let valueWidth: CGFloat = 62
+
     var body: some View {
+        VStack(spacing: 6) {
+            header
+            if replay.isLoading {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(tr("Henter forløb…", "Loading history…")).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 60)
+            } else if let error = replay.errorMessage {
+                Text(error).font(.system(size: 11)).foregroundStyle(.orange).frame(maxWidth: .infinity, minHeight: 40)
+            } else if replay.isReady {
+                strips(replay.seismoRows(limit: maxRows))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Palette.sidebar)
+        .overlay(alignment: .top) { Rectangle().fill(Palette.separator).frame(height: 1) }
+    }
+
+    private var header: some View {
         HStack(spacing: 10) {
-            Button {
-                replay.togglePlay()
-            } label: {
+            Button { replay.togglePlay() } label: {
                 Image(systemName: replay.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .frame(width: 30, height: 30)
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 26, height: 26)
                     .background(Circle().fill(Color.accentColor))
                     .foregroundStyle(.white)
                     .contentShape(Circle())
@@ -278,121 +389,160 @@ struct ReplayBar: View {
             .disabled(!replay.isReady)
             .help(tr("Afspil / pause (mellemrum)", "Play / pause (space)"))
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text(replay.isReady ? replay.timeLabel() : "–")
-                    .font(.system(size: 13, weight: .bold).monospacedDigit())
-                Text((replay.curveIsIndicative && replay.curveValue != nil ? "≈ " : "") + Format.percent(replay.curveValue))
-                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Heat.textColor(replay.curveValue, style: prefs.colorStyle, theme: theme))
+            Text(replay.isReady ? replay.timeLabel() : "–")
+                .font(.system(size: 13, weight: .bold).monospacedDigit())
+            let total = replay.curveValue
+            Text((replay.curveIsIndicative && total != nil ? "≈ " : "") + Format.percent(total))
+                .font(.system(size: 12, weight: .bold).monospacedDigit())
+                .foregroundStyle(Heat.textColor(total, style: prefs.colorStyle, theme: theme))
+            if replay.curveIsAverage, total != nil {
+                Text(tr("gennemsnit", "average")).font(.system(size: 11)).foregroundStyle(.secondary)
             }
-            .frame(width: 92, alignment: .leading)
 
-            ZStack {
-                if replay.isLoading {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text(tr("Henter forløb…", "Loading history…"))
-                            .font(.system(size: 11)).foregroundStyle(.secondary)
-                    }
-                } else if let error = replay.errorMessage {
-                    Text(error).font(.system(size: 11)).foregroundStyle(.orange)
-                } else {
-                    Scrubber(curve: replay.curve, frame: replay.frame, style: prefs.colorStyle, theme: theme) { replay.pause(); replay.frame = $0 }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 34)
-
-            Menu {
+            HStack(spacing: 0) {
                 ForEach([1.0, 2.0, 4.0], id: \.self) { speed in
-                    Toggle("\(Int(speed))×", isOn: Binding(get: { replay.speed == speed }, set: { _ in replay.speed = speed }))
+                    Button { replay.speed = speed } label: {
+                        Text("\(Int(speed))×")
+                            .font(.system(size: 10.5, weight: .bold).monospacedDigit())
+                            .foregroundStyle(replay.speed == speed ? .primary : .secondary)
+                            .frame(width: 28, height: 20)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(replay.speed == speed ? Palette.surface : .clear))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
-            } label: {
-                Text("\(Int(replay.speed))×")
-                    .font(.system(size: 11.5, weight: .bold).monospacedDigit())
-                    .frame(width: 34, height: 24)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Palette.raised))
             }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .fixedSize()
+            .padding(2)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Palette.raised))
             .help(tr("Hastighed", "Speed"))
 
-            ToolbarButton(symbol: "xmark", help: tr("Luk afspilning (Esc)", "Close replay (Esc)")) {
-                replay.stop()
-            }
+            Text(hint)
+                .font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                .lineLimit(1).truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            ToolbarButton(symbol: "xmark", help: tr("Luk seismografen (Esc)", "Close the seismograph (Esc)")) { replay.stop() }
         }
-        .padding(.horizontal, 12)
-        .frame(height: 48)
-        .background(Palette.sidebar)
-        .overlay(alignment: .top) { Rectangle().fill(Palette.separator).frame(height: 1) }
     }
-}
 
-/// The curve over the time range, with the played part solid and the rest
-/// faint. Click or drag to jump to a point in time.
-private struct Scrubber: View {
-    let curve: [Double]
-    let frame: Int
-    let style: ColorStyle
-    let theme: Theme
-    let onSeek: (Int) -> Void
+    private var hint: String {
+        let step: String
+        switch market.period.replayInterval {
+        case "5m": step = tr("5 min.", "5 min")
+        case "30m": step = tr("½ time", "½ hour")
+        case "1d": step = tr("en dag", "a day")
+        case "1wk": step = tr("en uge", "a week")
+        default: step = tr("en måned", "a month")
+        }
+        return tr("\(market.period.label): \(step) pr. kolonne · træk i striberne · klik på en række for at gå ind",
+                  "\(market.period.label): \(step) per column · drag across the stripes · click a row to go in")
+    }
 
-    var body: some View {
-        GeometryReader { geo in
-            let size = geo.size
-            let x = curve.count > 1 ? size.width * CGFloat(frame) / CGFloat(curve.count - 1) : 0
-            let color = Heat.textColor(curve.last, style: style, theme: theme)
-            ZStack(alignment: .topLeading) {
-                // The zero line: the previous close.
-                Path { p in
-                    let y = yPosition(0, in: size)
-                    p.move(to: CGPoint(x: 0, y: y))
-                    p.addLine(to: CGPoint(x: size.width, y: y))
+    @ViewBuilder
+    private func strips(_ rows: [SeismoRow]) -> some View {
+        let count = replay.timeline.count
+        let frame = replay.frame
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(rows) { row in
+                    label(row).frame(width: labelWidth, height: rowHeight, alignment: .leading)
                 }
-                .stroke(Color.secondary.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-
-                line(in: size).stroke(color.opacity(0.28), lineWidth: 1.5)
-                line(in: size).stroke(color, lineWidth: 2)
-                    .mask(alignment: .leading) { Rectangle().frame(width: max(x, 0)) }
-
-                Rectangle()
-                    .fill(Color.primary)
-                    .frame(width: 2, height: size.height)
-                    .offset(x: x - 1)
-                Circle()
-                    .fill(Color.primary)
-                    .frame(width: 8, height: 8)
-                    .offset(x: x - 4, y: yPosition(curve.indices.contains(frame) ? curve[frame] : 0, in: size) - 4)
             }
-            .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0).onChanged { value in
-                guard curve.count > 1 else { return }
-                let fraction = min(max(value.location.x / size.width, 0), 1)
-                onSeek(Int((fraction * CGFloat(curve.count - 1)).rounded()))
-            })
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let column = width / CGFloat(max(count, 1))
+                ZStack(alignment: .topLeading) {
+                    Canvas { context, _ in
+                        let scale = market.period.colorScale
+                        for (r, row) in rows.enumerated() {
+                            let y = CGFloat(r) * rowHeight
+                            guard row.values.count == count else {
+                                context.fill(Path(CGRect(x: 0, y: y, width: width, height: rowHeight - 1)),
+                                             with: .color(Palette.raised.opacity(0.5)))
+                                continue
+                            }
+                            for (i, value) in row.values.enumerated() {
+                                let color = Heat.color(value, scale: scale, style: prefs.colorStyle, theme: theme)
+                                context.fill(Path(CGRect(x: CGFloat(i) * column, y: y, width: column + 0.6, height: rowHeight - 1)),
+                                             with: .color(color))
+                            }
+                        }
+                    }
+                    Rectangle()
+                        .fill(Color.primary)
+                        .frame(width: 2, height: CGFloat(rows.count) * rowHeight + 4)
+                        .offset(x: (CGFloat(frame) + 0.5) * column - 1, y: -2)
+                }
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onChanged { value in
+                    guard count > 0 else { return }
+                    replay.pause()
+                    replay.frame = min(max(Int(value.location.x / column), 0), count - 1)
+                })
+            }
+            .frame(height: CGFloat(rows.count) * rowHeight)
+            VStack(alignment: .trailing, spacing: 0) {
+                ForEach(rows) { row in
+                    let value = row.values.indices.contains(frame) ? row.values[frame] : nil
+                    Text((row.isAverage ? "" : (replay.curveIsIndicative && row.id == "total" && value != nil ? "≈ " : "")) + Format.percent(value))
+                        .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(Heat.textColor(value, style: prefs.colorStyle, theme: theme))
+                        .frame(width: valueWidth, height: rowHeight, alignment: .trailing)
+                }
+            }
+        }
+        HStack(spacing: 8) {
+            Spacer().frame(width: labelWidth)
+            GeometryReader { geometry in
+                ForEach([0.0, 0.25, 0.5, 0.75, 1.0], id: \.self) { fraction in
+                    let i = Int((fraction * Double(max(count - 1, 0))).rounded())
+                    Text(replay.timeLabel(i))
+                        .font(.system(size: 9.5).monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .fixedSize()
+                        .position(x: min(max((CGFloat(i) + 0.5) * geometry.size.width / CGFloat(max(count, 1)), 24),
+                                         geometry.size.width - 24),
+                                  y: 6)
+                }
+            }
+            .frame(height: 12)
+            Spacer().frame(width: valueWidth)
         }
     }
 
-    private var range: (min: Double, max: Double) {
-        let low = min(curve.min() ?? 0, 0)
-        let high = max(curve.max() ?? 0, 0)
-        return high - low < 0.01 ? (low - 0.5, high + 0.5) : (low, high)
-    }
-
-    private func yPosition(_ value: Double, in size: CGSize) -> CGFloat {
-        let r = range
-        return size.height - 3 - CGFloat((value - r.min) / (r.max - r.min)) * (size.height - 6)
-    }
-
-    private func line(in size: CGSize) -> Path {
-        Path { p in
-            guard curve.count > 1 else { return }
-            for (i, value) in curve.enumerated() {
-                let point = CGPoint(x: size.width * CGFloat(i) / CGFloat(curve.count - 1), y: yPosition(value, in: size))
-                i == 0 ? p.move(to: point) : p.addLine(to: point)
+    @ViewBuilder
+    private func label(_ row: SeismoRow) -> some View {
+        switch row.kind {
+        case .total:
+            Text(row.name)
+                .font(.system(size: 11, weight: .bold))
+                .lineLimit(1).truncationMode(.tail)
+                .help(row.values.isEmpty
+                      ? tr("Ingen kursforløb for \(row.name) selv — derfor ingen række.", "No price history for \(row.name) itself — so no row.")
+                      : (replay.curveIsAverage ? tr("Gennemsnit af listens aktier med lige vægt", "Equal-weight average of the list's stocks")
+                                               : tr("\(row.name)s eget kursforløb", "\(row.name)'s own prices")))
+        case .group(let focus):
+            Button {
+                app.focus = focus
+            } label: {
+                HStack(spacing: 4) {
+                    Text(row.name).lineLimit(1).truncationMode(.tail)
+                    Text(tr("gns.", "avg.")).foregroundStyle(.tertiary)
+                }
+                .font(.system(size: 11))
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(focus == app.focus)
+            .help(tr("Gennemsnit vægtet efter markedsværdi (i en fond: fondens vægte) · klik for at gå ind",
+                     "Average weighted by market value (in a fund: the fund's weights) · click to go in"))
+        case .stock(let symbol):
+            Button { app.openStock(symbol) } label: {
+                Text(row.name).font(.system(size: 11, weight: .medium)).lineLimit(1).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(MarketStore.shared.info(symbol).name)
         }
     }
 }
@@ -419,8 +569,14 @@ struct ReplayReloader: ViewModifier {
 enum ReplayKeys {
     static func handle(_ event: NSEvent) -> Bool {
         let replay = ReplayStore.shared
-        guard replay.isActive else { return false }
         if event.window?.firstResponder is NSTextView { return false }
+        guard replay.isActive else {
+            // Space on a map opens the seismograph, which then plays.
+            guard event.keyCode == 49, AppState.shared.isMap, AppState.shared.dialog == nil,
+                  event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
+            replay.start()
+            return true
+        }
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
         switch event.keyCode {
         case 49: replay.togglePlay(); return true      // space
