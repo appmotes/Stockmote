@@ -179,7 +179,7 @@ private struct Toolbar: View {
             SearchButton(compact: compact)
             ThemeToggleButton()
             RefreshButton()
-            ToolbarButton(symbol: "gearshape", help: tr("Indstillinger (⌘,)", "Settings (⌘,)")) {
+            ToolbarButton(symbol: "slider.horizontal.3", help: tr("Indstillinger (⌘,)", "Settings (⌘,)")) {
                 SettingsWindow.shared.show()
             }
         }
