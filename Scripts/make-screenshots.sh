@@ -15,10 +15,17 @@ BIN=.build/release/Stockmote
 # The window's default size: wide enough for the period picker with each
 # range's figure (at 940 × 600 it folds into a menu).
 WIN="--window 1200x780"
+# A list used as a portfolio: stocks, a fund and two indices, each tile with
+# its own change. Snapshot mode starts from empty settings every time, so the
+# list is made for each image that shows it.
+PORTFOLIO=(--add-list "Min portefølje" --items "NVDA,NOVO-B.CO,ASML.AS,MSFT,fund:VWCE.DE,index:sp500,index:c25")
 
 # Remove the old screenshots — but not the app icon, which the README shows at the top.
 find docs -name '*.png' ! -name 'app-icon.png' -delete
-"$BIN" --snapshot docs/overview.png $WIN --screen overview
+"$BIN" --snapshot docs/overview.png $WIN "${PORTFOLIO[@]}" --screen overview
+"$BIN" --snapshot docs/portfolio.png $WIN "${PORTFOLIO[@]}"
+"$BIN" --snapshot docs/portfolio-fund.png $WIN "${PORTFOLIO[@]}" --open fund:VWCE.DE --sector "Information Technology"
+"$BIN" --snapshot docs/trading-hours.png --window 1200x420 --screen overview --trading-hours --theme light
 "$BIN" --snapshot docs/map.png $WIN
 "$BIN" --snapshot docs/stock.png $WIN --stock NVDA --period 1M
 "$BIN" --snapshot docs/stock-light.png $WIN --stock NOVO-B.CO --index c25 --theme light
@@ -26,11 +33,10 @@ find docs -name '*.png' ! -name 'app-icon.png' -delete
 "$BIN" --snapshot docs/c25.png $WIN --index c25
 "$BIN" --snapshot docs/sector.png $WIN --sector "Information Technology"
 "$BIN" --snapshot docs/nasdaq-1m.png $WIN --index ndx --period 1M --theme light
-"$BIN" --snapshot docs/favorites.png $WIN --tab favorites
 "$BIN" --snapshot docs/list.png $WIN --list --sector "Information Technology"
 "$BIN" --snapshot docs/settings.png --settings
 "$BIN" --snapshot docs/english.png $WIN --lang en --index ftse
 "$BIN" --snapshot docs/fullscreen.png --fullscreen --notch 32 --replay 0.6 --index c25
 "$BIN" --snapshot docs/seismograph.png $WIN --seismograph 0.35
 "$BIN" --snapshot docs/fund.png $WIN --fund IWDA.AS
-"$BIN" --snapshot docs/search.png $WIN --search "semiconductor ucits" --fund-pick SEC0.DE
+"$BIN" --snapshot docs/search.png $WIN "${PORTFOLIO[@]}" --search "semiconductor ucits" --fund-pick SEC0.DE
