@@ -274,7 +274,7 @@ struct Provider: AppIntentTimelineProvider {
             let list = share?.watchlists.first { $0.name == name } ?? share?.watchlists.first
             title = list?.name ?? tr("Watchliste", "Watchlist")
             symbols = list?.symbols ?? []
-            link += "?tab=watchlists"
+            link += "?tab=watchlists" + (list.flatMap { $0.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) }.map { "&list=\($0)" } ?? "")
             if list == nil { message = tr("Lav en watchliste i Stockmote", "Make a watchlist in Stockmote") }
         case .index:
             let indexID = config.index?.id ?? share?.indexList?.first?.id ?? "sp500"
