@@ -99,7 +99,10 @@ private struct ToastView: View {
     var body: some View {
         if let toast = app.toast {
             HStack(spacing: 12) {
+                // A longer message (why a fund has no map) wraps in a narrow window.
                 Text(toast.text).font(.system(size: 12, weight: .medium))
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let undo = toast.undo {
                     Button(tr("Fortryd", "Undo")) {
                         undo()
@@ -111,10 +114,12 @@ private struct ToastView: View {
                 }
             }
             .padding(.horizontal, 14)
-            .frame(height: 32)
-            .background(Capsule().fill(Palette.surface))
-            .overlay(Capsule().strokeBorder(Palette.outline))
+            .padding(.vertical, 7)
+            .frame(minHeight: 32)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Palette.surface))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Palette.outline))
             .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
+            .padding(.horizontal, 24)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .id(toast.id)
         }
@@ -832,8 +837,10 @@ enum Items {
                                 label: fund?.displaySymbol, ref: item.key, isEstimate: isEstimate)
             case .index:
                 let index = universe.index(withID: item.symbol)
-                return HeatItem(symbol: quote, name: index?.name ?? item.symbol, sector: tr("Indeks", "Indices"),
-                                industry: index.map { $0.isEuropean ? tr("Europa", "Europe") : tr("USA", "United States") } ?? "",
+                let region = index.map { $0.isEuropean ? tr("Europa", "Europe") : tr("USA", "United States") } ?? ""
+                // The tile says the index's name; the line under it what it is.
+                return HeatItem(symbol: quote, name: index.map { tr("Indeks · \($0.symbols.count) aktier", "Index · \($0.symbols.count) stocks") } ?? item.symbol,
+                                sector: tr("Indeks", "Indices"), industry: region,
                                 weight: 1, change: change, label: index?.name, ref: item.key)
             }
         }
