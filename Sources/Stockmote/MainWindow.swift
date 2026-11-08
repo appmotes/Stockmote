@@ -3,25 +3,6 @@ import Combine
 import StockmoteShared
 import SwiftUI
 
-/// Where PanelRoot is shown: the compact panel under the menu bar icon, or
-/// the main window. The two share all state (AppState, MarketStore …) but
-/// differ in chrome: the window has traffic lights over the sidebar, no fixed
-/// size, and leaves most keyboard shortcuts to the main menu.
-enum PanelContext {
-    case panel, window
-}
-
-private struct PanelContextKey: EnvironmentKey {
-    static let defaultValue = PanelContext.panel
-}
-
-extension EnvironmentValues {
-    var panelContext: PanelContext {
-        get { self[PanelContextKey.self] }
-        set { self[PanelContextKey.self] = newValue }
-    }
-}
-
 /// What the SwiftUI content needs to know about the main window's title bar,
 /// so the custom toolbar row lines up with the traffic lights.
 @MainActor
@@ -38,27 +19,26 @@ final class WindowChrome: ObservableObject {
     @Published var titlebarHeight: CGFloat = 52
 }
 
-/// Keeps the quote refresh fast while any view of the map is on screen: the
-/// panel, the main window or the map-only full screen.
+/// Keeps the quote refresh fast while the map is on screen: in the main
+/// window or in Map Only.
 @MainActor
 enum LiveRefresh {
     static func update() {
-        MarketStore.shared.panelVisible = MenuBarPanel.current?.isOpen == true
-            || MainWindow.shared.isOnScreen
+        MarketStore.shared.mapVisible = MainWindow.shared.isOnScreen
             || FullscreenController.shared.isShowing
     }
 }
 
-/// Keys shared by the panel and the main window: replay controls, and Esc,
-/// which closes a dialog, then zoom, then replay, then goes up a level.
-/// Returns nil when the key was used.
+/// Keys for the main window: replay controls, and Esc, which closes a
+/// dialog, then zoom, then replay, then goes up a level. Returns nil when
+/// the key was used.
 @MainActor
 enum PanelKeys {
     static func handle(_ event: NSEvent, unhandledEscape: () -> Void) -> NSEvent? {
         if ReplayKeys.handle(event) { return nil }
         guard event.keyCode == 53 else { return event }   // 53 = Escape
         // An open dialog takes Esc first, even from a text field with text in
-        // it: Esc cancels the dialog and never closes the panel or window.
+        // it: Esc cancels the dialog and never closes the window.
         if AppState.shared.dialog != nil {
             AppState.shared.dialog = nil
             return nil
@@ -73,8 +53,8 @@ enum PanelKeys {
     }
 }
 
-/// The main window: a standard titled, resizable window with the same UI as
-/// the panel, filling it. The title bar is transparent and the content runs
+/// The main window — the app's one window: a standard titled, resizable
+/// window with PanelRoot filling it. The title bar is transparent and the content runs
 /// under it, so the traffic lights sit over the sidebar and the custom
 /// toolbar row shares the title bar's height — like Mail or Notes.
 ///
@@ -94,20 +74,22 @@ final class MainWindow: NSObject, NSWindowDelegate {
     var isOnScreen: Bool { window.map { $0.isVisible && !$0.isMiniaturized } ?? false }
     var isKey: Bool { window?.isKeyWindow == true }
     var isFullScreen: Bool { window?.styleMask.contains(.fullScreen) == true }
+    /// On screen, key, and the app active: what you are looking at.
+    var isFrontmost: Bool { NSApp.isActive && isOnScreen && isKey }
 
-    /// Opens the window, or brings it forward. Closes the panel: you have
-    /// chosen the big view.
+    /// Opens the window, or brings it forward.
     func show() {
-        MenuBarPanel.current?.hide()
-        // Settings live in their own window here; the panel's settings tab
-        // would otherwise fill the main window.
-        if AppState.shared.tab == .settings { AppState.shared.toggleSettings() }
         let window = self.window ?? makeWindow()
         if window.isMiniaturized { window.deminiaturize(nil) }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
         updateChrome()
         LiveRefresh.update()
+    }
+
+    /// Puts the window away, as its close button does. The app keeps running.
+    func close() {
+        window?.performClose(nil)
     }
 
     /// macOS full screen (its own Space). Opens the window first if needed.
@@ -148,7 +130,7 @@ final class MainWindow: NSObject, NSWindowDelegate {
         window.appearance = Preferences.shared.appearance
         window.delegate = self
 
-        let host = NSHostingView(rootView: PanelRoot(context: .window))
+        let host = NSHostingView(rootView: PanelRoot())
         // The window decides the size, not SwiftUI's ideal size.
         host.sizingOptions = []
         window.contentView = host
@@ -251,8 +233,7 @@ struct WindowDragArea: NSViewRepresentable {
 
 // MARK: - Settings window
 
-/// The standard Settings window (⌘,), with the same content as the panel's
-/// settings tab.
+/// The standard Settings window (⌘,).
 @MainActor
 final class SettingsWindow: NSObject {
     static let shared = SettingsWindow()
@@ -307,7 +288,7 @@ final class SettingsWindow: NSObject {
     }
 }
 
-/// The settings tab, filling the Settings window.
+/// The settings, filling the Settings window.
 struct SettingsWindowContent: View {
     @ObservedObject private var prefs = Preferences.shared
 

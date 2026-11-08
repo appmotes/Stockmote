@@ -97,7 +97,7 @@ public enum ThemeMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// The colours of the map itself. The panel's other surfaces follow macOS's
+/// The colours of the map itself. The window's other surfaces follow macOS's
 /// appearance via `Palette`; the map is drawn in a Canvas and gets the theme explicitly.
 ///
 /// The light theme isn't the dark one inverted. The gaps are white, so the
@@ -241,10 +241,10 @@ public enum Format {
     }
 }
 
-// MARK: - Panel surfaces
+// MARK: - Window surfaces
 
 /// Colours that follow macOS's appearance — light or dark — on their own, because
-/// they're dynamic NSColors. The panel's NSHostingView gets the chosen appearance,
+/// they're dynamic NSColors. The windows get the chosen appearance,
 /// and everything follows.
 public enum Palette {
     private static func dynamic(dark: NSColor, light: NSColor) -> Color {

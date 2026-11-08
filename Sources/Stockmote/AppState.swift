@@ -2,7 +2,7 @@ import SwiftUI
 import StockmoteShared
 
 /// The "new" and "rename" actions of the sidebar, each shown as a dialog
-/// centred over the panel instead of a field squeezed into the sidebar.
+/// centred over the window instead of a field squeezed into the sidebar.
 enum PanelDialog: Equatable {
     case addFund
     /// A new watchlist, optionally with stocks in it already (from the map's
@@ -11,14 +11,14 @@ enum PanelDialog: Equatable {
     case renameWatchlist(UUID)
 }
 
-/// What the sidebar has selected: an index (`indexID`), favorites, a
-/// watchlist (`watchlistID`) or settings.
+/// What the sidebar has selected: an index (`indexID`), favorites or a
+/// watchlist (`watchlistID`). Settings have their own window.
 enum PanelTab: String, CaseIterable, Identifiable {
-    case map, favorites, watchlists, settings
+    case map, favorites, watchlists
     var id: String { rawValue }
 }
 
-/// Where you are in the panel: tab, index, sector/industry and zoom.
+/// Where you are in the window: tab, index, sector/industry and zoom.
 @MainActor
 final class AppState: ObservableObject {
     static let shared = AppState()
@@ -44,7 +44,7 @@ final class AppState: ObservableObject {
         didSet { AppDefaults.store.set(showList, forKey: "showList") }
     }
     @Published var watchlistID: UUID?
-    /// The dialog centred over the panel, if one is open.
+    /// The dialog centred over the window, if one is open.
     @Published var dialog: PanelDialog?
 
     @Published var zoom: CGFloat = 1
@@ -53,19 +53,6 @@ final class AppState: ObservableObject {
     private init() {
         indexID = AppDefaults.store.string(forKey: "indexID") ?? "sp500"
         showList = AppDefaults.store.bool(forKey: "showList")
-    }
-
-    /// The tab before Settings, so one more click leads back.
-    private var tabBeforeSettings: PanelTab = .map
-
-    /// Settings toggles on and off: opens it, or goes back.
-    func toggleSettings() {
-        if tab == .settings {
-            tab = tabBeforeSettings
-        } else {
-            tabBeforeSettings = tab
-            tab = .settings
-        }
     }
 
     /// Click on an index in the sidebar. If it is already selected, the click goes
@@ -85,8 +72,8 @@ final class AppState: ObservableObject {
         offset = .zero
     }
 
-    /// Esc: first close a dialog, then zoom out, then go up a level, and
-    /// only then is the panel closed.
+    /// Esc: first close a dialog, then zoom out, then stop a replay, then go
+    /// up a level. False when there was nothing left to undo.
     func handleEscape() -> Bool {
         if dialog != nil {
             dialog = nil

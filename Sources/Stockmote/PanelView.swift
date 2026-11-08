@@ -2,7 +2,7 @@ import AppKit
 import StockmoteShared
 import SwiftUI
 
-/// The map's theme, based on the appearance the panel has been given.
+/// The map's theme, based on the appearance the window has been given.
 struct ThemeKey: EnvironmentKey {
     static let defaultValue = Theme.dark
 }
@@ -24,22 +24,19 @@ struct ThemeProvider<Content: View>: View {
     }
 }
 
-/// The panel and the main window: sidebar on the left, toolbar and map on the right.
+/// The main window's content: sidebar on the left, toolbar and map on the right.
 ///
 /// Built like a Mac app — source list, toolbar, status bar — and not
-/// like a phone with tabs at the bottom. In the panel it has the panel size
-/// from settings; in the main window it fills the window, and runs up under
-/// the transparent title bar.
+/// like a phone with tabs at the bottom. It fills the window and runs up
+/// under the transparent title bar.
 struct PanelRoot: View {
-    var context: PanelContext = .panel
-    /// Overrides the panel size (snapshots of the window).
+    /// A fixed size, for snapshots of the window; otherwise the window's.
     var size: CGSize? = nil
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
     @ObservedObject private var replay = ReplayStore.shared
 
     var body: some View {
-        let fixed = context == .panel ? (size ?? prefs.panelSize.size) : size
         ThemeProvider {
             HStack(spacing: 0) {
                 if prefs.sidebarVisible {
@@ -54,7 +51,7 @@ struct PanelRoot: View {
                     Rectangle().fill(Palette.separator).frame(height: 1)
                     Content()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if replay.isActive && app.tab != .settings {
+                    if replay.isActive {
                         ReplayBar()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -64,8 +61,7 @@ struct PanelRoot: View {
             }
             .overlay { DialogHost() }
         }
-        .environment(\.panelContext, context)
-        .frame(width: fixed?.width, height: fixed?.height)
+        .frame(width: size?.width, height: size?.height)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Palette.background)
         // In the window the content runs under the title bar; the toolbar row
@@ -75,7 +71,7 @@ struct PanelRoot: View {
         .animation(.easeInOut(duration: 0.2), value: replay.isActive)
         .animation(.easeOut(duration: 0.15), value: app.dialog)
         .modifier(ReplayReloader())
-        .background { KeyboardShortcuts(context: context) }
+        .background { KeyboardShortcuts() }
         // When the language changes, everything is rebuilt so every text is read again.
         .id(prefs.language)
     }
@@ -89,7 +85,6 @@ private struct Content: View {
         case .map: MapContent()
         case .favorites: FavoritesContent()
         case .watchlists: WatchlistContent()
-        case .settings: SettingsTab()
         }
     }
 }
@@ -104,30 +99,20 @@ private struct Sidebar: View {
     @ObservedObject private var app = AppState.shared
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var chrome = WindowChrome.shared
-    @Environment(\.panelContext) private var context
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // The traffic lights sit here, over the sidebar, as in Mail and
+            // Notes; the app's name is in the menu bar.
             HStack(spacing: 7) {
-                // In the window the traffic lights sit here, over the sidebar,
-                // as in Mail and Notes; the app's name is in the menu bar.
-                if context == .panel {
-                    Image(nsImage: NSApp.applicationIconImage)
-                        .resizable()
-                        .frame(width: 18, height: 18)
-                    Text("Stockmote")
-                        .font(.system(size: 13, weight: .bold))
-                }
                 Spacer()
-                SidebarIconButton(symbol: "sidebar.left",
-                                  help: context == .window ? tr("Skjul sidebjælke (⌃⌘S)", "Hide sidebar (⌃⌘S)")
-                                                           : tr("Skjul sidebjælke (⌘0)", "Hide sidebar (⌘0)")) {
+                SidebarIconButton(symbol: "sidebar.left", help: tr("Skjul sidebjælke (⌃⌘S)", "Hide sidebar (⌃⌘S)")) {
                     prefs.sidebarVisible = false
                 }
             }
             .padding(.horizontal, 12)
-            .frame(height: context == .window ? chrome.titlebarHeight : 50)
-            .background { if context == .window { WindowDragArea() } }
+            .frame(height: chrome.titlebarHeight)
+            .background { WindowDragArea() }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 1) {
@@ -170,24 +155,9 @@ private struct Sidebar: View {
             }
 
             Rectangle().fill(Palette.separator).frame(height: 1)
-            HStack(spacing: 4) {
-                // The panel shows settings in place; the window opens the
-                // standard Settings window (⌘,).
-                SidebarRowButton(
-                    symbol: "gearshape",
-                    title: context == .window ? tr("Indstillinger …", "Settings…") : tr("Indstillinger", "Settings"),
-                    isSelected: context == .panel && app.tab == .settings
-                ) {
-                    if context == .window { SettingsWindow.shared.show() } else { app.toggleSettings() }
-                }
-                if context == .panel {
-                    SidebarIconButton(symbol: "macwindow", help: tr("Åbn vindue (⌘O)", "Open window (⌘O)")) {
-                        MainWindow.shared.show()
-                    }
-                    SidebarIconButton(symbol: "power", help: tr("Afslut Stockmote (⌘Q)", "Quit Stockmote (⌘Q)")) {
-                        NSApp.terminate(nil)
-                    }
-                }
+            // Opens the standard Settings window (⌘,).
+            SidebarRowButton(symbol: "gearshape", title: tr("Indstillinger …", "Settings…"), isSelected: false) {
+                SettingsWindow.shared.show()
             }
             .padding(8)
         }
@@ -437,45 +407,40 @@ private struct Toolbar: View {
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
     @ObservedObject private var chrome = WindowChrome.shared
-    @Environment(\.panelContext) private var context
 
     /// With the sidebar hidden, the row starts at the window's edge, under the
     /// traffic lights — except in full screen, where they are gone.
     private var leadingInset: CGFloat {
-        guard context == .window, !prefs.sidebarVisible, !chrome.isFullScreen else { return 0 }
+        guard !prefs.sidebarVisible, !chrome.isFullScreen else { return 0 }
         return max(0, chrome.trafficLightsInset - 12)
     }
 
     var body: some View {
         HStack(spacing: 10) {
             if !prefs.sidebarVisible {
-                ToolbarButton(symbol: "sidebar.left",
-                              help: context == .window ? tr("Vis sidebjælke (⌃⌘S)", "Show sidebar (⌃⌘S)")
-                                                       : tr("Vis sidebjælke (⌘0)", "Show sidebar (⌘0)")) {
+                ToolbarButton(symbol: "sidebar.left", help: tr("Vis sidebjælke (⌃⌘S)", "Show sidebar (⌃⌘S)")) {
                     prefs.sidebarVisible = true
                 }
             }
             // The title gives way first: it is truncated with … rather than pushing
             // the rest. It used to be locked to its full width, and a long name
-            // like "Euro Stoxx 50" at the small panel size made all the
-            // content wider than the window — so the sidebar slid out past the
-            // left edge.
+            // like "Euro Stoxx 50" in a narrow window made all the content
+            // wider than the window — so the sidebar slid out past the left
+            // edge.
             TitleBlock()
                 .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
-            if app.tab != .settings {
-                // If there is no room for the whole period picker, it becomes a menu.
-                ViewThatFits(in: .horizontal) {
-                    controls(compact: false)
-                    controls(compact: true)
-                }
-                .layoutPriority(1)
+            // If there is no room for the whole period picker, it becomes a menu.
+            ViewThatFits(in: .horizontal) {
+                controls(compact: false)
+                controls(compact: true)
             }
+            .layoutPriority(1)
         }
         .padding(.leading, leadingInset)
         .padding(.horizontal, 12)
-        .frame(height: context == .window ? chrome.titlebarHeight : 50)
-        // In the window this row is the title bar: empty space drags the window.
-        .background { if context == .window { WindowDragArea() } }
+        .frame(height: chrome.titlebarHeight)
+        // This row is the title bar: empty space drags the window.
+        .background { WindowDragArea() }
     }
 
     private func controls(compact: Bool) -> some View {
@@ -492,7 +457,7 @@ private struct Toolbar: View {
     }
 }
 
-/// The period picker as a menu, when the panel is too narrow for the whole row.
+/// The period picker as a menu, when the window is too narrow for the whole row.
 private struct PeriodMenu: View {
     @ObservedObject private var market = MarketStore.shared
 
@@ -526,7 +491,7 @@ private struct PeriodMenu: View {
 ///
 /// When you have gone into a sector or industry, that level is the title, with a
 /// back arrow in front, and the way up ("🇩🇰 C25 › Health Care") in small type below.
-/// The whole path on one line did not fit at the small panel size.
+/// The whole path on one line did not fit in a narrow window.
 private struct TitleBlock: View {
     @ObservedObject private var replay = ReplayStore.shared
     @ObservedObject private var market = MarketStore.shared
@@ -564,32 +529,30 @@ private struct TitleBlock: View {
                     .allowsHitTesting(false)
             }
 
-            if app.tab != .settings {
-                HStack(spacing: 5) {
-                    Text(Format.percent(change))
-                        .foregroundStyle(Heat.textColor(change, style: prefs.colorStyle, theme: theme))
-                    if isDrilled {
-                        Button {
-                            app.focus = .all
-                        } label: {
-                            Text(path).lineLimit(1).truncationMode(.tail)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .help(tr("Tilbage til \(index?.name ?? "")", "Back to \(index?.name ?? "")"))
-                    } else if replay.isReady {
-                        // During replay, the time stands where the period usually does.
-                        Text("▶ \(replay.timeLabel())").foregroundStyle(.secondary)
-                    } else if app.tab == .map, let index, index.isFund {
-                        // A fund: the ticker next to the period, so you can see which one.
-                        Text("\(Symbols.display(index.benchmark)) · \(market.period.longName)").foregroundStyle(.tertiary)
-                    } else {
-                        Text(market.period.longName).foregroundStyle(.tertiary)
+            HStack(spacing: 5) {
+                Text(Format.percent(change))
+                    .foregroundStyle(Heat.textColor(change, style: prefs.colorStyle, theme: theme))
+                if isDrilled {
+                    Button {
+                        app.focus = .all
+                    } label: {
+                        Text(path).lineLimit(1).truncationMode(.tail)
                     }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(tr("Tilbage til \(index?.name ?? "")", "Back to \(index?.name ?? "")"))
+                } else if replay.isReady {
+                    // During replay, the time stands where the period usually does.
+                    Text("▶ \(replay.timeLabel())").foregroundStyle(.secondary)
+                } else if app.tab == .map, let index, index.isFund {
+                    // A fund: the ticker next to the period, so you can see which one.
+                    Text("\(Symbols.display(index.benchmark)) · \(market.period.longName)").foregroundStyle(.tertiary)
+                } else {
+                    Text(market.period.longName).foregroundStyle(.tertiary)
                 }
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                .lineLimit(1)
             }
+            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+            .lineLimit(1)
         }
     }
 
@@ -600,7 +563,6 @@ private struct TitleBlock: View {
             return index?.title ?? ""
         case .favorites: return tr("Favoritter", "Favorites")
         case .watchlists: return lists.watchlist(app.watchlistID)?.name ?? tr("Watchliste", "Watchlist")
-        case .settings: return tr("Indstillinger", "Settings")
         }
     }
 
@@ -630,7 +592,6 @@ private struct TitleBlock: View {
             return weight > 0 ? known.reduce(0) { $0 + $1.change! * $1.weight } / weight : nil
         case .favorites: return averageChange(lists.favorites)
         case .watchlists: return averageChange(lists.watchlist(app.watchlistID)?.symbols ?? [])
-        case .settings: return nil
         }
     }
 }
@@ -793,36 +754,10 @@ private struct StatusLine: View {
     }
 }
 
-/// Invisible buttons that carry the keyboard shortcuts.
-///
-/// In the main window the main menu has most of them (and ⌘, and ⌃⌘F mean
-/// something else there), so only the ones the menu lacks are here. The panel
-/// keeps them all: it does not activate the app, so the main menu may not be
-/// the one in the menu bar.
+/// Invisible buttons that carry the keyboard shortcuts the main menu lacks.
 private struct KeyboardShortcuts: View {
-    let context: PanelContext
-
     var body: some View {
         ZStack {
-            if context == .panel {
-                Button("") { Task { await MarketStore.shared.refresh() } }.keyboardShortcut("r")
-                Button("") { NSApp.terminate(nil) }.keyboardShortcut("q")
-                Button("") { AppState.shared.showList.toggle() }.keyboardShortcut("l")
-                Button("") { ReplayStore.shared.toggle() }.keyboardShortcut("p")
-                Button("") { AppState.shared.toggleSettings() }.keyboardShortcut(",")
-                Button("") { MainWindow.shared.show() }.keyboardShortcut("o")
-                Button("") { MenuBarPanel.current?.hide() }.keyboardShortcut("w")
-                Button("") { AppState.shared.dialog = .newWatchlist(symbols: []) }.keyboardShortcut("n")
-                Button("") { AppState.shared.dialog = .addFund }.keyboardShortcut("n", modifiers: [.command, .shift])
-                Button("") { Preferences.shared.sidebarVisible.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])
-                Button("") { FullscreenController.shared.toggle() }.keyboardShortcut("f", modifiers: [.command, .shift])
-                // The panel cannot go full screen itself: ⌃⌘F takes the main window there.
-                Button("") { MainWindow.shared.toggleFullScreen() }.keyboardShortcut("f", modifiers: [.command, .control])
-                ForEach(Array(Period.allCases.enumerated()), id: \.offset) { number, period in
-                    Button("") { MarketStore.shared.period = period }
-                        .keyboardShortcut(KeyEquivalent(Character("\(number + 1)")), modifiers: [.command, .option])
-                }
-            }
             Button("") { Preferences.shared.sidebarVisible.toggle() }.keyboardShortcut("0")
             // ⌘1 … ⌘9: the indices in the sidebar's order.
             ForEach(1..<10) { number in
@@ -944,7 +879,7 @@ enum Items {
             let list = lists.watchlist(app.watchlistID)
             return (make(list?.symbols ?? [], byMarketCap: prefs.listsByMarketCap), .flat,
                     key("watchlist", list, prefs.listsByMarketCap), false)
-        case .map, .settings:
+        case .map:
             let universe = UniverseStore.shared
             let index = universe.index(withID: app.indexID) ?? universe.indices.first
             return (make(index?.symbols ?? [], weights: index?.weights), .sectors,

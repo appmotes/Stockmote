@@ -179,10 +179,9 @@ final class MainMenu: NSObject, NSMenuItemValidation {
     @objc private func newWatchlist() { present(.newWatchlist(symbols: [])) }
     @objc private func addFund() { present(.addFund) }
 
-    /// Dialogs live inside PanelRoot: in the panel if it is open, otherwise
-    /// in the main window.
+    /// Dialogs live inside the main window, which is opened first.
     private func present(_ dialog: PanelDialog) {
-        if MenuBarPanel.current?.isOpen != true { MainWindow.shared.show() }
+        MainWindow.shared.show()
         AppState.shared.dialog = dialog
     }
 
