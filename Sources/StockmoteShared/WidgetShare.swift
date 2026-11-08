@@ -8,7 +8,7 @@ import Foundation
 /// `~/Library/Application Support/Stockmote/`, and the widget has a
 /// read-only exception for exactly that folder in its entitlements.
 ///
-/// The file holds favourites, watchlists, classification and market cap —
+/// The file holds the lists, classification and market cap —
 /// but not prices. The widget fetches those itself from Yahoo, so it's fresh
 /// even when the app hasn't been opened.
 public struct WidgetShare: Codable {
@@ -26,13 +26,36 @@ public struct WidgetShare: Codable {
         }
     }
 
+    /// One security in a list: a stock, a fund or an index, with the symbol
+    /// whose price the widget fetches for it.
+    public struct Item: Codable {
+        /// "stock", "fund" or "index".
+        public let kind: String
+        /// The stock, the fund's own symbol, or the index's benchmark ("^GSPC").
+        public let symbol: String
+        /// The tile's text: "NVDA", "VWCE", "S&P 500".
+        public let label: String
+        public let name: String
+
+        public init(kind: String, symbol: String, label: String, name: String) {
+            self.kind = kind
+            self.symbol = symbol
+            self.label = label
+            self.name = name
+        }
+    }
+
     public struct List: Codable {
         public let name: String
+        /// The stocks only (files from before lists held funds and indices).
         public let symbols: [String]
+        /// Everything in the list, in order. Optional, so an older file still reads.
+        public let items: [Item]?
 
-        public init(name: String, symbols: [String]) {
+        public init(name: String, symbols: [String], items: [Item]) {
             self.name = name
             self.symbols = symbols
+            self.items = items
         }
     }
 
@@ -54,7 +77,6 @@ public struct WidgetShare: Codable {
     }
 
     public var updated: Date
-    public var favorites: [String]
     public var watchlists: [List]
     /// index ID → symbols
     public var indices: [String: [String]]
@@ -69,11 +91,10 @@ public struct WidgetShare: Codable {
     /// instead of the market cap.
     public var weights: [String: [String: Double]]?
 
-    public init(updated: Date, favorites: [String], watchlists: [List],
+    public init(updated: Date, watchlists: [List],
                 indices: [String: [String]], stocks: [String: Stock], colorStyle: String,
                 indexList: [Index], english: Bool, theme: String, weights: [String: [String: Double]]? = nil) {
         self.updated = updated
-        self.favorites = favorites
         self.watchlists = watchlists
         self.indices = indices
         self.stocks = stocks

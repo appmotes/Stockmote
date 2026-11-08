@@ -24,25 +24,44 @@ public enum Focus: Hashable {
     }
 }
 
-/// One stock, ready for the map.
+/// One tile, ready for the map: a stock — or, in a list, a fund or an index
+/// shown with its own change.
 public struct HeatItem {
+    /// The symbol whose price the tile shows: a stock, a fund's own symbol
+    /// or an index's benchmark ("^GSPC").
     public let symbol: String
     public let name: String
     public let sector: String
     public let industry: String
     public let weight: Double
     public let change: Double?
-    public let isFavorite: Bool
+    /// What the tile says instead of the symbol ("S&P 500", "VWCE").
+    public let label: String?
+    /// A list's fund or index: "fund:VWCE.DE" or "index:sp500". Nil for a stock.
+    public let ref: String?
+    /// The change is the customary indicative value of a NAV fund (≈).
+    public let isEstimate: Bool
 
     public init(symbol: String, name: String, sector: String, industry: String,
-                weight: Double, change: Double?, isFavorite: Bool) {
+                weight: Double, change: Double?, label: String? = nil, ref: String? = nil,
+                isEstimate: Bool = false) {
         self.symbol = symbol
         self.name = name
         self.sector = sector
         self.industry = industry
         self.weight = weight
         self.change = change
-        self.isFavorite = isFavorite
+        self.label = label
+        self.ref = ref
+        self.isEstimate = isEstimate
+    }
+
+    /// The text on the tile: the label, or the symbol as people write it.
+    public var title: String { label ?? Symbols.display(symbol) }
+
+    /// "+1.23%", "≈ +1.23%" or "–".
+    public var percentText: String {
+        (isEstimate && change != nil ? "≈ " : "") + Format.percent(change)
     }
 }
 
@@ -87,7 +106,7 @@ public struct HeatmapLayout: Equatable {
 public enum Grouping {
     /// Sector → industry → stock, like the index map.
     case sectors
-    /// Just the stocks, like favourites and watchlists.
+    /// Just the tiles, all side by side, like a list.
     case flat
 }
 

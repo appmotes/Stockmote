@@ -280,8 +280,8 @@ struct SeismoRow: Identifiable {
         /// A sector or industry: the members' changes weighted by market value
         /// (by the fund's weights in a fund).
         case group(Focus)
-        /// One stock's own series.
-        case stock(String)
+        /// One tile's own series: a stock, or a list's fund or index.
+        case stock(HeatItem)
     }
 
     let id: String
@@ -336,12 +336,16 @@ extension ReplayStore {
                                  members.reduce(0) { $0 + $1.weight }))
             }
         default:
+            // A list's fund or index row is its own series; a NAV fund has
+            // none for the day, so its row is empty rather than estimated.
             for item in items {
-                children.append((SeismoRow(id: "t:" + item.symbol, name: Symbols.display(item.symbol), kind: .stock(item.symbol),
+                children.append((SeismoRow(id: "t:" + item.symbol, name: item.title, kind: .stock(item),
                                            values: seriesOf(item.symbol) ?? []), item.weight))
             }
         }
-        rows += children.sorted { $0.size > $1.size }.prefix(limit).map(\.row)
+        // A list's rows keep the list's order (every tile is the same size).
+        let ranked = current.grouping == .flat ? children : children.sorted { $0.size > $1.size }
+        rows += ranked.prefix(limit).map(\.row)
         rowCache = (key, rows)
         return rows
     }
@@ -530,7 +534,7 @@ struct SeismographDrawer: View {
                 .lineLimit(1).truncationMode(.tail)
                 .help(row.values.isEmpty
                       ? tr("Ingen kursforløb for \(row.name) selv — derfor ingen række.", "No price history for \(row.name) itself — so no row.")
-                      : (replay.curveIsAverage ? tr("Gennemsnit af listens aktier med lige vægt", "Equal-weight average of the list's stocks")
+                      : (replay.curveIsAverage ? tr("Gennemsnit med lige vægt af listens egne kursforløb", "Equal-weight average of the list's own price histories")
                                                : tr("\(row.name)s eget kursforløb", "\(row.name)'s own prices")))
         case .group(let focus):
             Button {
@@ -547,12 +551,14 @@ struct SeismographDrawer: View {
             .disabled(focus == app.focus)
             .help(tr("Gennemsnit vægtet efter markedsværdi (i en fond: fondens vægte) · klik for at gå ind",
                      "Average weighted by market value (in a fund: the fund's weights) · click to go in"))
-        case .stock(let symbol):
-            Button { app.openStock(symbol) } label: {
+        case .stock(let item):
+            Button { app.open(item) } label: {
                 Text(row.name).font(.system(size: 11, weight: .medium)).lineLimit(1).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(MarketStore.shared.info(symbol).name)
+            .help(row.values.isEmpty
+                  ? tr("\(item.name) · intet eget kursforløb for perioden", "\(item.name) · no price history of its own for the range")
+                  : item.name)
         }
     }
 }
@@ -566,7 +572,7 @@ struct ReplayReloader: ViewModifier {
     @ObservedObject private var lists = ListsStore.shared
 
     private var key: String {
-        "\(replay.isActive)|\(market.period.rawValue)|\(app.tab.rawValue)|\(app.indexID)|\(app.watchlistID?.uuidString ?? "")|\(lists.favorites.count)|\(market.quotes.isEmpty)"
+        "\(replay.isActive)|\(market.period.rawValue)|\(app.tab.rawValue)|\(app.indexID)|\(app.watchlistID?.uuidString ?? "")|\(lists.watchlist(app.watchlistID)?.items.count ?? 0)|\(market.quotes.isEmpty)"
     }
 
     func body(content: Content) -> some View {

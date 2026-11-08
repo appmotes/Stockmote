@@ -128,13 +128,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            UniverseStore.shared.index(withID: index) != nil {
             app.indexID = index
         }
-        if let tab = items.first(where: { $0.name == "tab" })?.value.flatMap(PanelTab.init(rawValue:)) {
+        let tab = items.first(where: { $0.name == "tab" })?.value
+        if let tab = tab.flatMap(PanelTab.init(rawValue:)) {
+            app.parentListID = nil
             app.tab = tab
         }
-        // A watchlist widget names its list.
-        if let name = items.first(where: { $0.name == "list" })?.value,
-           let list = ListsStore.shared.watchlists.first(where: { $0.name == name }) {
-            app.watchlistID = list.id
+        // A list widget names its list. An old favourites widget opens the
+        // list the favourites were moved into.
+        let name = tab == "favorites" ? ListsStore.migratedListName : items.first(where: { $0.name == "list" })?.value
+        if let name, let list = ListsStore.shared.watchlists.first(where: { $0.name == name }) {
+            app.openWatchlist(list.id)
         }
         app.focus = .all
         app.screen = .map
@@ -143,12 +146,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// `Stockmote --snapshot out.png [--screen overview|map] [--tab map|favorites|watchlists]
+/// `Stockmote --snapshot out.png [--screen overview|map] [--tab map|watchlists] [--watchlist "AI"]
+/// [--add-list "Min portefølje" --items "NVDA,fund:IWDA.AS,index:c25"] [--open fund:IWDA.AS]
 /// [--index sp500|ndx|dji] [--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt] [--sector "…"]
 /// [--industry "…"] [--stock NVDA] [--size small|medium|large|huge] [--list] [--zoom 2.5]
 /// [--theme light|dark] [--lang da|en] [--fullscreen [--notch 32]]
 /// [--seismograph 0.4] [--fund SPY] [--search "MSCI World" [--fund-pick URTH] [--fund-add]]
-/// [--dialog new-list|rename-list] [--window 1200x780] [--settings]`
+/// [--dialog new-list|rename-list] [--window 1200x780] [--settings]
+/// [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-repeat]`
 ///
 /// Fetches real data, renders the main window's content (or Map Only, or
 /// the Settings window) to a PNG and quits. Used for the images in docs/
@@ -197,10 +202,93 @@ struct Snapshot {
         }
     }
 
+    private func writeLegacy() {
+        let defaults = AppDefaults.store
+        if let favorites = options["legacy-favorites"] {
+            defaults.set(favorites.split(separator: ",").map(String.init), forKey: ListsStore.Keys.legacyFavorites)
+        }
+        // --legacy-list "Tech:AAPL,MSFT": a watchlist in the old format (only
+        // `symbols`), with a list named "Favoritter" to see it reused.
+        if let text = options["legacy-list"], let colon = text.firstIndex(of: ":") {
+            let old: [[String: Any]] = [
+                ["id": UUID().uuidString, "name": String(text[..<colon]),
+                 "symbols": text[text.index(after: colon)...].split(separator: ",").map(String.init)],
+                ["id": UUID().uuidString, "name": ListsStore.migratedListName, "symbols": ["AAPL"]]
+            ]
+            defaults.set(try? JSONSerialization.data(withJSONObject: old), forKey: ListsStore.Keys.watchlists)
+        }
+        if let symbols = options["legacy-funds"] {
+            let funds = symbols.split(separator: ",").map { Fund(symbol: String($0), name: String($0), kind: "ETF") }
+            defaults.set(try? JSONEncoder().encode(funds), forKey: ListsStore.Keys.legacyFunds)
+        }
+    }
+
+    private static func printLists(_ heading: String) {
+        print("\(heading):")
+        for list in ListsStore.shared.watchlists {
+            print("  \(list.name): \(list.items.map(\.key).joined(separator: ", "))")
+        }
+    }
+
+    /// "NVDA,ASML.AS,fund:IWDA.AS,index:c25" → list items. Funds are looked
+    /// up in the fund search for their name and type, and their holdings loaded.
+    private static func items(_ text: String) async -> [ListItem] {
+        var items: [ListItem] = []
+        for part in text.split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+            if part.hasPrefix("index:") {
+                items.append(.index(String(part.dropFirst(6))))
+            } else if part.hasPrefix("fund:") {
+                items.append(.fund(await fund(String(part.dropFirst(5)))))
+            } else {
+                items.append(.stock(part))
+            }
+        }
+        return items
+    }
+
+    private static func fund(_ symbol: String) async -> Fund {
+        let found = await FundStore.search(symbol).first { $0.symbol.uppercased() == symbol.uppercased() }
+        return found?.fund ?? Fund(symbol: symbol.uppercased(), name: symbol.uppercased(), kind: "ETF")
+    }
+
+    /// Puts the items in the list of that name (made if missing, emptied
+    /// if not) and waits for the funds' holdings.
+    @discardableResult
+    private static func fill(_ name: String, with items: [ListItem]) async -> UUID {
+        let lists = ListsStore.shared
+        let id = lists.watchlists.first(where: { $0.name == name })?.id ?? lists.createWatchlist(named: name)
+        lists.setItems(items, in: id)
+        for item in items where item.kind == .fund {
+            await FundStore.shared.ensureLoaded(item.symbol)
+            if let error = FundStore.shared.errors[item.symbol] { print("Fond \(item.symbol): \(error)") }
+        }
+        return id
+    }
+
     func run() async {
+        // --legacy-favorites "AAPL,NVDA" --legacy-funds "SPY": favourites and
+        // funds stored the way versions before lists held funds stored them,
+        // written before the lists are loaded — to see them migrated.
+        writeLegacy()
+
         let app = AppState.shared
         let market = MarketStore.shared
         let prefs = Preferences.shared
+
+        if options["legacy-favorites"] != nil || options["legacy-funds"] != nil {
+            Self.printLists("After migration")
+            // --legacy-repeat: the old storage again and the migration run
+            // again — it must reuse "Favoritter" and add nothing twice.
+            if flags.contains("legacy-repeat") {
+                writeLegacy()
+                AppDefaults.store.set(0, forKey: ListsStore.Keys.version)
+                ListsStore.shared.migrateLegacy()
+                Self.printLists("After a second migration")
+            }
+            let left = [ListsStore.Keys.legacyFavorites, ListsStore.Keys.legacyFunds]
+                .filter { AppDefaults.store.object(forKey: $0) != nil }
+            print("Old keys left: \(left.isEmpty ? "none" : left.joined(separator: ", "))")
+        }
 
         if let theme = options["theme"].flatMap(ThemeMode.init(rawValue:)) { prefs.theme = theme }
         if let lang = options["lang"] { prefs.language = lang == "en" ? .english : .danish }
@@ -218,17 +306,34 @@ struct Snapshot {
         // The screener first: the fund's US stocks are checked against it.
         await market.refresh()
 
-        // --fund SPY: the fund is added (as if it had been found in the search field) and
-        // shown. Name and type are looked up in Yahoo's search.
-        if let symbol = options["fund"] {
-            let funds = FundStore.shared
-            let found = await FundStore.search(symbol).first { $0.symbol.uppercased() == symbol.uppercased() }
-            funds.add(found?.fund ?? Fund(symbol: symbol.uppercased(), name: symbol.uppercased(), kind: "ETF"))
-            app.indexID = FundStore.id(found?.symbol ?? symbol.uppercased())
-            app.tab = .map
-            await funds.ensureLoaded(found?.symbol ?? symbol.uppercased())
-            if let error = funds.errors[found?.symbol ?? symbol.uppercased()] { print("Fond: \(error)") }
+        // --add-list "Min portefølje" --items "NVDA,fund:IWDA.AS,index:c25":
+        // that list, with exactly those items, opened.
+        if let name = options["add-list"] {
+            let id = await Self.fill(name, with: await Self.items(options["items"] ?? ""))
+            app.openWatchlist(id)
         }
+        // --fund SPY: the fund put in a list (the one named by --add-list or
+        // --watchlist, or "Fonde") and opened from it, as a click on its tile does.
+        if let symbol = options["fund"] {
+            let fund = await Self.fund(symbol)
+            let lists = ListsStore.shared
+            let name = options["add-list"] ?? options["watchlist"] ?? tr("Fonde", "Funds")
+            if let list = lists.watchlists.first(where: { $0.name == name }) {
+                lists.add(.fund(fund), to: list.id)
+                await FundStore.shared.ensureLoaded(fund.symbol)
+            } else {
+                await Self.fill(name, with: [.fund(fund)])
+            }
+            if let error = FundStore.shared.errors[fund.symbol] { print("Fond: \(error)") }
+            if let list = lists.watchlists.first(where: { $0.name == name }) { app.openWatchlist(list.id) }
+            app.openRef(fund.id)
+        }
+        // --open "fund:IWDA.AS" or "index:c25": a tile in the list on screen clicked.
+        if let ref = options["open"] {
+            app.openRef(ref)
+            if let symbol = FundStore.symbol(fromID: ref) { await FundStore.shared.ensureLoaded(symbol) }
+        }
+        if options["screen"] == "overview" { app.showOverview() }
         // --search "MSCI World": the search dialog, open with results.
         // --fund-pick SEC0.DE: and with that fund picked and its holdings
         // loaded (or failed).
@@ -242,16 +347,18 @@ struct Snapshot {
                 await picker.waitForHoldings()
             }
             app.dialog = .search
-            // --fund-add: and then the Add button pressed.
-            if flags.contains("fund-add") {
-                picker.commit()
+            // --fund-add: and then "+ <list>" pressed for the picked fund
+            // (the list on screen, or the first).
+            if flags.contains("fund-add"), let result = picker.selected,
+               let list = (app.tab == .watchlists ? app.watchlistID : nil) ?? ListsStore.shared.watchlists.first?.id {
+                picker.add(result, to: list)
                 await market.loadPeriod(.day, force: false)
             }
         }
         // --dialog new-list | rename-list: the watchlist dialogs.
         switch options["dialog"] {
         case "new-list"?:
-            app.dialog = .newWatchlist(symbols: [])
+            app.dialog = .newWatchlist(items: [])
         case "rename-list"?:
             let lists = ListsStore.shared
             let id = lists.watchlists.first?.id ?? lists.createWatchlist(named: tr("Tech-aktier", "Tech stocks"))

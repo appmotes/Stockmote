@@ -74,8 +74,6 @@ final class Preferences: ObservableObject {
     }
     /// Seconds between refreshes while the map is on screen and the market is open.
     @Published var refreshSeconds: Int { didSet { defaults.set(refreshSeconds, forKey: "refreshSeconds") } }
-    /// Favourites and watchlists: equal tiles, or sized by market cap.
-    @Published var listsByMarketCap: Bool { didSet { defaults.set(listsByMarketCap, forKey: "listsByMarketCap") } }
 
     /// Dock, menu bar or both. Applied by AppDelegate.
     @Published var presence: AppPresence { didSet { defaults.set(presence.rawValue, forKey: "presence") } }
@@ -96,7 +94,6 @@ final class Preferences: ObservableObject {
         menuBarIndexID = menuBar == "none" ? nil : menuBar
         let seconds = defaults.integer(forKey: "refreshSeconds")
         refreshSeconds = seconds > 0 ? seconds : 60
-        listsByMarketCap = defaults.bool(forKey: "listsByMarketCap")
         presence = AppPresence(rawValue: defaults.string(forKey: "presence") ?? "") ?? .both
         openWindowAtLaunch = defaults.object(forKey: "openWindowAtLaunch") as? Bool ?? true
         launchAtLogin = SMAppService.mainApp.status == .enabled

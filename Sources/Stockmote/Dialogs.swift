@@ -28,8 +28,8 @@ struct DialogHost: View {
                             // The results get what is left of the window's
                             // height, so the dialog fits the smallest window too.
                             SearchDialog(listHeight: max(150, min(420, geometry.size.height - 190)))
-                        case .newWatchlist(let symbols):
-                            NewWatchlistDialog(symbols: symbols)
+                        case .newWatchlist(let items):
+                            NewWatchlistDialog(items: items)
                         case .renameWatchlist(let id):
                             RenameWatchlistDialog(id: id)
                         }
@@ -169,21 +169,21 @@ private struct NameDialog: View {
 }
 
 private struct NewWatchlistDialog: View {
-    let symbols: [String]
+    let items: [ListItem]
     @ObservedObject private var app = AppState.shared
 
     var body: some View {
-        let shown = symbols.map(Symbols.display).joined(separator: ", ")
+        let shown = items.map(AppState.label).joined(separator: ", ")
         NameDialog(
             title: tr("Ny watchliste", "New watchlist"),
-            message: symbols.isEmpty ? nil : tr("Listen starter med \(shown).", "The list starts with \(shown)."),
+            message: items.isEmpty ? nil : tr("Listen starter med \(shown).", "The list starts with \(shown)."),
             primary: tr("Opret", "Create"),
             initial: ""
         ) { name in
-            let id = ListsStore.shared.createWatchlist(named: name, with: symbols)
+            let id = ListsStore.shared.createWatchlist(named: name, with: items)
             // From the search the new, empty list is shown; from the map's
             // context menu or a stock page the user stays where they are.
-            if symbols.isEmpty {
+            if items.isEmpty {
                 app.openWatchlist(id)
             } else {
                 app.watchlistID = id
@@ -210,9 +210,9 @@ private struct RenameWatchlistDialog: View {
 
 // MARK: - Funds
 
-/// The fund half of the search dialog: fund results, the picked fund and its holdings.
-/// A model rather than view state, so snapshot mode can drive it and wait
-/// for the holdings (`--fund-search`, `--fund-pick`).
+/// The fund half of the search dialog: fund results, the picked fund and its
+/// holdings, and putting a fund in a list. A model rather than view state, so
+/// snapshot mode can drive it and wait for the holdings (`--fund-pick`).
 @MainActor
 final class FundPicker: ObservableObject {
     static let shared = FundPicker()
@@ -230,6 +230,10 @@ final class FundPicker: ObservableObject {
     @Published private(set) var searching = false
     @Published private(set) var selected: FundSearchResult?
     @Published private(set) var phase: Phase = .idle
+    /// Why the picked fund has no stock map, when that is known.
+    @Published private(set) var mapless: FundMapless?
+    /// The fund whose holdings are being loaded before it goes in a list.
+    @Published private(set) var pending: (symbol: String, list: UUID)?
     /// The query the results are for.
     private var searched: String?
     private var resolving: Task<Void, Never>?
@@ -237,14 +241,6 @@ final class FundPicker: ObservableObject {
     private init() {}
 
     var hasSearched: Bool { searched != nil && query.trimmingCharacters(in: .whitespaces).count >= 2 }
-
-    var isAdded: Bool { selected.map { FundStore.shared.contains($0.symbol) } ?? false }
-
-    var canCommit: Bool {
-        if isAdded { return true }
-        if case .ready = phase { return true }
-        return false
-    }
 
     /// Yahoo's search, after a pause in the typing when `debounce`.
     func search(debounce: Bool) async {
@@ -268,10 +264,12 @@ final class FundPicker: ObservableObject {
         searched = text
     }
 
-    /// Picks a result and loads its holdings, unless it has been added already.
+    /// Picks a result and loads its holdings, unless the fund is already in
+    /// a list (then they are loaded).
     func select(_ result: FundSearchResult) {
         guard selected != result else { return }
         selected = result
+        mapless = nil
         resolving?.cancel()
         guard !FundStore.shared.contains(result.symbol) else {
             phase = .idle
@@ -289,29 +287,69 @@ final class FundPicker: ObservableObject {
             } catch {
                 guard let self, !Task.isCancelled, self.selected == result else { return }
                 switch error {
-                case FundError.notEquity, FundError.swap: self.phase = .failed(error.localizedDescription)
-                default: self.phase = .failed(nil)
+                case FundError.notEquity:
+                    self.mapless = .notEquity
+                    self.phase = .failed(error.localizedDescription)
+                case FundError.swap:
+                    self.mapless = .swap
+                    self.phase = .failed(error.localizedDescription)
+                default:
+                    self.phase = .failed(nil)
                 }
             }
+            self?.finishPending()
         }
     }
 
-    /// Return in the search field. With a fund picked and its holdings
-    /// loaded it adds the fund. With nothing picked it picks the first
-    /// result — searching at once, without the typing pause, if the results
-    /// for what was typed are not in yet, so a quick Return is not lost.
-    /// While the holdings are loading it does nothing: the fund isn't ready.
-    func submit() async {
-        if canCommit {
-            commit()
+    /// Puts the fund in a list. Its holdings are loaded first (they are
+    /// needed to open it as a map); a fund that holds no stocks — or whose
+    /// holdings can't be found — still goes in, with its own price.
+    func add(_ result: FundSearchResult, to list: UUID) {
+        if let known = FundStore.shared.fund(result.symbol) {
+            ListsStore.shared.add(.fund(known), to: list)
+            announce(known, in: list, note: nil)
             return
         }
-        guard selected == nil else { return }
-        let text = query.trimmingCharacters(in: .whitespaces)
-        if text != searched { await search(debounce: false) }
-        guard selected == nil, query.trimmingCharacters(in: .whitespaces) == text,
-              let first = results.first else { return }
-        select(first)
+        pending = (result.symbol, list)
+        if selected != result { select(result) }
+        finishPending()
+    }
+
+    /// Whether the fund is waiting for its holdings before going in a list.
+    func isPending(_ symbol: String) -> Bool { pending?.symbol == symbol }
+
+    /// The holdings are in (or known not to be there): the pending fund goes in its list.
+    private func finishPending() {
+        guard let pending, let selected, selected.symbol == pending.symbol else { return }
+        var fund = selected.fund
+        let note: String?
+        switch phase {
+        case .ready(let loaded):
+            FundStore.shared.store(loaded)
+            note = nil
+        case .failed:
+            fund.mapless = mapless
+            note = mapless != nil
+                ? tr("ejer ikke aktier, så den kan ikke åbnes som kort", "holds no stocks, so it can't be opened as a map")
+                : tr("beholdningen kunne ikke hentes, så den kan ikke åbnes som kort endnu", "its holdings couldn't be loaded, so it can't be opened as a map yet")
+        case .idle, .loading:
+            return
+        }
+        self.pending = nil
+        ListsStore.shared.add(.fund(fund), to: pending.list)
+        announce(fund, in: pending.list, note: note)
+    }
+
+    private func announce(_ fund: Fund, in list: UUID, note: String?) {
+        let name = ListsStore.shared.watchlist(list)?.name ?? ""
+        let base = tr("\(fund.displaySymbol) er føjet til \(name)", "\(fund.displaySymbol) was added to \(name)")
+        AppState.shared.show(note.map { "\(base) · \($0)" } ?? base, long: note != nil)
+    }
+
+    /// The picked fund's holdings, if they are loaded (for a new list made
+    /// with the fund in it, so they aren't loaded again).
+    func keepLoaded(_ symbol: String) {
+        if selected?.symbol == symbol, case .ready(let loaded) = phase { FundStore.shared.store(loaded) }
     }
 
     /// Waits for the picked fund's holdings (snapshot mode).
@@ -319,24 +357,15 @@ final class FundPicker: ObservableObject {
         await resolving?.value
     }
 
-    /// Adds the picked fund with the holdings just loaded, and opens it.
-    func commit() {
-        guard let selected, canCommit else { return }
-        let funds = FundStore.shared
-        let added = !funds.contains(selected.symbol)
-        if case .ready(let loaded) = phase { funds.add(selected.fund, holdings: loaded) }
-        let app = AppState.shared
-        app.dialog = nil
-        app.openIndex(selected.fund.id)
-        if added {
-            app.show(tr("\(selected.fund.displaySymbol) er tilføjet under Mine", "\(selected.fund.displaySymbol) was added under Mine"))
-        }
-        reset()
-    }
-
     /// Back to an empty dialog. A load still running finishes in the
     /// background (its name lookups are cached) but is ignored.
     func reset() {
+        // Closed before the holdings were in: the fund goes in its list now,
+        // and FundStore loads the holdings itself.
+        if let pending, let selected, selected.symbol == pending.symbol {
+            ListsStore.shared.add(.fund(selected.fund), to: pending.list)
+            announce(selected.fund, in: pending.list, note: nil)
+        }
         resolving?.cancel()
         resolving = nil
         query = ""
@@ -344,6 +373,8 @@ final class FundPicker: ObservableObject {
         searching = false
         selected = nil
         phase = .idle
+        mapless = nil
+        pending = nil
         searched = nil
     }
 }

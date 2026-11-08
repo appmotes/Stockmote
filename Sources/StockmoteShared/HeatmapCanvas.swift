@@ -70,13 +70,13 @@ public struct HeatmapCanvas: View, Equatable {
 
     /// Symbol and percentage, scaled to the tile — big tiles get big letters.
     public static func drawLabel(in context: inout GraphicsContext, tile: Tile, rect: CGRect, ink: Color = .white) {
-        let symbol = Symbols.display(tile.item.symbol)
+        let symbol = tile.item.title
         let chars = CGFloat(max(symbol.count, 3))
         let symbolSize = min(rect.width / (chars * 0.68 + 0.9), rect.height * 0.34, 60)
         guard symbolSize >= 6.5 else { return }
 
         let percentSize = symbolSize * 0.6
-        let percent = Format.percent(tile.item.change)
+        let percent = tile.item.percentText
         let showPercent = percentSize >= 6
             && rect.height >= symbolSize * 1.15 + percentSize * 1.3 + 2
             && rect.width >= percentSize * CGFloat(percent.count) * 0.62
@@ -107,14 +107,6 @@ public struct HeatmapCanvas: View, Equatable {
             context.draw(
                 Text(name).font(.system(size: nameSize, weight: .medium)).foregroundColor(ink.opacity(0.7)),
                 at: CGPoint(x: rect.midX, y: y + nameSize * 1.0), anchor: .center
-            )
-        }
-
-        if tile.item.isFavorite, rect.width > 34, rect.height > 26 {
-            let starSize = min(max(symbolSize * 0.32, 7), 13)
-            context.draw(
-                Text(Image(systemName: "star.fill")).font(.system(size: starSize)).foregroundColor(.yellow),
-                at: CGPoint(x: rect.maxX - starSize * 0.6 - 2, y: rect.minY + starSize * 0.6 + 2), anchor: .center
             )
         }
     }

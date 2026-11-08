@@ -172,7 +172,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
     @objc private func about() { showAbout() }
     @objc private func openSettings() { SettingsWindow.shared.show() }
     @objc private func openWindow() { MainWindow.shared.show() }
-    @objc private func newWatchlist() { present(.newWatchlist(symbols: [])) }
+    @objc private func newWatchlist() { present(.newWatchlist(items: [])) }
     @objc private func search() { present(.search) }
 
     /// Dialogs live inside the main window, which is opened first.

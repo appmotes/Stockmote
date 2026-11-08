@@ -226,9 +226,8 @@ private struct NotchBand: View {
 
     private var title: String {
         switch app.tab {
-        case .favorites: return tr("Favoritter", "Favorites")
         case .watchlists: return lists.watchlist(app.watchlistID)?.name ?? ""
-        default:
+        case .map:
             let index = universe.index(withID: app.indexID)
             let base = index?.title ?? ""
             return app.focus.title.map { "\(base) › \($0)" } ?? base

@@ -5,15 +5,14 @@ import SwiftUI
 /// The start screen: every market and list as a card with its own change
 /// and a small map of its stocks. A click opens the map.
 ///
-/// "Mine" holds favourites, watchlists and funds; then the US and the
-/// European indices. Each card's figure is the same as the map's title: the
-/// index's or fund's own change, or a list's average (marked as such). The
-/// small map colours each stock by its own change; one without a figure is
-/// grey.
+/// "Mine" holds the user's lists; then the US and the European indices.
+/// Each card's figure is the same as the map's title: the index's own
+/// change, or a list's average (marked as such). The small map colours each
+/// stock — or a list's fund or index — by its own change; one without a
+/// figure is grey.
 struct OverviewView: View {
     @ObservedObject private var universe = UniverseStore.shared
     @ObservedObject private var lists = ListsStore.shared
-    @ObservedObject private var funds = FundStore.shared
     @ObservedObject private var market = MarketStore.shared
 
     private let columns = [GridItem(.adaptive(minimum: 190, maximum: 360), spacing: 12)]
@@ -25,10 +24,19 @@ struct OverviewView: View {
                     .padding(.bottom, 6)
 
                 section(tr("Mine", "Mine"))
-                LazyVGrid(columns: columns, spacing: 12) {
-                    OverviewCard(kind: .favorites)
-                    ForEach(lists.watchlists) { OverviewCard(kind: .watchlist($0.id)) }
-                    ForEach(funds.funds) { OverviewCard(kind: .fund($0.symbol)) }
+                if lists.watchlists.isEmpty {
+                    Text(tr("Ingen lister endnu. Søg med ⌘K og tilføj aktier, fonde eller indeks med “+ Liste”.",
+                            "No lists yet. Search with ⌘K and add stocks, funds or indices with “+ List”."))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 14)
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.outline, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                } else {
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(lists.watchlists) { OverviewCard(kind: .watchlist($0.id)) }
+                    }
                 }
 
                 section(tr("USA", "United States"))
@@ -57,9 +65,7 @@ struct OverviewView: View {
 
 /// What a card shows.
 enum OverviewKind: Hashable {
-    case favorites
     case watchlist(UUID)
-    case fund(String)
     case index(String)
 }
 
@@ -76,67 +82,48 @@ private struct OverviewCard: View {
     @State private var isHovering = false
 
     private var index: MarketIndex? {
-        switch kind {
-        case .index(let id): return universe.index(withID: id)
-        case .fund(let symbol): return funds.fund(symbol).map(funds.index(for:))
-        default: return nil
-        }
+        if case .index(let id) = kind { return universe.index(withID: id) }
+        return nil
     }
 
-    private var symbols: [String] {
-        switch kind {
-        case .favorites: return lists.favorites
-        case .watchlist(let id): return lists.watchlist(id)?.symbols ?? []
-        default: return index?.symbols ?? []
-        }
+    private var list: Watchlist? {
+        if case .watchlist(let id) = kind { return lists.watchlist(id) }
+        return nil
     }
 
     private var title: String {
         switch kind {
-        case .favorites: return tr("Favoritter", "Favorites")
-        case .watchlist(let id): return lists.watchlist(id)?.name ?? ""
-        case .fund(let symbol): return funds.fund(symbol)?.shortName ?? symbol
+        case .watchlist: return list?.name ?? ""
         case .index: return index?.title ?? ""
-        }
-    }
-
-    /// The small label before the title.
-    private var badge: String? {
-        switch kind {
-        case .favorites: return "★"
-        case .watchlist: return tr("LISTE", "LIST")
-        case .fund(let symbol): return funds.fund(symbol)?.displaySymbol
-        case .index: return nil
         }
     }
 
     private var figure: Figure {
         if let index { return market.indexFigure(index, market.period) }
-        return market.listFigure(symbols, market.period)
+        return market.listFigure(list?.items ?? [], market.period)
     }
 
-    private var isRemovable: Bool {
-        switch kind {
-        case .watchlist, .fund: return true
-        default: return false
+    /// The small map's tiles: an index's largest stocks by market value; a
+    /// list's items, all the same size, each with its own change.
+    private var tiles: [MiniTile] {
+        if let index {
+            return index.symbols.map { MiniTile(size: index.weights?[$0] ?? market.marketCap($0) ?? 0,
+                                                change: market.change($0, market.period)) }
         }
+        return (list?.items ?? []).map { MiniTile(size: 1, change: market.itemFigure($0, market.period).change) }
     }
 
     var body: some View {
         let figure = figure
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if let badge {
-                    Text(badge)
+                if case .watchlist = kind {
+                    Text(tr("LISTE", "LIST"))
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(kind == .favorites ? Color.yellow : .secondary)
-                        .padding(.horizontal, kind == .favorites ? 0 : 4)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background {
-                            if kind != .favorites {
-                                RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Palette.raised)
-                            }
-                        }
+                        .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Palette.raised))
                 }
                 Text(title)
                     .font(.system(size: 12.5, weight: .semibold))
@@ -164,7 +151,7 @@ private struct OverviewCard: View {
             .fill(isHovering ? Palette.raised : Palette.surface))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.outline))
         .overlay(alignment: .topTrailing) {
-            if isRemovable, isHovering {
+            if list != nil, isHovering {
                 Button { remove() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 8.5, weight: .bold))
@@ -187,29 +174,14 @@ private struct OverviewCard: View {
     }
 
     @ViewBuilder private var mini: some View {
-        if case .fund(let symbol) = kind, funds.holdings[symbol] == nil {
-            VStack(spacing: 5) {
-                if let error = funds.errors[symbol] {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    Text(error).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(3)
-                        .multilineTextAlignment(.center)
-                } else {
-                    ProgressView().controlSize(.small)
-                    Text(funds.progress[symbol] ?? tr("Henter beholdningen…", "Loading holdings…"))
-                        .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
-                }
-            }
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Palette.raised.opacity(0.5))
-        } else if symbols.isEmpty {
-            Text(tr("Tom liste", "Empty list"))
+        let tiles = tiles
+        if tiles.isEmpty {
+            Text(list != nil ? tr("Tom liste", "Empty list") : tr("Henter…", "Loading…"))
                 .font(.system(size: 10.5)).foregroundStyle(.tertiary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Palette.raised.opacity(0.5))
         } else {
-            MiniMap(symbols: symbols, weights: index?.weights, byMarketCap: index != nil || prefs.listsByMarketCap,
-                    period: market.period, version: market.version, style: prefs.colorStyle, theme: theme)
+            MiniMap(tiles: tiles, period: market.period, version: market.version, style: prefs.colorStyle, theme: theme)
         }
     }
 
@@ -219,68 +191,51 @@ private struct OverviewCard: View {
             guard let index else { return "" }
             return tr("\(index.name) · \(index.symbols.count) aktier · \(index.hours.statusText)",
                       "\(index.name) · \(index.symbols.count) stocks · \(index.hours.statusText)")
-        case .fund(let symbol):
-            guard let fund = funds.fund(symbol) else { return "" }
-            var lines = ["\(fund.name) · \(fund.displaySymbol) · \(fund.kindLabel)"]
-            if let note = funds.sourceNote(symbol) { lines.append(note) }
-            return lines.joined(separator: "\n")
-        case .favorites, .watchlist:
-            return tr("\(symbols.count) aktier · gennemsnit med lige vægt", "\(symbols.count) stocks · equal-weight average")
+        case .watchlist:
+            let items = list?.items ?? []
+            var parts = [tr("\(items.filter { $0.kind == .stock }.count) aktier", "\(items.filter { $0.kind == .stock }.count) stocks")]
+            let fundCount = items.filter { $0.kind == .fund }.count
+            let indexCount = items.filter { $0.kind == .index }.count
+            if fundCount > 0 { parts.append(tr("\(fundCount) fonde", "\(fundCount) funds")) }
+            if indexCount > 0 { parts.append(tr("\(indexCount) indeks", "\(indexCount) indices")) }
+            parts.append(tr("gennemsnit med lige vægt", "equal-weight average"))
+            return parts.joined(separator: " · ")
         }
     }
 
-    private var removeTitle: String {
-        switch kind {
-        case .fund(let symbol): return tr("Fjern \(funds.fund(symbol)?.displaySymbol ?? symbol)", "Remove \(funds.fund(symbol)?.displaySymbol ?? symbol)")
-        case .watchlist: return tr("Slet \(title)", "Delete \(title)")
-        default: return ""
-        }
-    }
+    private var removeTitle: String { tr("Slet \(title)", "Delete \(title)") }
 
     private func open() {
         switch kind {
-        case .favorites: app.openFavorites()
         case .watchlist(let id): app.openWatchlist(id)
-        case .fund(let symbol): app.openIndex(FundStore.id(symbol))
         case .index(let id): app.openIndex(id)
         }
     }
 
     private func remove() {
-        switch kind {
-        case .fund(let symbol): app.removeFund(symbol)
-        case .watchlist(let id): app.removeWatchlist(id)
-        default: break
-        }
+        if case .watchlist(let id) = kind { app.removeWatchlist(id) }
     }
 
     @ViewBuilder private var menu: some View {
         Button(tr("Åbn", "Open")) { open() }
-        switch kind {
-        case .fund(let symbol):
-            Button(tr("Hent beholdningen igen", "Reload holdings")) { funds.load(symbol, force: true) }
-            Button(tr("Kopiér symbol", "Copy symbol")) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(funds.fund(symbol)?.displaySymbol ?? symbol, forType: .string)
-            }
-            Divider()
-            Button(removeTitle, role: .destructive) { remove() }
-        case .watchlist(let id):
+        if case .watchlist(let id) = kind {
             Button(tr("Omdøb …", "Rename …")) { app.dialog = .renameWatchlist(id) }
             Divider()
             Button(removeTitle, role: .destructive) { remove() }
-        default:
-            EmptyView()
         }
     }
 }
 
-/// A card's small map: the largest stocks, each coloured by its own change
-/// over the range. Drawn in one Canvas.
+/// One tile of a card's small map.
+private struct MiniTile {
+    let size: Double
+    let change: Double?
+}
+
+/// A card's small map: an index's largest stocks, or a list's items, each
+/// coloured by its own change over the range. Drawn in one Canvas.
 private struct MiniMap: View {
-    let symbols: [String]
-    let weights: [String: Double]?
-    let byMarketCap: Bool
+    let tiles: [MiniTile]
     let period: Period
     /// Redraws when the prices change.
     let version: Int
@@ -291,17 +246,11 @@ private struct MiniMap: View {
     private let limit = 60
 
     var body: some View {
-        let market = MarketStore.shared
-        let sized: [(symbol: String, size: Double)] = symbols.map { symbol in
-            let size = byMarketCap ? (weights?[symbol] ?? market.marketCap(symbol) ?? 0) : 1
-            return (symbol, size)
-        }
-        let largest = sized.filter { $0.size > 0 }.sorted { $0.size > $1.size }.prefix(limit)
-        let changes = largest.map { market.change($0.symbol, period) }
+        let largest = tiles.filter { $0.size > 0 }.sorted { $0.size > $1.size }.prefix(limit)
         Canvas { context, size in
             let rects = TreemapBuilder.squarify(largest.map(\.size), in: CGRect(origin: .zero, size: size))
-            for (i, rect) in rects.enumerated() where i < changes.count {
-                let color = Heat.color(changes[i], scale: period.colorScale, style: style, theme: theme)
+            for (tile, rect) in zip(largest, rects) {
+                let color = Heat.color(tile.change, scale: period.colorScale, style: style, theme: theme)
                 context.fill(Path(rect.insetBy(dx: 0.5, dy: 0.5)), with: .color(color))
             }
         }
