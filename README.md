@@ -13,8 +13,8 @@ line. Read the [Disclaimer](#disclaimer) before you trust it with anything.
 
 ![S&P 500, one day, dark theme](docs/map.png)
 
-It is an ordinary Mac app with a Dock icon and a window you can resize, minimise and put in full screen — and it also
-lives in the menu bar: click the icon there and a compact panel drops down with the same map. Each tile is a company; its
+It is an ordinary Mac app with one window you can resize, minimise and put in full screen, a Dock icon — and an icon
+in the menu bar that brings the window forward from anywhere. Each tile is a company; its
 size is the market value and its colour is how much the stock has moved in the time range you picked. Markets and your
 own lists sit in a sidebar on the left, each with its change right next to it.
 
@@ -40,11 +40,13 @@ line says which source failed. No analytics and no tracking.
   from every edge (down to 720 × 480), the green button for macOS full screen in its own Space, minimise to the Dock,
   zoom, and the size and position remembered between launches. Drag the empty part of the toolbar row to move the
   window; double-click it to zoom.
-- **Menu bar panel.** The menu bar icon opens the compact panel under it — the quick look — when the main window is closed or minimised; with the window on screen, the icon brings the window forward instead, so the two never sit on top of each other. The window button
-  at the bottom of the panel's sidebar (or ⌘O) opens the window. Panel and window show the same thing: pick an index
-  in one and the other follows.
+- **One window, opened from the menu bar.** A click on the menu bar icon brings the window forward — opening it if
+  it is closed or minimised, and switching to it from whatever app you are in. A click while the window is already
+  in front closes it again; the app keeps running. Right-click (or ⌃-click) the icon for **Open Window**,
+  **Settings…** and **Quit Stockmote**. In Map Only the icon leaves Map Only.
 - **Dock, menu bar or both.** Settings → **Show Stockmote in**: **Dock and menu bar** (default), **Menu bar only**
-  (no Dock icon; the window opens from the panel) or **Dock only** (no menu bar icon). Never neither. Closing the
+  (no Dock icon and no menu bar of its own; the window opens from the menu bar icon, and its right-click menu quits)
+  or **Dock only** (no menu bar icon). Never neither. Closing the
   window does not quit — the app stays in the menu bar or the Dock, and clicking the Dock icon brings the window back.
   ⌘Q quits. The window opens at launch (**Open window at launch**, on by default), but not when Stockmote opens at
   login: then it waits quietly in the menu bar.
@@ -54,12 +56,13 @@ line says which source failed. No analytics and no tracking.
   menus follow the app's language, not the system's.
 - **13 indices.** United States: S&P 500, Nasdaq 100, Dow Jones. Europe: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50,
   🇬🇧 FTSE 100, 🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI and 🇳🇱 AEX. ⌘1 … ⌘9 jump to the first nine.
-- **Funds.** + next to **Funds** in the sidebar opens a dialog in the middle of the panel: type the name or ticker of
+- **Funds.** + next to **Funds** in the sidebar opens a dialog in the middle of the window: type the name or ticker of
   an ETF or index fund (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`, `Nordnet Danmark Indeks`) and pick a result. Its holdings are loaded
   right there, with a preview such as "237 stocks · largest: Taiwan Semiconductor 8.81%", and only a fund whose
   holdings could be found can be added — otherwise the dialog says so and **Add** stays off. A bond, money market
-  or multi-asset fund gets a message saying it holds no stocks, instead of an empty map. Return adds and opens
-  it; Esc cancels without closing the panel. The fund is shown
+  or multi-asset fund gets a message saying it holds no stocks, instead of an empty map. The keyboard alone is
+  enough: Return picks the first result, and once its holdings are in, Return again adds and opens it; Esc cancels.
+  The fund is shown
   exactly like an index — sector → industry → stock, zoom, hover, list, replay, full screen, widget — but each tile's
   size is the stock's **weight in the fund**, not its market value. The title shows the fund's own name and its own
   price change. Hover shows the weight, the list has a weight column, and the status line says where the holdings
@@ -90,7 +93,7 @@ line says which source failed. No analytics and no tracking.
   **Right-click** to add it to favourites or a watchlist, jump to its sector or industry, or copy the symbol.
 - **Favorites** and **watchlists** in the sidebar under **My lists**, each with a
   search field that finds any US stock or any stock in the European indices. Favourites get a small star on the map.
-  + makes a new watchlist and right-click → **Rename …** renames one, both in a small dialog over the panel or window;
+  + makes a new watchlist and right-click → **Rename …** renames one, both in a small dialog over the window;
   right-click to delete one.
 - **List view** (⌘L): any map as a sortable list.
 - **Light and dark theme**, switched with the sun/moon button in the toolbar (⇧⌘T; right-click to follow the system). The light theme is not the dark one inverted: white grout between the tiles, light grey
@@ -100,16 +103,14 @@ line says which source failed. No analytics and no tracking.
 - **Menu bar** shows the chosen index's change today next to the icon, both in green or red (or blue/orange).
 - **Widget** for the desktop and Notification Centre in all four sizes: favourites, a watchlist, or an index, sector
   fund, sector or industry, in any time range. It follows the theme chosen in settings (system, light or dark). Clicking it opens the window on the matching view.
-- **Everything that switches on also switches off** with the same click or key: the menu bar icon closes the panel
-  (and Map Only), Settings in the panel goes back to where you were, ⌘0 the sidebar, ⌘L map/list, ⌃⌘F full screen,
-  ⇧⌘F Map Only, and
+- **Everything that switches on also switches off** with the same click or key: the menu bar icon closes the window
+  it brought forward (and Map Only), ⌘0 the sidebar, ⌘L map/list, ⌃⌘F full screen, ⇧⌘F Map Only, and
   clicking a search suggestion that is already on the list (✓) removes it.
-- **Esc** closes a dialog, then zooms out, then stops a replay, then goes up a level — in the panel, where it finally
-  closes the panel, and in the window, which it never closes.
-- **Narrow panels.** In the small size, long titles are shortened with … and the time-range control becomes a
+- **Esc** closes a dialog, then zooms out, then stops a replay, then goes up a level. It never closes the window.
+- **Narrow windows.** In a narrow window long titles are shortened with … and the time-range control becomes a
   compact menu, so nothing is pushed out of the window.
-- **Settings** (⌘, opens the standard Settings window; in the panel they are a page of their own): theme, colours
-  (red/green or orange/blue for red–green colour blindness), panel size, language, Dock and/or menu bar, what the menu
+- **Settings** (⌘, or **Settings…** at the bottom of the sidebar opens the standard Settings window): theme, colours
+  (red/green or orange/blue for red–green colour blindness), language, Dock and/or menu bar, what the menu
   bar shows, open window at launch, launch at login, list tile size, refresh rate, which site and browser stocks
   open in.
 
@@ -120,7 +121,7 @@ line says which source failed. No analytics and no tracking.
 | ![Replay](docs/replay.png) | ![Full screen](docs/fullscreen.png) |
 | Replaying the S&P 500's day, paused at 17.45 | Full screen with a notch: C25 replaying at 14.30 |
 | ![Settings](docs/settings.png) | ![iShares Core MSCI World](docs/fund.png) |
-| Settings, at the smallest panel size | A fund: iShares Core MSCI World, tiles sized by weight |
+| The Settings window | A fund: iShares Core MSCI World, tiles sized by weight |
 | ![Adding a fund](docs/fund-dialog.png) | |
 | Adding a fund: its holdings are checked before it can be added | |
 
@@ -147,7 +148,7 @@ The widget appears in the gallery once the app is in `/Applications` and has bee
 
 | What | Source | How often |
 | --- | --- | --- |
-| Price and change, all ranges, all indices | Yahoo Finance `v7/finance/spark` | Every minute while the panel is open and a market is open; every 5 min otherwise; every 30 min when all are closed |
+| Price and change, all ranges, all indices | Yahoo Finance `v7/finance/spark` | Every minute while the window is open and a market is open; every 5 min otherwise; every 30 min when all are closed |
 | History for replay | The same endpoint with `interval` set (5m, 30m, 1d or 1wk) | When you start a replay, and again if you change index, list or range |
 | Exchange rates (for sizing European stocks in dollars) | Yahoo Finance, `EURUSD=X` and friends | With the prices |
 | US market value, name, search | Nasdaq screener (all ~7000 US stocks, 2 MB) | Every 30 min |
@@ -296,9 +297,9 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/Stockmote/StockmoteApp.swift](Sources/Stockmote/StockmoteApp.swift) | `@main`, `AppDelegate` (launch, Dock / menu bar, reopen from the Dock), `stockmote://` links, snapshot mode |
 | [Sources/Stockmote/MainWindow.swift](Sources/Stockmote/MainWindow.swift) | The main window and its title bar, the Settings window, Esc in the window |
 | [Sources/Stockmote/MainMenu.swift](Sources/Stockmote/MainMenu.swift) | The main menu, in the app's language |
-| [Sources/Stockmote/MenuBarPanel.swift](Sources/Stockmote/MenuBarPanel.swift) | Menu bar icon and coloured figure, panel window, placement, Esc |
+| [Sources/Stockmote/MenuBarItem.swift](Sources/Stockmote/MenuBarItem.swift) | Menu bar icon and coloured figure; a click brings the window forward or closes it, right-click gives a small menu |
 | [Sources/Stockmote/PanelView.swift](Sources/Stockmote/PanelView.swift) | Sidebar, toolbar, status line, favourites, watchlists, search, list view |
-| [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | The dialogs centred over the panel: add a fund (search, check its holdings, add), new and rename watchlist |
+| [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | The dialogs centred over the window: add a fund (search, check its holdings, add), new and rename watchlist |
 | [Sources/Stockmote/HeatmapView.swift](Sources/Stockmote/HeatmapView.swift) | Hover, click, zoom, tooltip, right-click menu |
 | [Sources/Stockmote/Fullscreen.swift](Sources/Stockmote/Fullscreen.swift) | Map Only: the borderless full-screen map and the notch strip |
 | [Sources/Stockmote/Replay.swift](Sources/Stockmote/Replay.swift) | Replay the day: history, timeline, playback, the bar under the map |
@@ -315,7 +316,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/Stockmote/WidgetSync.swift](Sources/Stockmote/WidgetSync.swift) | Writes `Widget.json` and reloads the widget |
 | [Sources/StockmoteShared/Treemap.swift](Sources/StockmoteShared/Treemap.swift) | Squarified treemap layout |
 | [Sources/StockmoteShared/HeatmapCanvas.swift](Sources/StockmoteShared/HeatmapCanvas.swift) | Drawing the tiles, shared by app, full screen and widget |
-| [Sources/StockmoteShared/Style.swift](Sources/StockmoteShared/Style.swift) | Time ranges, themes, colour scale, number formats, panel colours |
+| [Sources/StockmoteShared/Style.swift](Sources/StockmoteShared/Style.swift) | Time ranges, themes, colour scale, number formats, window colours |
 | [Sources/StockmoteShared/Lang.swift](Sources/StockmoteShared/Lang.swift) | Danish and English |
 | [Sources/StockmoteShared/Market.swift](Sources/StockmoteShared/Market.swift) | Symbols, opening hours, currencies |
 | [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo client; daily NAV from Morningstar for unlisted funds |
@@ -335,13 +336,16 @@ settings apart from the real app's, and its fund cache in `~/Library/Application
 .build/release/Stockmote --snapshot out.png --index c25 --period 1M --theme light --lang en
 ```
 
-Options: `--tab map|favorites|watchlists|settings`, `--index <id>`, `--period 1D|1U|1M|3M|ÅTD|1Å`,
-`--sector "…"`, `--industry "…"`, `--size small|medium|large|huge`, `--list`, `--zoom 2.5`,
+It renders the main window's content, 940 × 600 unless told otherwise.
+
+Options: `--tab map|favorites|watchlists`, `--index <id>`, `--period 1D|1U|1M|3M|ÅTD|1Å`,
+`--sector "…"`, `--industry "…"`, `--size small|medium|large|huge` (the window's content at 720 × 480, 940 × 600,
+1140 × 720 or 1400 × 860), `--list`, `--zoom 2.5`,
 `--theme light|dark`, `--lang da|en`, `--no-sidebar`, `--fullscreen`, `--notch 32` (full screen as on a screen
 with a notch), `--replay 0.4` (replay paused 40 % into the range), `--fund SPY` (add and show a fund),
 `--fund-search "MSCI World"` (the add-fund dialog, open with results), `--fund-pick SEC0.DE` (with that result picked
 and its holdings loaded — or the warning if none were found), `--fund-add` (and added), `--dialog new-list|rename-list`
-(the watchlist dialogs), `--window 1200x780` (the main window's content at that size), `--settings` (the Settings
+(the watchlist dialogs), `--window 1200x780` (the window's content at any size), `--settings` (the Settings
 window). A snapshot draws the app's own views only: the window's title bar and traffic lights are drawn by macOS
 and are not in the picture — their space at the top left is left empty, as in the window.
 

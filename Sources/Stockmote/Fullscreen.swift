@@ -7,7 +7,7 @@ import SwiftUI
 /// Not macOS's own full screen — the main window has that (⌃⌘F, the green
 /// button), with sidebar and toolbar. This is a borderless window
 /// the size of the screen, with the menu bar and Dock hidden while it's
-/// showing. Hover, click, right-click and zoom work as in the panel.
+/// showing. Hover, click, right-click and zoom work as in the window.
 ///
 /// Screens with a notch: the top ~32 pt sit behind the camera. The map starts
 /// below the notch — otherwise the sector and industry strips would vanish into
@@ -32,7 +32,6 @@ final class FullscreenController {
     func show() {
         guard window == nil else { return }
         returnToWindow = MainWindow.shared.isKey
-        MenuBarPanel.current?.hide()
         AppState.shared.resetZoom()
 
         // The screen the mouse is on — that's where you're looking.
@@ -58,7 +57,7 @@ final class FullscreenController {
         self.window = window
 
         // The app must be active to hide the menu bar and Dock — and to
-        // receive key presses (the panel does not activate it).
+        // receive key presses.
         NSApp.activate(ignoringOtherApps: true)
         savedOptions = NSApp.presentationOptions
         // Auto-hidden, not gone: move the mouse to the top and the menu bar slides

@@ -13,8 +13,8 @@ linje. Læs [Ansvarsfraskrivelsen](#ansvarsfraskrivelse) før du stoler på den 
 
 ![S&P 500, én dag, mørkt tema](docs/map.png)
 
-Den er en almindelig Mac-app med dock-ikon og et vindue, du kan ændre størrelse på, minimere og sætte i fuld skærm —
-og den lever også i menubaren: klik på ikonet der, og et kompakt panel med det samme kort folder sig ud. Hvert felt er et
+Den er en almindelig Mac-app med ét vindue, du kan ændre størrelse på, minimere og sætte i fuld skærm, et dock-ikon —
+og et ikon i menubaren, der henter vinduet frem, uanset hvor du er. Hvert felt er et
 selskab; størrelsen er markedsværdien, og farven er hvor meget aktien har bevæget sig i det tidsrum du har valgt.
 Markeder og dine egne lister står i en sidebjælke til venstre, hver med sin ændring lige ved siden af.
 
@@ -40,11 +40,13 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   størrelsesændring fra alle kanter (ned til 720 × 480), den grønne knap til macOS' fulde skærm i sit eget Space,
   minimér til Dock, zoom, og størrelse og placering huskes mellem starter. Træk i den tomme del af værktøjslinjen for
   at flytte vinduet; dobbeltklik for at zoome.
-- **Menubar-panel.** Ikonet i menubaren åbner det kompakte panel under sig — det hurtige kig — når hovedvinduet er lukket eller minimeret; er vinduet fremme, henter ikonet vinduet frem i stedet, så de to aldrig ligger oven på hinanden.
-  Vindue-knappen nederst i panelets sidebjælke (eller ⌘O) åbner vinduet. Panel og vindue viser det samme: vælg et
-  indeks i det ene, og det andet følger med.
+- **Ét vindue, åbnet fra menubaren.** Et klik på ikonet i menubaren henter vinduet frem — åbner det, hvis det er
+  lukket eller minimeret, og skifter til det fra den app, du er i. Et klik, mens vinduet allerede er forrest, lukker
+  det igen; appen kører videre. Højreklik (eller ⌃-klik) på ikonet giver **Åbn vindue**, **Indstillinger …** og
+  **Afslut Stockmote**. I Kun kortet lukker ikonet Kun kortet.
 - **Dock, menubar eller begge.** Indstillinger → **Vis Stockmote i**: **Dock og menubar** (standard), **Kun menubar**
-  (intet dock-ikon; vinduet åbnes fra panelet) eller **Kun Dock** (intet ikon i menubaren). Aldrig ingen af dem. Når
+  (intet dock-ikon og ingen egen menulinje; vinduet åbnes fra ikonet i menubaren, og dets højrekliksmenu afslutter)
+  eller **Kun Dock** (intet ikon i menubaren). Aldrig ingen af dem. Når
   vinduet lukkes, kører appen videre i menubaren eller Dock, og et klik på dock-ikonet henter vinduet frem igen. ⌘Q
   afslutter. Vinduet åbner ved start (**Åbn vindue ved start**, slået til som standard), men ikke når Stockmote
   starter ved login: så venter den stille i menubaren.
@@ -54,12 +56,13 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   Menuerne følger appens sprog, ikke systemets.
 - **13 indekser.** USA: S&P 500, Nasdaq 100, Dow Jones. Europa: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50, 🇬🇧 FTSE 100,
   🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI og 🇳🇱 AEX. ⌘1 … ⌘9 hopper til de første ni.
-- **Fonde.** + ved **Fonde** i sidebjælken åbner en dialog midt i panelet: skriv navn eller ticker på en ETF eller
+- **Fonde.** + ved **Fonde** i sidebjælken åbner en dialog midt i vinduet: skriv navn eller ticker på en ETF eller
   indeksfond (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`, `Nordnet Danmark Indeks`) og vælg et resultat. Beholdningen hentes med det
   samme, med en smagsprøve som "237 aktier · største: Taiwan Semiconductor 8,81%", og kun en fond hvis beholdning
   kunne findes, kan tilføjes — ellers siger dialogen det, og **Tilføj** forbliver slået fra. En obligations-, pengemarkeds-
-  eller blandet fond får en besked om at den ikke ejer aktier, i stedet for et tomt kort. Retur tilføjer og åbner
-  den; Esc annullerer uden at lukke panelet. Fonden vises
+  eller blandet fond får en besked om at den ikke ejer aktier, i stedet for et tomt kort. Tastaturet alene er
+  nok: Retur vælger det første resultat, og når beholdningen er hentet, tilføjer og åbner Retur den; Esc annullerer.
+  Fonden vises
   præcis som et indeks — sektor → branche → aktie, zoom, hover, liste, afspilning, fuld skærm, widget — men hvert
   felts størrelse er aktiens **vægt i fonden**, ikke dens markedsværdi. Titlen viser fondens eget navn og dens egen
   kursændring. Hover viser vægten, listen har en vægt-kolonne, og statuslinjen siger hvor beholdningen kommer fra — og for
@@ -92,7 +95,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
   symbolet.
 - **Favoritter** og **watchlister** i sidebjælken under **Mine lister**, hver med et søgefelt der finder enhver
   amerikansk aktie og enhver aktie i de europæiske indekser. Favoritter får en lille stjerne på kortet. + laver en ny
-  watchliste, og højreklik → **Omdøb …** omdøber en, begge i en lille dialog over panelet eller vinduet; højreklik for at slette en.
+  watchliste, og højreklik → **Omdøb …** omdøber en, begge i en lille dialog over vinduet; højreklik for at slette en.
 - **Listevisning** (⌘L): ethvert kort som en sortérbar liste.
 - **Lyst og mørkt tema**, skiftet med sol/måne-knappen i værktøjslinjen (⇧⌘T; højreklik for at følge systemet). Det lyse er ikke det mørke vendt om: hvide fuger mellem felterne, lysegrå for uændrede
   aktier og mørk tekst hvor et felt er lyst.
@@ -103,16 +106,14 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 - **Widget** til skrivebordet og Notifikationscenter i alle fire størrelser: favoritter, en watchliste eller et
   indeks, en fond, en sektor eller en branche, i ethvert tidsrum. Den følger temaet fra indstillingerne (som systemet, lyst eller mørkt). Et klik åbner vinduet på
   den rigtige visning.
-- **Alt der slår til, slår også fra** med samme klik eller tast: menubar-ikonet lukker panelet (og Kun kortet),
-  Indstillinger i panelet går tilbage til hvor du var, ⌘0 sidebjælken, ⌘L kort/liste, ⌃⌘F fuld skærm, ⇧⌘F Kun
-  kortet, og et klik på et
+- **Alt der slår til, slår også fra** med samme klik eller tast: menubar-ikonet lukker det vindue, det
+  hentede frem (og Kun kortet), ⌘0 sidebjælken, ⌘L kort/liste, ⌃⌘F fuld skærm, ⇧⌘F Kun kortet, og et klik på et
   søgeforslag der allerede er på listen (✓) fjerner det.
-- **Esc** lukker en dialog, zoomer så ud, stopper en afspilning og går et niveau op — i panelet, som den til sidst
-  lukker, og i vinduet, som den aldrig lukker.
-- **Smalle paneler.** I den lille størrelse forkortes lange titler med …, og tidsvælgeren bliver en kompakt menu, så
+- **Esc** lukker en dialog, zoomer så ud, stopper en afspilning og går et niveau op. Den lukker aldrig vinduet.
+- **Smalle vinduer.** I et smalt vindue forkortes lange titler med …, og tidsvælgeren bliver en kompakt menu, så
   intet skubbes ud af vinduet.
-- **Indstillinger** (⌘, åbner det almindelige indstillingsvindue; i panelet er de en side for sig): tema, farver
-  (rød/grøn eller orange/blå ved rød-grøn farveblindhed), panelstørrelse, sprog, Dock og/eller menubar, hvad
+- **Indstillinger** (⌘, eller **Indstillinger …** nederst i sidebjælken åbner det almindelige indstillingsvindue):
+  tema, farver (rød/grøn eller orange/blå ved rød-grøn farveblindhed), sprog, Dock og/eller menubar, hvad
   menubaren viser, åbn vindue ved start, start ved login, feltstørrelse i lister, opdateringsfrekvens, hvilken side og browser aktier åbnes
   i.
 
@@ -123,7 +124,7 @@ statuslinjen siger hvilken kilde der fejlede. Ingen analytics og ingen sporing.
 | ![Afspilning](docs/replay.png) | ![Fuld skærm](docs/fullscreen.png) |
 | S&P 500's dag afspillet, sat på pause kl. 17.45 | Fuld skærm med notch: C25 afspillet til kl. 14.30 |
 | ![Indstillinger](docs/settings.png) | ![iShares Core MSCI World](docs/fund.png) |
-| Indstillinger i den mindste panelstørrelse | En fond: iShares Core MSCI World, felter efter vægt |
+| Indstillingsvinduet | En fond: iShares Core MSCI World, felter efter vægt |
 | ![Tilføj en fond](docs/fund-dialog.png) | |
 | En fond tilføjes: beholdningen tjekkes, før den kan tilføjes | |
 
@@ -150,7 +151,7 @@ skrivebordet → **Rediger widgets** → søg efter Stockmote.
 
 | Hvad | Kilde | Hvor tit |
 | --- | --- | --- |
-| Kurs og ændring, alle tidsrum, alle indekser | Yahoo Finance `v7/finance/spark` | Hvert minut mens panelet er åbent og en børs er åben; ellers hvert 5. minut; hver halve time når alle er lukket |
+| Kurs og ændring, alle tidsrum, alle indekser | Yahoo Finance `v7/finance/spark` | Hvert minut mens vinduet er åbent og en børs er åben; ellers hvert 5. minut; hver halve time når alle er lukket |
 | Forløb til afspilning | Samme adresse med `interval` sat (5m, 30m, 1d eller 1wk) | Når du starter en afspilning, og igen hvis du skifter indeks, liste eller tidsrum |
 | Valutakurser (til at give europæiske aktier størrelse i dollar) | Yahoo Finance, `EURUSD=X` m.fl. | Sammen med kurserne |
 | Amerikansk markedsværdi, navn, søgning | Nasdaq's screener (alle ~7000 amerikanske aktier, 2 MB) | Hver halve time |
@@ -296,9 +297,9 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/Stockmote/StockmoteApp.swift](Sources/Stockmote/StockmoteApp.swift) | `@main`, `AppDelegate` (start, Dock / menubar, genåbning fra Dock), `stockmote://`-links, snapshot-tilstand |
 | [Sources/Stockmote/MainWindow.swift](Sources/Stockmote/MainWindow.swift) | Hovedvinduet og dets titellinje, indstillingsvinduet, Esc i vinduet |
 | [Sources/Stockmote/MainMenu.swift](Sources/Stockmote/MainMenu.swift) | Hovedmenuen, på appens sprog |
-| [Sources/Stockmote/MenuBarPanel.swift](Sources/Stockmote/MenuBarPanel.swift) | Menubar-ikon og farvet tal, panelvindue, placering, Esc |
+| [Sources/Stockmote/MenuBarItem.swift](Sources/Stockmote/MenuBarItem.swift) | Menubar-ikon og farvet tal; et klik henter vinduet frem eller lukker det, højreklik giver en lille menu |
 | [Sources/Stockmote/PanelView.swift](Sources/Stockmote/PanelView.swift) | Sidebjælke, værktøjslinje, statuslinje, favoritter, watchlister, søgning, liste |
-| [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | Dialogerne midt over panelet: tilføj en fond (søg, tjek beholdningen, tilføj), ny og omdøb watchliste |
+| [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | Dialogerne midt over vinduet: tilføj en fond (søg, tjek beholdningen, tilføj), ny og omdøb watchliste |
 | [Sources/Stockmote/HeatmapView.swift](Sources/Stockmote/HeatmapView.swift) | Hover, klik, zoom, tooltip, højrekliksmenu |
 | [Sources/Stockmote/Fullscreen.swift](Sources/Stockmote/Fullscreen.swift) | Kun kortet: det rammeløse fuldskærmskort og notch-båndet |
 | [Sources/Stockmote/Replay.swift](Sources/Stockmote/Replay.swift) | Afspil dagen: forløb, tidslinje, afspilning, linjen under kortet |
@@ -315,7 +316,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/Stockmote/WidgetSync.swift](Sources/Stockmote/WidgetSync.swift) | Skriver `Widget.json` og genindlæser widget'en |
 | [Sources/StockmoteShared/Treemap.swift](Sources/StockmoteShared/Treemap.swift) | Squarified treemap-layout |
 | [Sources/StockmoteShared/HeatmapCanvas.swift](Sources/StockmoteShared/HeatmapCanvas.swift) | Tegning af felterne, fælles for app, fuld skærm og widget |
-| [Sources/StockmoteShared/Style.swift](Sources/StockmoteShared/Style.swift) | Tidsrum, temaer, farveskala, talformater, panelets farver |
+| [Sources/StockmoteShared/Style.swift](Sources/StockmoteShared/Style.swift) | Tidsrum, temaer, farveskala, talformater, vinduets farver |
 | [Sources/StockmoteShared/Lang.swift](Sources/StockmoteShared/Lang.swift) | Dansk og engelsk |
 | [Sources/StockmoteShared/Market.swift](Sources/StockmoteShared/Market.swift) | Symboler, åbningstider, valutaer |
 | [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo-klient; daglig indre værdi fra Morningstar for unoterede fonde |
@@ -335,13 +336,16 @@ sine indstillinger adskilt fra den rigtige apps, og sin fond-cache i `~/Library/
 .build/release/Stockmote --snapshot ud.png --index c25 --period 1M --theme light --lang en
 ```
 
-Valg: `--tab map|favorites|watchlists|settings`, `--index <id>`, `--period 1D|1U|1M|3M|ÅTD|1Å`,
-`--sector "…"`, `--industry "…"`, `--size small|medium|large|huge`, `--list`, `--zoom 2.5`,
+Den tegner hovedvinduets indhold, 940 × 600 hvis intet andet er sagt.
+
+Valg: `--tab map|favorites|watchlists`, `--index <id>`, `--period 1D|1U|1M|3M|ÅTD|1Å`,
+`--sector "…"`, `--industry "…"`, `--size small|medium|large|huge` (vinduets indhold i 720 × 480, 940 × 600,
+1140 × 720 eller 1400 × 860), `--list`, `--zoom 2.5`,
 `--theme light|dark`, `--lang da|en`, `--no-sidebar`, `--fullscreen`, `--notch 32` (fuld skærm som på en skærm med
 notch), `--replay 0.4` (afspilning sat på pause 40 % inde i tidsrummet), `--fund SPY` (tilføj og vis en fond),
 `--fund-search "MSCI World"` (dialogen til fonde, åben med resultater), `--fund-pick SEC0.DE` (med det resultat valgt og
 beholdningen hentet — eller advarslen, hvis den ikke kunne findes), `--fund-add` (og tilføjet), `--dialog
-new-list|rename-list` (dialogerne til watchlister), `--window 1200x780` (hovedvinduets indhold i den størrelse),
+new-list|rename-list` (dialogerne til watchlister), `--window 1200x780` (vinduets indhold i en vilkårlig størrelse),
 `--settings` (indstillingsvinduet). Et snapshot tegner kun appens egne views: vinduets titellinje og trafiklys tegnes
 af macOS og er ikke med på billedet — deres plads øverst til venstre står tom, som i vinduet.
 

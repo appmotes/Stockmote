@@ -3,30 +3,6 @@ import StockmoteShared
 import ServiceManagement
 import SwiftUI
 
-enum PanelSize: String, CaseIterable, Identifiable {
-    case small, medium, large, huge
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .small: return tr("Lille", "Small")
-        case .medium: return tr("Mellem", "Medium")
-        case .large: return tr("Stor", "Large")
-        case .huge: return tr("Kæmpe", "Huge")
-        }
-    }
-
-    var size: CGSize {
-        switch self {
-        // Wider than before: the sidebar takes ~190 pt.
-        case .small: return CGSize(width: 720, height: 480)
-        case .medium: return CGSize(width: 940, height: 600)
-        case .large: return CGSize(width: 1140, height: 720)
-        case .huge: return CGSize(width: 1400, height: 860)
-        }
-    }
-}
-
 /// Where Stockmote shows up: in the Dock (with a window and a main menu), in
 /// the menu bar, or both. There is no "neither" — the app would be
 /// unreachable.
@@ -83,7 +59,6 @@ enum QuoteSite: String, CaseIterable, Identifiable {
 final class Preferences: ObservableObject {
     static let shared = Preferences()
 
-    @Published var panelSize: PanelSize { didSet { defaults.set(panelSize.rawValue, forKey: "panelSize") } }
     @Published var quoteSite: QuoteSite { didSet { defaults.set(quoteSite.rawValue, forKey: "quoteSite") } }
     @Published var colorStyle: ColorStyle { didSet { defaults.set(colorStyle.rawValue, forKey: "colorStyle") } }
     @Published var theme: ThemeMode { didSet { defaults.set(theme.rawValue, forKey: "theme") } }
@@ -98,7 +73,7 @@ final class Preferences: ObservableObject {
     @Published var menuBarIndexID: String? {
         didSet { defaults.set(menuBarIndexID ?? "none", forKey: "menuBarIndex") }
     }
-    /// Seconds between refreshes while the panel is open and the market is open.
+    /// Seconds between refreshes while the map is on screen and the market is open.
     @Published var refreshSeconds: Int { didSet { defaults.set(refreshSeconds, forKey: "refreshSeconds") } }
     /// Favourites and watchlists: equal tiles, or sized by market cap.
     @Published var listsByMarketCap: Bool { didSet { defaults.set(listsByMarketCap, forKey: "listsByMarketCap") } }
@@ -114,7 +89,6 @@ final class Preferences: ObservableObject {
     private let defaults = AppDefaults.store
 
     private init() {
-        panelSize = PanelSize(rawValue: defaults.string(forKey: "panelSize") ?? "") ?? .medium
         quoteSite = QuoteSite(rawValue: defaults.string(forKey: "quoteSite") ?? "") ?? .yahoo
         colorStyle = ColorStyle(rawValue: defaults.string(forKey: "colorStyle") ?? "") ?? .redGreen
         theme = ThemeMode(rawValue: defaults.string(forKey: "theme") ?? "") ?? .dark
@@ -131,7 +105,7 @@ final class Preferences: ObservableObject {
         Lang.isEnglish = language.isEnglish
     }
 
-    /// Appearance for the panel's NSHostingView and the windows. nil follows the system.
+    /// Appearance for the windows. nil follows the system.
     var appearance: NSAppearance? {
         switch theme {
         case .system: return nil
@@ -164,7 +138,7 @@ final class Preferences: ObservableObject {
 }
 
 /// Where settings are stored. In snapshot mode (`--snapshot`) a separate
-/// domain is used, so a picture of "Nasdaq 100, 1M, small panel" doesn't
+/// domain is used, so a picture of "Nasdaq 100, 1M, light theme" doesn't
 /// change what the app itself shows next time.
 enum AppDefaults {
     /// Snapshot mode: separate settings and a separate fund cache.

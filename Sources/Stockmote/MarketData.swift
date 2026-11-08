@@ -69,11 +69,11 @@ final class MarketStore: ObservableObject {
     /// Bumped on every data change, so views can recompute their layout.
     @Published private(set) var version = 0
 
-    /// Set by MenuBarPanel. While the panel is open and the market is open,
+    /// Set by LiveRefresh. While the map is on screen and the market is open,
     /// we refresh more often.
-    var panelVisible = false {
+    var mapVisible = false {
         didSet {
-            guard panelVisible != oldValue else { return }
+            guard mapVisible != oldValue else { return }
             restartLoop()
         }
     }
@@ -204,7 +204,7 @@ final class MarketStore: ObservableObject {
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                if self.isStale(after: self.panelVisible ? 45 : 240) {
+                if self.isStale(after: self.mapVisible ? 45 : 240) {
                     await self.refresh()
                 }
                 try? await Task.sleep(for: .seconds(self.nextInterval))
@@ -217,11 +217,11 @@ final class MarketStore: ObservableObject {
         return Date().timeIntervalSince(lastUpdated) > seconds
     }
 
-    /// Often while the market is open and the panel is showing; rarely otherwise.
+    /// Often while the market is open and the map is showing; rarely otherwise.
     /// A closed market doesn't change, so there's no reason to hammer away.
     private var nextInterval: TimeInterval {
         guard MarketClock.anyOpen() else { return 1800 }
-        return panelVisible ? Double(Preferences.shared.refreshSeconds) : 300
+        return mapVisible ? Double(Preferences.shared.refreshSeconds) : 300
     }
 
     /// Fetches everything for the chosen time range. Called by the loop and the ⟳ button.

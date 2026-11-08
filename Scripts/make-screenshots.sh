@@ -22,7 +22,7 @@ find docs -name '*.png' ! -name 'app-icon.png' -delete
 "$BIN" --snapshot docs/nasdaq-1m.png --index ndx --period 1M --theme light
 "$BIN" --snapshot docs/favorites.png --tab favorites
 "$BIN" --snapshot docs/list.png --list --sector "Information Technology"
-"$BIN" --snapshot docs/settings.png --tab settings --size small
+"$BIN" --snapshot docs/settings.png --settings
 "$BIN" --snapshot docs/english.png --lang en --index ftse
 "$BIN" --snapshot docs/fullscreen.png --fullscreen --notch 32 --replay 0.6 --index c25
 "$BIN" --snapshot docs/replay.png --replay 0.35

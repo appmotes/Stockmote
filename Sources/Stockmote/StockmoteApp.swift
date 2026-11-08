@@ -21,7 +21,7 @@ enum StockmoteMain {
 /// Builds the menu bar icon, the main menu and — unless the app was opened at
 /// login — the main window, and applies the Dock / menu bar setting.
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var menuBar: MenuBarPanel?
+    private var menuBar: MenuBarItem?
     /// A click on the widget can launch the app; then the URL arrives before the menu bar
     /// is built.
     private var pendingURL: URL?
@@ -54,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         MainActor.assumeIsolated {
             MainMenu.shared.install()
-            menuBar = MenuBarPanel()
+            menuBar = MenuBarItem()
             applyPresence()
             Preferences.shared.$presence
                 .dropFirst()
@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func applyPresence() {
         let presence = Preferences.shared.presence
-        menuBar?.setStatusItemVisible(presence.showsStatusItem)
+        menuBar?.setVisible(presence.showsStatusItem)
         let policy: NSApplication.ActivationPolicy = presence.showsDockIcon ? .regular : .accessory
         guard NSApp.activationPolicy() != policy else { return }
         let front = NSApp.keyWindow
@@ -128,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            UniverseStore.shared.index(withID: index) != nil {
             app.indexID = index
         }
-        if let tab = items.first(where: { $0.name == "tab" })?.value.flatMap(PanelTab.init(rawValue:)), tab != .settings {
+        if let tab = items.first(where: { $0.name == "tab" })?.value.flatMap(PanelTab.init(rawValue:)) {
             app.tab = tab
         }
         if FullscreenController.shared.isShowing { FullscreenController.shared.close() }
@@ -136,15 +136,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// `Stockmote --snapshot out.png [--tab map|favorites|watchlists|settings]
+/// `Stockmote --snapshot out.png [--tab map|favorites|watchlists]
 /// [--index sp500|ndx|dji] [--period 1D|1U|1M|3M|ÅTD|1Å] [--sector "…"]
 /// [--industry "…"] [--size small|medium|large|huge] [--list] [--zoom 2.5]
 /// [--theme light|dark] [--lang da|en] [--no-sidebar] [--fullscreen [--notch 32]]
 /// [--replay 0.4] [--fund SPY] [--fund-search "MSCI World" [--fund-pick URTH] [--fund-add]]
 /// [--dialog new-list|rename-list] [--window 1200x780] [--settings]`
 ///
-/// Fetches real data, renders the panel to a PNG and quits. Used for
-/// the images in docs/ and to see the UI without clicking around.
+/// Fetches real data, renders the main window's content (or Map Only, or
+/// the Settings window) to a PNG and quits. Used for the images in docs/
+/// and to see the UI without clicking around.
 @MainActor
 struct Snapshot {
     let output: URL
@@ -178,12 +179,22 @@ struct Snapshot {
         return CGSize(width: parts[0], height: parts[1])
     }
 
+    /// `--size`: named sizes of the window's content. Small is the window's
+    /// smallest size; medium, the default, keeps the images in docs/ compact.
+    private static func namedSize(_ name: String?) -> CGSize {
+        switch name {
+        case "small"?: return CGSize(width: 720, height: 480)
+        case "large"?: return CGSize(width: 1140, height: 720)
+        case "huge"?: return CGSize(width: 1400, height: 860)
+        default: return CGSize(width: 940, height: 600)
+        }
+    }
+
     func run() async {
         let app = AppState.shared
         let market = MarketStore.shared
         let prefs = Preferences.shared
 
-        if let size = options["size"].flatMap(PanelSize.init(rawValue:)) { prefs.panelSize = size }
         if let theme = options["theme"].flatMap(ThemeMode.init(rawValue:)) { prefs.theme = theme }
         if let lang = options["lang"] { prefs.language = lang == "en" ? .english : .danish }
         if flags.contains("no-sidebar") { prefs.sidebarVisible = false }
@@ -246,15 +257,16 @@ struct Snapshot {
             app.focus = .sector(sector)
         }
 
-        // --fullscreen: the map alone, as in full screen, on a 1440×900 screen.
-        // --window 1200x780: the main window's content at that size (without
+        // The main window's content, at --window 1200x780 or a --size (without
         // the real title bar, which AppKit draws; the traffic lights' space
-        // is left empty as in the window). --settings: the Settings window.
+        // is left empty as in the window).
+        // --fullscreen: the map alone, as in Map Only, on a 1440×900 screen.
+        // --settings (or the old --tab settings): the Settings window.
         let fullscreen = flags.contains("fullscreen")
-        let windowSize = options["window"].flatMap(Self.parseSize)
-        let settings = flags.contains("settings")
+        let settings = flags.contains("settings") || options["tab"] == "settings"
+        let windowSize = options["window"].flatMap(Self.parseSize) ?? Self.namedSize(options["size"])
         let size = fullscreen ? CGSize(width: 1440, height: 900)
-            : windowSize ?? (settings ? CGSize(width: 540, height: 700) : prefs.panelSize.size)
+            : settings ? CGSize(width: 540, height: 700) : windowSize
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: size),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         // --replay 0.4: replay paused 40 % into the period.
@@ -270,12 +282,10 @@ struct Snapshot {
         let root: AnyView
         if fullscreen {
             root = AnyView(FullscreenView(topInset: notch))
-        } else if let windowSize {
-            root = AnyView(PanelRoot(context: .window, size: windowSize))
         } else if settings {
             root = AnyView(SettingsWindowContent())
         } else {
-            root = AnyView(PanelRoot(context: .panel))
+            root = AnyView(PanelRoot(size: windowSize))
         }
         let host = NSHostingView(rootView: root)
         host.appearance = prefs.appearance

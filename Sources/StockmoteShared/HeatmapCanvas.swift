@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Drawing
 
-/// The tiles drawn in a single Canvas — used by the panel, full screen and the widget.
+/// The tiles drawn in a single Canvas — used by the window, Map Only and the widget.
 ///
 /// Equatable, so hover — which changes on every mouse move — doesn't redraw
 /// every tile. Only layout, panning, colours and theme do.

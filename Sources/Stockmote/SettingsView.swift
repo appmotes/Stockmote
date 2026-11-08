@@ -34,15 +34,6 @@ struct SettingsTab: View {
                         }
                     }
                     Divider().padding(.leading, 12)
-                    Row(tr("Panelstørrelse", "Panel size"),
-                        help: tr("Panelet under ikonet i menubaren. Vinduet kan du trække til den størrelse, du vil.",
-                                 "The panel under the menu bar icon. The window can be dragged to any size.")) {
-                        Picker("", selection: $prefs.panelSize) {
-                            ForEach(PanelSize.allCases) { Text($0.label).tag($0) }
-                        }
-                        .fixedSize()
-                    }
-                    Divider().padding(.leading, 12)
                     Row(tr("Sprog", "Language")) {
                         Picker("", selection: $prefs.language) {
                             ForEach(AppLanguage.allCases) { Text($0.label).tag($0) }
@@ -53,8 +44,8 @@ struct SettingsTab: View {
 
                 SettingsGroup(title: tr("Dock og menubar", "Dock and menu bar")) {
                     Row(tr("Vis Stockmote i", "Show Stockmote in"),
-                        help: tr("Kun menubar: intet Dock-ikon; vinduet åbnes fra panelet. Kun Dock: intet ikon i menubaren.",
-                                 "Menu bar only: no Dock icon; open the window from the panel. Dock only: no menu bar icon.")) {
+                        help: tr("Kun menubar: intet Dock-ikon; vinduet åbnes fra ikonet i menubaren. Kun Dock: intet ikon i menubaren.",
+                                 "Menu bar only: no Dock icon; open the window from the menu bar icon. Dock only: no menu bar icon.")) {
                         Picker("", selection: $prefs.presence) {
                             ForEach(AppPresence.allCases) { Text($0.label).tag($0) }
                         }
@@ -91,7 +82,7 @@ struct SettingsTab: View {
                             .toggleStyle(.switch)
                     }
                     Divider().padding(.leading, 12)
-                    Row(tr("Opdatér mens panelet er åbent", "Refresh while open"),
+                    Row(tr("Opdatér mens vinduet er åbent", "Refresh while open"),
                         help: tr("Når børsen er åben. Ellers hvert 5. minut, og hver halve time når alt er lukket.",
                                  "While the market is open. Otherwise every 5 minutes, and every 30 when all are closed.")) {
                         Picker("", selection: $prefs.refreshSeconds) {
