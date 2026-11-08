@@ -11,12 +11,12 @@ to the Danish C25 and the German DAX — and any ETF or index fund you search fo
 this README were made by Claude Opus 5.5 (Anthropic) from a human's description. No human has reviewed the code line by
 line. Read the [Disclaimer](#disclaimer) before you trust it with anything.
 
-![S&P 500, one day, dark theme](docs/map.png)
+![The overview: lists, funds and every index as small maps](docs/overview.png)
 
 It is an ordinary Mac app with one window you can resize, minimise and put in full screen, a Dock icon — and an icon
 in the menu bar that brings the window forward from anywhere. Each tile is a company; its
-size is the market value and its colour is how much the stock has moved in the time range you picked. Markets and your
-own lists sit in a sidebar on the left, each with its change right next to it.
+size is the market value and its colour is how much the stock has moved in the time range you picked. It opens on an
+**overview** of every market and list; a click goes into a map, and a click on a tile into the stock itself.
 
 The app speaks Danish and English; pick the language in settings. This README uses the English labels.
 
@@ -42,7 +42,7 @@ sector.
 
 ## Features
 
-- **A real Mac window.** Traffic lights over the sidebar, a transparent title bar level with the toolbar, resizing
+- **A real Mac window.** Traffic lights in the toolbar row, a transparent title bar level with the toolbar, resizing
   from every edge (down to 720 × 480), the green button for macOS full screen in its own Space, minimise to the Dock,
   zoom, and the size and position remembered between launches. Drag the empty part of the toolbar row to move the
   window; double-click it to zoom.
@@ -56,25 +56,38 @@ sector.
   window does not quit — the app stays in the menu bar or the Dock, and clicking the Dock icon brings the window back.
   ⌘Q quits. The window opens at launch (**Open window at launch**, on by default), but not when Stockmote opens at
   login: then it waits quietly in the menu bar.
-- **Menus.** Stockmote (About, Settings… ⌘,, Hide, Quit), File (Open Window ⌘O, New Watchlist ⌘N, Add Fund ⇧⌘N,
-  Close Window ⌘W), Edit, View (the ten time ranges on ⌥⌘1 … ⌥⌘9 and ⌥⌘0, Show as List ⌘L, Hide Sidebar ⌃⌘S, Replay the Day
-  ⌘P, light/dark ⇧⌘T, Refresh ⌘R, Map Only ⇧⌘F, Enter Full Screen ⌃⌘F), Window and Help (the keyboard shortcuts). The
-  menus follow the app's language, not the system's.
+- **Menus.** Stockmote (About, Settings… ⌘,, Hide, Quit), File (Open Window ⌘O, New Watchlist ⌘N, Search… ⌘K,
+  Close Window ⌘W), Edit, View (the ten time ranges on ⌥⌘1 … ⌥⌘9 and ⌥⌘0, Show as List ⌘L, Overview ⌘0, Back ⌘[,
+  Seismograph ⌘P, light/dark ⇧⌘T, Refresh ⌘R, Map Only ⇧⌘F, Enter Full Screen ⌃⌘F), Window and Help (the keyboard
+  shortcuts). The menus follow the app's language, not the system's.
+- **The overview** is the start screen. Under a band with today's trading hours in your own time (Europe 9.00–17.30
+  and the US 15.30–22.00 seen from Denmark, with a marker for now; holidays are not known) come three sections:
+  **Mine** (Favourites, each watchlist and each fund you added), **United States** and **Europe**. Each card has the
+  name, the change for the chosen range — the index's or fund's own figure, or a list's average marked *avg.* — and a
+  small map of its largest stocks, each coloured by its own change. Click a card to open its map. Hover a fund or a
+  watchlist for a small ✕ to remove it (or right-click: reload, copy symbol, rename, remove); a toast offers
+  **Undo**.
+- **The map** fills the window. The toolbar has a back chevron and the way back as a breadcrumb you can click
+  (`Overview › S&P 500 › Information Technology › Semiconductors`), the title and its change, the period picker, the
+  seismograph, map/list and **Search ⌘K**.
 - **13 indices.** United States: S&P 500, Nasdaq 100, Dow Jones. Europe: 🇩🇰 C25, 🇩🇪 DAX, 🇪🇺 Euro Stoxx 50,
-  🇬🇧 FTSE 100, 🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI and 🇳🇱 AEX. ⌘1 … ⌘9 jump to the first nine.
-- **Funds.** + next to **Funds** in the sidebar opens a dialog in the middle of the window: type the name or ticker of
-  an ETF or index fund (`SPY`, `VWCE`, `XDWD`, `iShares Core MSCI World`, `SPIC25`, `Nordnet Danmark Indeks`) and pick a result. Its holdings are loaded
-  right there, with a preview such as "237 stocks · largest: Taiwan Semiconductor 8.81%", and only a fund whose
-  holdings could be found can be added — otherwise the dialog says so and **Add** stays off. A bond, money market
-  or multi-asset fund gets a message saying it holds no stocks, instead of an empty map. The keyboard alone is
-  enough: Return picks the first result, and once its holdings are in, Return again adds and opens it; Esc cancels.
+  🇬🇧 FTSE 100, 🇫🇷 CAC 40, 🇸🇪 OMXS30, 🇳🇴 OBX, 🇫🇮 OMXH25, 🇨🇭 SMI and 🇳🇱 AEX. ⌘1 … ⌘9 jump to the first nine, ⌘0 to the overview.
+- **Search** (⌘K, the button in the toolbar, or /) is the one way to find and add things. The results come in three
+  groups: **Indices** (Open), **Stocks** (☆ for favourite, **Open** for its page, and **+ <list>** when a watchlist
+  is on screen — Return then adds to that list) and **Funds**. ↑ ↓ choose, Return does the first button, Esc closes.
+  **+ New watchlist** at the bottom makes a list and opens it.
+- **Funds.** Type the name or ticker of an ETF or index fund in the search (`SPY`, `VWCE`, `XDWD`, `iShares Core
+  MSCI World`, `SPIC25`, `Nordnet Danmark Indeks`) and click **Add** (or Return). Its holdings are loaded first, with
+  a preview such as "237 stocks · largest: Taiwan Semiconductor 8.81%", and only a fund whose holdings could be
+  found is added and opened — otherwise the row says why. A bond, money market or multi-asset fund gets a message
+  saying it holds no stocks, instead of an empty map. **Added ✓** on a fund that is already there removes it.
   The fund is shown
-  exactly like an index — sector → industry → stock, zoom, hover, list, replay, full screen, widget — but each tile's
+  exactly like an index — sector → industry → stock, zoom, hover, list, seismograph, full screen, widget — but each tile's
   size is the stock's **weight in the fund**, not its market value. The title shows the fund's own name and its own
   price change. Hover shows the weight, the list has a weight column, and the status line says where the holdings
   come from, and for Vanguard, which publishes monthly, their date ("Holdings from Vanguard as of Sep 30"). Large funds (iShares Core MSCI World: ~1,200 stocks) are cut to the 500 largest by weight, and the status
   line says so. Danish investeringsforeninger and the funds Nordnet sells are found too (see *Where the data comes
-  from*). Funds are remembered across restarts; right-click to reload the holdings or remove the fund.
+  from*). Funds are remembered across restarts; on the overview, right-click to reload the holdings or remove the fund.
 - **Ten time ranges** in the segmented control at the top: 1D, 1W, 1M, 3M, 6M, YTD, 1Y, 3Y, 5Y and All (in Danish
   1U, ÅTD, 1Å, 3Å, 5Å and Alt). Under each one stands the change of what you are looking at over that range — the
   index's own figure, the fund's own price, a list's average — so you can compare the ranges without clicking
@@ -87,31 +100,43 @@ sector.
   follows the range: full colour at ±3 % for a day, 20 % for six months, 35 % for a year, 50 % for three and 80 %
   for five. For All it is logarithmic — full green at ×100, full red at −90 % — since the changes since the first
   price run from −90 % to +500,000 % and on a straight scale every tile would be full colour.
-- **Sectors and industries.** Click a sector or industry header to go into it. The title becomes that level, with a
-  back arrow and the way up underneath (`🇩🇰 C25 › Health Care`), which you can click; Esc does the same. Clicking
-  the selected index in the sidebar again also takes you back to the whole map.
+- **Sectors and industries.** Click a sector or industry header to go into it. The title becomes that level, and the
+  breadcrumb above it leads back up (`Overview › 🇩🇰 C25 › Health Care`); the chevron and Esc go up one level, and
+  from the top of a map to the overview.
 - **Zoom.** Pinch on the trackpad (or ⌘-scroll) to zoom where the pointer is; two-finger scroll or drag to move.
   Small tiles get their labels as they grow.
-- **Replay the day** (▶ in the toolbar or ⌘P): the map animated through the time range — the trading
-  day in 5-minute steps, a week in half hours, months and three years day by day, one and five years week by week,
-  All month by month (or by quarter for long histories), at most 400 frames. A curve of the index runs under the
-  map — or a list's average; an index whose own history is missing gets no curve rather than a stand-in; drag in it to jump to a moment, or press space to play and pause, ← → to step. The title, the
-  colours and the tooltip's price all follow the moment shown. 1×, 2× or 4× speed. Tile sizes stay put; only the
-  colours move. In Map Only it plays in a loop, like a living picture of the market.
-- **Full screen** (⌃⌘F or the green button): the window in macOS full screen, sidebar, toolbar and all, in its own
+- **Seismograph** (the waveform in the toolbar, ⌘P, or space on a map): a drawer under the map with one stripe per
+  child of the level you are on — the sectors of an index, the industries of a sector, the stocks of an industry or a
+  list (the twelve largest; six in a low window) — and a total row on top. Each column is one step of the range: the
+  trading day in 5-minute steps, a week in half hours, months and three years day by day, one and five years week by
+  week, All month by month (or by quarter for long histories), at most 400 steps. Each cell is coloured by that
+  row's change at that moment. The total row is the index's or fund's own series (a list's average, marked as such);
+  an index whose own history is missing gets an empty row rather than a stand-in. Sector and industry rows are the
+  members' changes weighted by market value (by the fund's weights in a fund), marked *avg.*. Drag the cursor, press
+  ← → to step or space to play and pause, at 1×, 2× or 4×; the map, the title and the tooltip's price follow the
+  moment. Click a row's name to go into it (a stock row opens the stock). Tile sizes stay put; only the colours move.
+  In Map Only it plays in a loop, like a living picture of the market.
+- **Full screen** (⌃⌘F or the green button): the window in macOS full screen, toolbar and all, in its own
   Space.
 - **Map Only** (⇧⌘F): the map alone, edge to edge, with no Dock, title or frame; the menu bar
   hides and slides in only if you push the pointer to the top. Hover, click and zoom still work. Esc first zooms out,
   then goes up a level, then leaves. ⇧⌘F, the menu bar icon or **Exit Map Only** in the
   right-click menu leave at once. On a MacBook with a notch the map starts below the notch, and the strip beside it
-  shows the title, the change and the replay clock.
+  shows the title, the change and the clock of the moment shown.
 - **Hover** a tile for price (in its own currency), market value, sector, industry and the change.
-- **Click** a tile to open the stock in the browser (Yahoo Finance, Google Finance, Nasdaq or Finviz).
-  **Right-click** to add it to favourites or a watchlist, jump to its sector or industry, or copy the symbol.
-- **Favorites** and **watchlists** in the sidebar under **My lists**, each with a
-  search field that finds any US stock or any stock in the European indices. Favourites get a small star on the map.
-  + makes a new watchlist and right-click → **Rename …** renames one, both in a small dialog over the window;
-  right-click to delete one. A list's figure is the equal-weight average of its stocks, and the title says
+- **Click** a tile (or a row in the list) to open the **stock page**: price and change for the range, a candlestick
+  chart of the range from Yahoo's own open, high, low and close (5-minute candles for a day, half hours for a week,
+  days up to the year to date, weeks for one, three and five years, months for All) with volume underneath and the
+  candle's open, high, low, close and move shown as you point; if Yahoo has no candles, the page says so. Key figures
+  are only those the app has: market value, the weight in the fund you came from, the 52-week range of daily closes,
+  the day's change, sector, industry, exchange and symbol. **Same industry** is a small map of its peers (click one
+  to go to it), **Also in** lists the other indices, funds and lists it is in, **☆ Favorite** and **+ List** (with
+  *New list with …*) add it, and **Open on Yahoo Finance** (or the site chosen in settings, in the chosen browser) is
+  the one way out to the web. **Right-click** a tile for the stock page, the web, favourites or a watchlist, its
+  sector or industry, or copying the symbol.
+- **Favorites** and **watchlists** are on the overview under **Mine**. Add stocks with ☆ or **+ <list>** in the
+  search, the stock page or the right-click menu. Favourites get a small star on the map. **+ New watchlist** in the
+  search makes one; right-click its card → **Rename …** renames it, and ✕ or right-click deletes it (with Undo). A list's figure is the equal-weight average of its stocks, and the title says
   **average**; a sector's or industry's is weighted by market value (by the fund's weights in a fund).
 - **List view** (⌘L): any map as a sortable list.
 - **Light and dark theme**, switched with the sun/moon button in the toolbar (⇧⌘T; right-click to follow the system). The light theme is not the dark one inverted: white grout between the tiles, light grey
@@ -122,26 +147,29 @@ sector.
 - **Widget** for the desktop and Notification Centre in all four sizes: favourites, a watchlist, or an index, sector
   fund, sector or industry, in any time range. It follows the theme chosen in settings (system, light or dark). Clicking it opens the window on the matching view.
 - **Everything that switches on also switches off** with the same click or key: the menu bar icon closes the window
-  it brought forward (and Map Only), ⌘0 the sidebar, ⌘L map/list, ⌃⌘F full screen, ⇧⌘F Map Only, and
-  clicking a search suggestion that is already on the list (✓) removes it.
-- **Esc** closes a dialog, then zooms out, then stops a replay, then goes up a level. It never closes the window.
+  it brought forward (and Map Only), ⌘P the seismograph, ⌘L map/list, ⌃⌘F full screen, ⇧⌘F Map Only, ☆ a favourite,
+  **✓ <list>** in the search takes the stock off the list, and **Added ✓** removes a fund.
+- **Esc** closes a dialog, then zooms out, then closes the seismograph, then goes up a level: stock → map → sector →
+  index → overview. It never closes the window.
 - **Narrow windows.** In a narrow window long titles are shortened with … and the time-range control, with its
   figures, becomes a compact menu that lists each range with its change, so nothing is pushed out of the window.
-- **Settings** (⌘, or **Settings…** at the bottom of the sidebar opens the standard Settings window): theme, colours
+- **Settings** (⌘, or **Settings…** in the Stockmote menu or the menu bar icon's right-click menu opens the standard Settings window): theme, colours
   (red/green or orange/blue for red–green colour blindness), language, Dock and/or menu bar, what the menu
   bar shows, open window at launch, launch at login, list tile size, refresh rate, which site and browser stocks
   open in.
 
 | | |
 | --- | --- |
-| ![DAX in the light theme, English](docs/light.png) | ![C25](docs/c25.png) |
+| ![S&P 500, one day](docs/map.png) | ![The seismograph](docs/seismograph.png) |
+| The S&P 500's map, one day | The seismograph under the S&P 500: one stripe per sector, the cursor in the afternoon |
+| ![NVIDIA's stock page](docs/stock.png) | ![Novo Nordisk, light](docs/stock-light.png) |
+| A stock page: one month of daily candles | Opened from the C25, in the light theme |
+| ![Search](docs/search.png) | ![iShares Core MSCI World](docs/fund.png) |
+| The search: a fund's holdings are checked before it is added | A fund: iShares Core MSCI World, tiles sized by weight |
+| ![DAX in the light theme](docs/light.png) | ![C25](docs/c25.png) |
 | DAX, light theme | C25 — Danish stocks in Danish kroner |
-| ![Replay](docs/replay.png) | ![Full screen](docs/fullscreen.png) |
-| Replaying the S&P 500's day, paused at 17.45 | Full screen with a notch: C25 replaying at 14.30 |
-| ![Settings](docs/settings.png) | ![iShares Core MSCI World](docs/fund.png) |
-| The Settings window | A fund: iShares Core MSCI World, tiles sized by weight |
-| ![Adding a fund](docs/fund-dialog.png) | |
-| Adding a fund: its holdings are checked before it can be added | |
+| ![Full screen](docs/fullscreen.png) | ![Settings](docs/settings.png) |
+| Map Only with a notch: C25 playing at 14.30 | The Settings window |
 
 ## Build
 
@@ -167,7 +195,8 @@ The widget appears in the gallery once the app is in `/Applications` and has bee
 | What | Source | How often |
 | --- | --- | --- |
 | Price and change, all ranges, all indices | Yahoo Finance `v7/finance/spark` | Every minute while the window is open and a market is open; every 5 min otherwise; every 30 min when all are closed |
-| History for replay | The same endpoint with `interval` set (5m, 30m, 1d, 1wk or 1mo) | When you start a replay, and again if you change index, list or range |
+| History for the seismograph | The same endpoint with `interval` set (5m, 30m, 1d, 1wk or 1mo) | When you open the seismograph, and again if you change index, list or range |
+| Candles on the stock page (open, high, low, close, volume) and the 52-week range | Yahoo Finance `v8/finance/chart`, one symbol per call | When you open a stock page or change range there; at most every 5 min |
 | Exchange rates (for sizing European stocks in dollars) | Yahoo Finance, `EURUSD=X` and friends | With the prices |
 | US market value, name, search | Nasdaq screener (all ~7000 US stocks, 2 MB) | Every 30 min |
 | Index members, sectors, European market values | `Indices.json`, bundled | When you run `update-indices.sh` |
@@ -191,7 +220,7 @@ S&P 500 costs 26 calls, four at a time.
 time. The app scales them by today's price and converts them to dollars, so a watchlist with both Novo Nordisk and
 Apple gets fair sizes.
 
-The **index figure** at the top, in the sidebar and under each range is the index's own (`^GSPC`, `^OMXC25`,
+The **index figure** at the top, on the overview and under each range is the index's own (`^GSPC`, `^OMXC25`,
 `^GDAXI` …). If Yahoo does not answer, it shows –: an average of the members would not be the index's figure.
 
 **How each range is measured.** Yahoo's `chartPreviousClose` is the close just before the range starts, for every
@@ -245,7 +274,7 @@ evening after: the app fetches it from Morningstar for 1W and longer — 3Y from
 three years ago, All from the fund's first NAV — and the search result shows `NAV` instead of a ticker. For 1D there
 is no NAV for today yet, so the day's change is the fund's **indicative value**, the customary iNAV: the holdings'
 changes weighted by their weight in the fund. It is marked as such wherever it appears — `≈ +0.84%` with
-**indicative** beside it in the title, `≈` in the sidebar, the period picker, the menu bar and the replay — and its
+**indicative** beside it in the title, `≈` on the overview, the period picker, the menu bar and the seismograph — and its
 tooltip says it is estimated from the holdings until the NAV is published. The widget shows – instead. Yahoo knows many of
 Nordnet's funds under a Morningstar id (`0P000134KA.CO` = Nordnet Danmark Indeks A); then the Yahoo result is kept,
 with Nordnet's holdings.
@@ -331,11 +360,14 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/Stockmote/MainWindow.swift](Sources/Stockmote/MainWindow.swift) | The main window and its title bar, the Settings window, Esc in the window |
 | [Sources/Stockmote/MainMenu.swift](Sources/Stockmote/MainMenu.swift) | The main menu, in the app's language |
 | [Sources/Stockmote/MenuBarItem.swift](Sources/Stockmote/MenuBarItem.swift) | Menu bar icon and coloured figure; a click brings the window forward or closes it, right-click gives a small menu |
-| [Sources/Stockmote/PanelView.swift](Sources/Stockmote/PanelView.swift) | Sidebar, toolbar, status line, favourites, watchlists, search, list view |
-| [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | The dialogs centred over the window: add a fund (search, check its holdings, add), new and rename watchlist |
+| [Sources/Stockmote/PanelView.swift](Sources/Stockmote/PanelView.swift) | Toolbar with breadcrumb, status line, the map, favourites, watchlists, list view |
+| [Sources/Stockmote/Overview.swift](Sources/Stockmote/Overview.swift) | The overview: trading hours, the cards and their small maps |
+| [Sources/Stockmote/StockPage.swift](Sources/Stockmote/StockPage.swift) | The stock page: candles from Yahoo's chart endpoint, key figures, peers, Also in |
+| [Sources/Stockmote/Search.swift](Sources/Stockmote/Search.swift) | The search: indices, stocks and funds, adding to lists and adding funds |
+| [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | The dialog host, new and rename watchlist, and the fund picker behind the search |
 | [Sources/Stockmote/HeatmapView.swift](Sources/Stockmote/HeatmapView.swift) | Hover, click, zoom, tooltip, right-click menu |
 | [Sources/Stockmote/Fullscreen.swift](Sources/Stockmote/Fullscreen.swift) | Map Only: the borderless full-screen map and the notch strip |
-| [Sources/Stockmote/Replay.swift](Sources/Stockmote/Replay.swift) | Replay the day: history, timeline, playback, the bar under the map |
+| [Sources/Stockmote/Replay.swift](Sources/Stockmote/Replay.swift) | The seismograph: history, timeline, playback, the rows and the drawer under the map |
 | [Sources/Stockmote/SettingsView.swift](Sources/Stockmote/SettingsView.swift) | Settings and About |
 | [Sources/Stockmote/MarketData.swift](Sources/Stockmote/MarketData.swift) | Quotes, exchange rates, refresh loop, Nasdaq screener |
 | [Sources/Stockmote/Universe.swift](Sources/Stockmote/Universe.swift) | Loading `Indices.json` |
@@ -344,7 +376,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/Stockmote/Nordnet.swift](Sources/Stockmote/Nordnet.swift) | Nordnet's public API: search for Danish and Nordnet funds, their largest holdings |
 | [Sources/Stockmote/Lists.swift](Sources/Stockmote/Lists.swift) | Favourites and watchlists |
 | [Sources/Stockmote/Preferences.swift](Sources/Stockmote/Preferences.swift) | Settings |
-| [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | What is selected, drill-down, zoom and the open dialog |
+| [Sources/Stockmote/AppState.swift](Sources/Stockmote/AppState.swift) | Overview, map or stock; the source, drill-down, back, zoom, the open dialog and the toast |
 | [Sources/Stockmote/Browsers.swift](Sources/Stockmote/Browsers.swift) | Which browser links open in (from DRmote) |
 | [Sources/Stockmote/WidgetSync.swift](Sources/Stockmote/WidgetSync.swift) | Writes `Widget.json` and reloads the widget |
 | [Sources/StockmoteShared/Treemap.swift](Sources/StockmoteShared/Treemap.swift) | Squarified treemap layout |
@@ -371,12 +403,12 @@ settings apart from the real app's, and its fund cache in `~/Library/Application
 
 It renders the main window's content, 940 × 600 unless told otherwise.
 
-Options: `--tab map|favorites|watchlists`, `--index <id>`, `--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt`,
+Options: `--screen overview|map`, `--tab map|favorites|watchlists`, `--watchlist "AI"`, `--stock NVDA` (the stock page), `--index <id>`, `--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt`,
 `--sector "…"`, `--industry "…"`, `--size small|medium|large|huge` (the window's content at 720 × 480, 940 × 600,
 1140 × 720 or 1400 × 860), `--list`, `--zoom 2.5`,
-`--theme light|dark`, `--lang da|en`, `--no-sidebar`, `--fullscreen`, `--notch 32` (full screen as on a screen
-with a notch), `--replay 0.4` (replay paused 40 % into the range), `--fund SPY` (add and show a fund),
-`--fund-search "MSCI World"` (the add-fund dialog, open with results), `--fund-pick SEC0.DE` (with that result picked
+`--theme light|dark`, `--lang da|en`, `--fullscreen`, `--notch 32` (full screen as on a screen
+with a notch), `--seismograph 0.4` (the seismograph paused 40 % into the range), `--fund SPY` (add and show a fund),
+`--search "MSCI World"` (the search, open with results), `--fund-pick SEC0.DE` (with that fund picked
 and its holdings loaded — or the warning if none were found), `--fund-add` (and added), `--dialog new-list|rename-list`
 (the watchlist dialogs), `--window 1200x780` (the window's content at any size), `--settings` (the Settings
 window). A snapshot draws the app's own views only: the window's title bar and traffic lights are drawn by macOS
