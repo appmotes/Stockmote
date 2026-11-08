@@ -75,13 +75,6 @@ struct SettingsTab: View {
                 }
 
                 SettingsGroup(title: tr("Kort og lister", "Map and lists")) {
-                    Row(tr("Store selskaber fylder mest i lister", "Size list tiles by market value"),
-                        help: tr("Favoritter og watchlister. Slået fra er alle felter lige store.",
-                                 "Favorites and watchlists. Off makes every tile the same size.")) {
-                        Toggle("", isOn: $prefs.listsByMarketCap)
-                            .toggleStyle(.switch)
-                    }
-                    Divider().padding(.leading, 12)
                     Row(tr("Opdatér mens vinduet er åbent", "Refresh while open"),
                         help: tr("Når børsen er åben. Ellers hvert 5. minut, og hver halve time når alt er lukket.",
                                  "While the market is open. Otherwise every 5 minutes, and every 30 when all are closed.")) {

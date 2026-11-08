@@ -86,7 +86,6 @@ private struct Content: View {
         case .map:
             switch app.tab {
             case .map: MapContent()
-            case .favorites: FavoritesContent()
             case .watchlists: WatchlistContent()
             }
         }
@@ -100,7 +99,10 @@ private struct ToastView: View {
     var body: some View {
         if let toast = app.toast {
             HStack(spacing: 12) {
+                // A longer message (why a fund has no map) wraps in a narrow window.
                 Text(toast.text).font(.system(size: 12, weight: .medium))
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let undo = toast.undo {
                     Button(tr("Fortryd", "Undo")) {
                         undo()
@@ -112,10 +114,12 @@ private struct ToastView: View {
                 }
             }
             .padding(.horizontal, 14)
-            .frame(height: 32)
-            .background(Capsule().fill(Palette.surface))
-            .overlay(Capsule().strokeBorder(Palette.outline))
+            .padding(.vertical, 7)
+            .frame(minHeight: 32)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Palette.surface))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Palette.outline))
             .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
+            .padding(.horizontal, 24)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .id(toast.id)
         }
@@ -176,6 +180,7 @@ private struct Toolbar: View {
                 SeismographButton()
                 ViewModePicker()
             }
+            if app.screen == .overview { TradingHoursButton() }
             SearchButton(compact: compact)
             ThemeToggleButton()
             RefreshButton()
@@ -235,6 +240,27 @@ private struct SeismographButton: View {
     }
 }
 
+/// The overview's trading-hours band on and off. Highlighted when on.
+private struct TradingHoursButton: View {
+    @ObservedObject private var prefs = Preferences.shared
+    @State private var isHovering = false
+
+    var body: some View {
+        Button { withAnimation(.easeInOut(duration: 0.2)) { prefs.showTradingHours.toggle() } } label: {
+            Image(systemName: "clock")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(prefs.showTradingHours ? Color.accentColor : .secondary)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(prefs.showTradingHours ? Color.accentColor.opacity(0.18) : (isHovering ? Palette.raised : .clear)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(tr("Handelstider", "Trading hours"))
+        .onHover { isHovering = $0 }
+    }
+}
+
 /// The source the map shows, for titles and breadcrumbs.
 @MainActor
 enum Source {
@@ -242,9 +268,19 @@ enum Source {
         let app = AppState.shared
         switch app.tab {
         case .map: return UniverseStore.shared.index(withID: app.indexID)?.title ?? ""
-        case .favorites: return tr("Favoritter", "Favorites")
         case .watchlists: return ListsStore.shared.watchlist(app.watchlistID)?.name ?? tr("Watchliste", "Watchlist")
         }
+    }
+
+    /// The source as a breadcrumb step: a fund by its ticker ("VWCE"),
+    /// since its full name is long.
+    static var crumb: String {
+        let app = AppState.shared
+        if app.tab == .map, let symbol = FundStore.symbol(fromID: app.indexID),
+           let fund = FundStore.shared.fund(symbol) {
+            return fund.displaySymbol
+        }
+        return title
     }
 
     /// The current index or fund, when the source is one.
@@ -356,7 +392,11 @@ private struct TitleBlock: View {
         var crumbs: [Crumb] = []
         guard app.screen != .overview else { return crumbs }
         crumbs.append(Crumb(label: tr("Overblik", "Overview")) { app.showOverview() })
-        let source = Source.title
+        // A fund or index opened from a list: the list comes first.
+        if let list = app.parentList {
+            crumbs.append(Crumb(label: list.name) { app.openWatchlist(list.id) })
+        }
+        let source = Source.crumb
         let toMap: (Focus) -> Void = { focus in
             app.focus = focus
             app.screen = .map
@@ -396,7 +436,7 @@ private struct TitleBlock: View {
             // The sector's or industry's own change, weighted by market cap.
             let items = Items.make(index.symbols, weights: index.weights).filter { $0.matches(app.focus) }
             return Figure(change: Items.weightedChange(items), isAverage: true, isWeighted: true, period: period)
-        case .favorites, .watchlists: return market.viewFigure(period)
+        case .watchlists: return market.viewFigure(period)
         }
     }
 }
@@ -754,7 +794,6 @@ enum Items {
     /// the fund and not its market cap.
     static func make(_ symbols: [String], byMarketCap: Bool = true, weights: [String: Double]? = nil) -> [HeatItem] {
         let market = MarketStore.shared
-        let lists = ListsStore.shared
         let replay = ReplayStore.shared
         let size: (String) -> Double? = { symbol in weights.map { $0[symbol] } ?? market.marketCap(symbol) }
         let caps = symbols.compactMap(size)
@@ -768,10 +807,52 @@ enum Items {
                 symbol: symbol, name: info.name, sector: info.sector, industry: info.industry,
                 weight: byMarketCap ? cap : 1,
                 // During replay: the change at the selected time.
-                change: replay.isReady ? (replay.change(symbol) ?? 0) : market.change(symbol, market.period),
-                isFavorite: lists.isFavorite(symbol)
+                change: replay.isReady ? (replay.change(symbol) ?? 0) : market.change(symbol, market.period)
             )
         }
+    }
+
+    /// A list's tiles: one per item, all the same size, each coloured by the
+    /// item's own change — the stock's, the fund's own price or NAV, the
+    /// index's own figure. Without one the tile is grey with "–".
+    static func make(list items: [ListItem]) -> [HeatItem] {
+        let market = MarketStore.shared
+        let replay = ReplayStore.shared
+        let universe = UniverseStore.shared
+        return items.map { item in
+            let quote = MarketStore.quoteSymbol(item) ?? item.symbol
+            let figure = market.itemFigure(item, market.period)
+            // During replay: the item's own series at the selected time.
+            let change = replay.isReady ? replay.change(quote) : figure.change
+            let isEstimate = !replay.isReady && figure.isIndicative
+            switch item.kind {
+            case .stock:
+                let info = market.info(item.symbol)
+                return HeatItem(symbol: item.symbol, name: info.name, sector: info.sector, industry: info.industry,
+                                weight: 1, change: change)
+            case .fund:
+                let fund = item.fund
+                return HeatItem(symbol: quote, name: fund?.name ?? item.symbol, sector: tr("Fonde", "Funds"),
+                                industry: fund?.kindLabel ?? tr("Fond", "Fund"), weight: 1, change: change,
+                                label: fund?.displaySymbol, ref: item.key, isEstimate: isEstimate)
+            case .index:
+                let index = universe.index(withID: item.symbol)
+                let region = index.map { $0.isEuropean ? tr("Europa", "Europe") : tr("USA", "United States") } ?? ""
+                // The tile says the index's name; the line under it what it is.
+                return HeatItem(symbol: quote, name: index.map { tr("Indeks · \($0.symbols.count) aktier", "Index · \($0.symbols.count) stocks") } ?? item.symbol,
+                                sector: tr("Indeks", "Indices"), industry: region,
+                                weight: 1, change: change, label: index?.name, ref: item.key)
+            }
+        }
+    }
+
+    /// The list item a tile stands for.
+    static func listItem(_ item: HeatItem) -> ListItem {
+        guard let ref = item.ref else { return .stock(item.symbol) }
+        if let symbol = FundStore.symbol(fromID: ref) {
+            return FundStore.shared.fund(symbol).map(ListItem.fund) ?? ListItem(kind: .fund, symbol: symbol)
+        }
+        return .index(String(ref.dropFirst("index:".count)))
     }
 
     /// The change of a group of stocks, weighted by tile size (market value,
@@ -786,7 +867,7 @@ enum Items {
         var hasher = Hasher()
         hasher.combine(MarketStore.shared.version)
         hasher.combine(MarketStore.shared.period)
-        hasher.combine(ListsStore.shared.favorites)
+        hasher.combine(FundStore.shared.holdings.count)
         let replay = ReplayStore.shared
         hasher.combine(replay.isReady ? replay.frame : -1)
         hasher.combine(replay.timeline.count)
@@ -798,15 +879,10 @@ enum Items {
     static func current() -> (items: [HeatItem], grouping: Grouping, key: Int, drillDown: Bool) {
         let app = AppState.shared
         let lists = ListsStore.shared
-        let prefs = Preferences.shared
         switch app.tab {
-        case .favorites:
-            return (make(lists.favorites, byMarketCap: prefs.listsByMarketCap), .flat,
-                    key("favorites", prefs.listsByMarketCap), false)
         case .watchlists:
             let list = lists.watchlist(app.watchlistID)
-            return (make(list?.symbols ?? [], byMarketCap: prefs.listsByMarketCap), .flat,
-                    key("watchlist", list, prefs.listsByMarketCap), false)
+            return (make(list: list?.items ?? []), .flat, key("watchlist", list), false)
         case .map:
             let universe = UniverseStore.shared
             let index = universe.index(withID: app.indexID) ?? universe.indices.first
@@ -868,7 +944,9 @@ private struct FundStatusView: View {
                     .multilineTextAlignment(.center).frame(maxWidth: 420)
                 HStack {
                     Button(tr("Prøv igen", "Try again")) { funds.load(fund.symbol, force: true) }
-                    Button(tr("Fjern \(fund.displaySymbol)", "Remove \(fund.displaySymbol)")) { AppState.shared.removeFund(fund.symbol) }
+                    if let list = AppState.shared.parentList {
+                        Button(tr("Tilbage til \(list.name)", "Back to \(list.name)")) { AppState.shared.openWatchlist(list.id) }
+                    }
                 }
             } else {
                 ProgressView()
@@ -885,29 +963,11 @@ private struct FundStatusView: View {
     }
 }
 
-private struct FavoritesContent: View {
-    @ObservedObject private var replay = ReplayStore.shared
-    @ObservedObject private var lists = ListsStore.shared
-    @ObservedObject private var market = MarketStore.shared
-    @ObservedObject private var prefs = Preferences.shared
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if lists.favorites.isEmpty {
-                EmptyListView(text: tr("Ingen favoritter endnu", "No favorites yet"),
-                              detail: tr("Søg med ⌘K og klik ☆, eller højreklik på en aktie på kortet og vælg “Føj til favoritter”.",
-                                         "Search with ⌘K and click ☆, or right-click a stock on the map and choose “Add to favorites”."))
-            } else {
-                let current = Items.current()
-                StocksView(items: current.items, grouping: .flat, contentKey: current.key, allowsDrillDown: false)
-            }
-        }
-    }
-}
-
+/// A list's map: one tile per stock, fund or index, all the same size.
 private struct WatchlistContent: View {
     @ObservedObject private var replay = ReplayStore.shared
     @ObservedObject private var lists = ListsStore.shared
+    @ObservedObject private var funds = FundStore.shared
     @ObservedObject private var market = MarketStore.shared
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
@@ -915,24 +975,23 @@ private struct WatchlistContent: View {
     var body: some View {
         VStack(spacing: 0) {
             if let list = lists.watchlist(app.watchlistID) ?? lists.watchlists.first {
-                if list.symbols.isEmpty {
+                if list.items.isEmpty {
                     EmptyListView(text: tr("\(list.name) er tom", "\(list.name) is empty"),
-                                  detail: tr("Søg med ⌘K og klik + \(list.name), eller højreklik på en aktie på kortet og vælg Watchlister.",
-                                             "Search with ⌘K and click + \(list.name), or right-click a stock on the map and choose Watchlists."))
+                                  detail: tr("Søg med ⌘K og klik + \(list.name) ved en aktie, en fond eller et indeks.",
+                                             "Search with ⌘K and click + \(list.name) beside a stock, a fund or an index."))
                 } else {
                     let current = Items.current()
                     StocksView(
                         items: current.items, grouping: .flat, contentKey: current.key, allowsDrillDown: false,
                         extraMenu: { item in
-                            AnyView(Button(tr("Fjern \(Symbols.display(item.symbol)) fra \(list.name)",
-                                              "Remove \(Symbols.display(item.symbol)) from \(list.name)")) {
-                                lists.remove(item.symbol, from: list.id)
+                            AnyView(Button(tr("Fjern \(item.title) fra \(list.name)", "Remove \(item.title) from \(list.name)")) {
+                                app.remove(Items.listItem(item), from: list.id)
                             })
                         }
                     )
                 }
             } else {
-                EmptyListView(text: tr("Ingen watchlister", "No watchlists"),
+                EmptyListView(text: tr("Ingen lister", "No lists"),
                               detail: tr("Lav en med “+ Ny watchliste” i søgningen (⌘K).", "Make one with “+ New watchlist” in the search (⌘K)."))
             }
         }
@@ -948,7 +1007,7 @@ private struct EmptyListView: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Image(systemName: "star.square.on.square").font(.system(size: 28)).foregroundStyle(.secondary)
+            Image(systemName: "square.grid.2x2").font(.system(size: 28)).foregroundStyle(.secondary)
             Text(text).font(.system(size: 14, weight: .semibold))
             Text(detail).font(.system(size: 11.5)).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
@@ -993,14 +1052,16 @@ struct StockList: View {
         case .changeDown: return items.sorted { ($0.change ?? -.infinity) > ($1.change ?? -.infinity) }
         case .changeUp: return items.sorted { ($0.change ?? .infinity) < ($1.change ?? .infinity) }
         case .marketCap: return items.sorted { size($0.symbol) > size($1.symbol) }
-        case .symbol: return items.sorted { $0.symbol < $1.symbol }
+        case .symbol: return items.sorted { $0.title < $1.title }
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Text(tr("\(items.count) aktier", "\(items.count) stocks")).foregroundStyle(.secondary)
+                Text(items.contains { $0.ref != nil }
+                     ? tr("\(items.count) værdipapirer", "\(items.count) securities")
+                     : tr("\(items.count) aktier", "\(items.count) stocks")).foregroundStyle(.secondary)
                 Spacer()
                 Picker(tr("Sortér", "Sort"), selection: $sort) {
                     ForEach(SortKey.allCases) { key in
@@ -1066,29 +1127,27 @@ private struct StockRow: View {
 
     var body: some View {
         Button {
-            AppState.shared.openStock(item.symbol)
+            AppState.shared.open(item)
         } label: {
             HStack(spacing: 10) {
-                HStack(spacing: 4) {
-                    Text(Symbols.display(item.symbol)).font(.system(size: 12.5, weight: .bold)).lineLimit(1)
-                    if item.isFavorite {
-                        Image(systemName: "star.fill").font(.system(size: 8)).foregroundStyle(.yellow)
-                    }
-                }
-                .frame(width: 78, alignment: .leading)
+                Text(item.title).font(.system(size: 12.5, weight: .bold)).lineLimit(1)
+                    .frame(width: 78, alignment: .leading)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(item.name).font(.system(size: 12)).lineLimit(1)
-                    Text(item.industry).font(.system(size: 9.5)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(item.ref == nil ? item.industry : "\(item.sector) · \(item.industry)")
+                        .font(.system(size: 9.5)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Text(Format.price(price, currency: currency))
+                // A fund's or index's price has no currency the app knows of.
+                Text(item.ref == nil ? Format.price(price, currency: currency)
+                                     : Format.price(price, currency: "").trimmingCharacters(in: .whitespaces))
                     .font(.system(size: 12).monospacedDigit())
                     .frame(width: 96, alignment: .trailing)
-                Text(isFund ? Format.weight(weight) : Format.marketCap(marketCap))
+                Text(isFund ? Format.weight(weight) : item.ref == nil ? Format.marketCap(marketCap) : "–")
                     .font(.system(size: 11.5).monospacedDigit())
                     .foregroundStyle(.secondary)
                     .frame(width: 100, alignment: .trailing)
-                Text(Format.percent(item.change))
+                Text(item.percentText)
                     .font(.system(size: 12, weight: .bold).monospacedDigit())
                     .foregroundStyle(Heat.label(on: item.change, scale: period.colorScale, style: style, theme: theme))
                     .frame(width: 74, height: 22)

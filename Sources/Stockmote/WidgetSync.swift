@@ -18,8 +18,7 @@ final class WidgetSync {
 
     func start() {
         let lists = ListsStore.shared
-        Publishers.Merge6(
-            lists.$favorites.map { _ in () },
+        Publishers.Merge5(
             lists.$watchlists.map { _ in () },
             Preferences.shared.$colorStyle.map { _ in () },
             Preferences.shared.$language.map { _ in () },
@@ -51,10 +50,23 @@ final class WidgetSync {
                                                industry: info.industry, cap: market.marketCap(symbol))
         }
 
+        // A list's items with the symbol whose price the widget fetches: a
+        // fund's own, an index's benchmark — never their members.
+        let listItems: (Watchlist) -> [WidgetShare.Item] = { list in
+            list.items.compactMap { item in
+                guard let quote = MarketStore.quoteSymbol(item) else { return nil }
+                let name: String
+                switch item.kind {
+                case .stock: name = market.info(item.symbol).name
+                case .fund: name = item.fund?.name ?? item.symbol
+                case .index: name = universe.index(withID: item.symbol)?.name ?? item.symbol
+                }
+                return WidgetShare.Item(kind: item.kind.rawValue, symbol: quote, label: AppState.label(item), name: name)
+            }
+        }
         let share = WidgetShare(
             updated: Date(),
-            favorites: lists.favorites,
-            watchlists: lists.watchlists.map { WidgetShare.List(name: $0.name, symbols: $0.symbols) },
+            watchlists: lists.watchlists.map { WidgetShare.List(name: $0.name, symbols: $0.symbols, items: listItems($0)) },
             indices: Dictionary(all.map { ($0.id, $0.symbols) }, uniquingKeysWith: { a, _ in a }),
             stocks: stocks,
             colorStyle: Preferences.shared.colorStyle.rawValue,
@@ -75,9 +87,8 @@ final class WidgetSync {
         }
 
         var hasher = Hasher()
-        hasher.combine(share.favorites)
         hasher.combine(share.watchlists.map(\.name))
-        hasher.combine(share.watchlists.map(\.symbols))
+        hasher.combine(share.watchlists.map { ($0.items ?? []).map(\.symbol) })
         hasher.combine(share.colorStyle)
         hasher.combine(share.english)
         hasher.combine(share.theme)

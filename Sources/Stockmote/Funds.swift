@@ -4,9 +4,27 @@ import StockmoteShared
 
 // MARK: - Model
 
-/// A fund added in the sidebar: an ETF, a mutual fund or similar,
-/// known by its Yahoo symbol ("SPY", "EXS1.DE",
-/// "SPIC25KL.CO").
+/// Why a fund can't be drawn as a map of stocks.
+enum FundMapless: String, Codable, Hashable {
+    /// Bonds, money market or other funds.
+    case notEquity
+    /// A swap-based ETF with no fund on the same index to stand in.
+    case swap
+
+    func message(_ name: String) -> String {
+        switch self {
+        case .notEquity:
+            return tr("\(name) ejer ikke aktier (obligationer, pengemarked eller andre fonde), så den kan ikke åbnes som aktiekort. Feltet viser fondens egen kurs.",
+                      "\(name) doesn't hold stocks (bonds, money market or other funds), so it can't be opened as a stock map. The tile shows the fund's own price.")
+        case .swap:
+            return tr("\(name) er en swap-baseret ETF uden aktiebeholdning at vise, så den kan ikke åbnes som aktiekort. Feltet viser fondens egen kurs.",
+                      "\(name) is a swap-based ETF with no stock holdings to show, so it can't be opened as a stock map. The tile shows the fund's own price.")
+        }
+    }
+}
+
+/// A fund in a list: an ETF, a mutual fund or similar, known by its Yahoo
+/// symbol ("SPY", "EXS1.DE", "SPIC25KL.CO").
 struct Fund: Codable, Hashable, Identifiable {
     let symbol: String
     var name: String
@@ -17,9 +35,13 @@ struct Fund: Codable, Hashable, Identifiable {
     /// Nordnet's instrument id, for funds found in Nordnet's search: their
     /// holdings come from Nordnet (see Nordnet.swift).
     var nordnet: Int? = nil
+    /// Set when the fund is known not to hold stocks: it is still in the
+    /// list with its own price, but has no map to open.
+    var mapless: FundMapless? = nil
 
     var id: String { FundStore.id(symbol) }
-    var displaySymbol: String { Symbols.display(symbol) }
+    /// The ticker — or, for a fund priced by NAV that has none, its short name.
+    var displaySymbol: String { FundNAV.isNAV(symbol) ? shortName : Symbols.display(symbol) }
 
     /// The name without the provider's filler words, for the sidebar: "State Street SPDR
     /// S&P 500 ETF Trust" → "SPDR S&P 500", "iShares Core MSCI World UCITS ETF
@@ -137,10 +159,10 @@ enum FundError: LocalizedError {
 
 // MARK: - Store
 
-/// Funds in the sidebar and their holdings.
+/// The funds in the user's lists and their holdings.
 ///
-/// The list of funds is stored in UserDefaults (so snapshot mode has its
-/// own). Holdings and name lookups are cached in
+/// Which funds there are follows the lists (`ListsStore.allFunds`, see
+/// `sync`). Holdings and name lookups are cached in
 /// `~/Library/Application Support/Stockmote/Funds/`.
 ///
 /// A fund is shown as an index: `index(withID:)` gives a `MarketIndex` with
@@ -161,9 +183,8 @@ final class FundStore: ObservableObject {
         id.hasPrefix("fund:") ? String(id.dropFirst(5)) : nil
     }
 
-    @Published private(set) var funds: [Fund] = [] {
-        didSet { save() }
-    }
+    /// The funds in the lists, once each.
+    @Published private(set) var funds: [Fund] = []
     @Published private(set) var holdings: [String: FundHoldings] = [:]
     /// Fund → what is happening right now ("Looking up stocks 40/130").
     @Published private(set) var progress: [String: String] = [:]
@@ -182,35 +203,53 @@ final class FundStore: ObservableObject {
         let info: StockInfo?
     }
 
-    private let defaults = AppDefaults.store
-    private var isLoading = false
-
     private init() {
-        isLoading = true
-        if let data = defaults.data(forKey: "funds"),
-           let saved = try? JSONDecoder().decode([Fund].self, from: data) {
-            funds = saved
-        }
-        isLoading = false
         names = Self.readJSON([String: NameMatch].self, from: Self.namesURL) ?? [:]
-        for fund in funds {
-            if let cached = Self.readJSON(FundHoldings.self, from: Self.cacheURL(fund.symbol)) {
-                holdings[fund.symbol] = cached
-                for stock in cached.stocks { info[stock.symbol] = stock }
-            }
-        }
+        funds = ListsStore.shared.allFunds
+        for fund in funds { readCache(fund.symbol) }
     }
 
-    private func save() {
-        guard !isLoading, let data = try? JSONEncoder().encode(funds) else { return }
-        defaults.set(data, forKey: "funds")
+    private func readCache(_ symbol: String) {
+        guard holdings[symbol] == nil,
+              let cached = Self.readJSON(FundHoldings.self, from: Self.cacheURL(symbol)) else { return }
+        holdings[symbol] = cached
+        for stock in cached.stocks { info[stock.symbol] = stock }
+    }
+
+    /// Follows the lists: a fund put in a list gets its holdings (from the
+    /// cache, or loaded); one taken out of the last list stops loading. Its
+    /// holdings stay in memory and on disk, so Undo brings it straight back.
+    func sync() {
+        let wanted = ListsStore.shared.allFunds
+        guard wanted != funds else { return }
+        let old = Set(funds.map(\.symbol))
+        let new = Set(wanted.map(\.symbol))
+        funds = wanted
+        for symbol in old.subtracting(new) {
+            tasks[symbol]?.cancel()
+            tasks[symbol] = nil
+            errors[symbol] = nil
+            progress[symbol] = nil
+        }
+        for fund in wanted where !old.contains(fund.symbol) {
+            readCache(fund.symbol)
+            load(fund.symbol, force: false)
+        }
+        AppState.shared.fundsChanged(removed: old.subtracting(new))
     }
 
     // MARK: Lookup
 
     func fund(_ symbol: String) -> Fund? { funds.first { $0.symbol == symbol } }
 
+    /// Whether the fund is in a list.
     func contains(_ symbol: String) -> Bool { fund(symbol) != nil }
+
+    /// The fund can be opened as a map: it isn't known to hold no stocks.
+    func canOpen(_ symbol: String) -> Bool {
+        guard let fund = fund(symbol) else { return false }
+        return fund.mapless == nil
+    }
 
     /// The fund as an index. If it exists but its holdings aren't loaded yet,
     /// the member list is empty — the map then shows that they are loading.
@@ -235,9 +274,15 @@ final class FundStore: ObservableObject {
 
     var indices: [MarketIndex] { funds.map(index(for:)) }
 
-    /// All stocks in all funds.
+    /// All stocks in all the funds in the lists.
     var allSymbols: Set<String> {
-        Set(holdings.values.flatMap { $0.holdings.map(\.symbol) })
+        Set(funds.flatMap { holdings[$0.symbol]?.holdings.map(\.symbol) ?? [] })
+    }
+
+    /// The holdings of the funds priced by a daily NAV: their day is the
+    /// indicative value from these until the NAV is out.
+    var navHoldingSymbols: Set<String> {
+        Set(funds.filter { FundNAV.isNAV($0.symbol) }.flatMap { holdings[$0.symbol]?.holdings.map(\.symbol) ?? [] })
     }
 
     /// The stock's weight in the fund, in percent.
@@ -296,41 +341,21 @@ final class FundStore: ObservableObject {
         return "\(count) · " + tr("største: \(name) \(Format.weight(weight))", "largest: \(name) \(Format.weight(weight))")
     }
 
-    // MARK: Add and remove
+    // MARK: Holdings
 
-    /// Adds the fund (if it isn't there) and loads its holdings. Used
-    /// by snapshot mode; the dialog uses `resolve` and `add(_:holdings:)`.
-    func add(_ fund: Fund) {
-        if !contains(fund.symbol) { funds.append(fund) }
-        load(fund.symbol, force: false)
-    }
-
-    /// Loads the fund's holdings without adding it. The dialog shows them
-    /// first, so a fund no source knows never ends up in the sidebar.
-    /// `report` gets the progress ("Looking up stocks 40/130…").
+    /// Loads the fund's holdings without adding it anywhere. The search
+    /// shows them before the fund is put in a list. `report` gets the
+    /// progress ("Looking up stocks 40/130…").
     func resolve(_ fund: Fund, report: @escaping @MainActor (String) -> Void) async throws -> FundHoldings {
         try await buildHoldings(fund, report: report)
     }
 
-    /// Adds a fund whose holdings `resolve` just loaded. They are cached
-    /// right away, so the fund shows without being loaded again.
-    func add(_ fund: Fund, holdings loaded: FundHoldings) {
-        if !contains(fund.symbol) { funds.append(fund) }
-        errors[fund.symbol] = nil
+    /// Keeps holdings `resolve` just loaded, before the fund goes in a list,
+    /// so it isn't loaded again.
+    func store(_ loaded: FundHoldings) {
+        errors[loaded.symbol] = nil
         keep(loaded)
         Task { await loadQuotes() }
-    }
-
-    func remove(_ symbol: String) {
-        tasks[symbol]?.cancel()
-        tasks[symbol] = nil
-        funds.removeAll { $0.symbol == symbol }
-        holdings[symbol] = nil
-        errors[symbol] = nil
-        progress[symbol] = nil
-        try? FileManager.default.removeItem(at: Self.cacheURL(symbol))
-        let app = AppState.shared
-        if app.indexID == Self.id(symbol) { app.indexID = "sp500" }
     }
 
     /// Loads holdings that are missing or more than a week old.
@@ -353,7 +378,7 @@ final class FundStore: ObservableObject {
 
     /// Loads the holdings in the background. `force` loads even when they are fresh.
     func load(_ symbol: String, force: Bool) {
-        guard tasks[symbol] == nil, let fund = fund(symbol) else { return }
+        guard tasks[symbol] == nil, let fund = fund(symbol), fund.mapless == nil else { return }
         if !force, isFresh(fund) { return }
         tasks[symbol] = Task { [weak self] in
             await self?.fetch(fund)
@@ -378,6 +403,13 @@ final class FundStore: ObservableObject {
             await loadQuotes()
         } catch {
             guard !Task.isCancelled else { return }
+            // A fund that turns out to hold no stocks stays in its lists with
+            // its own price; it is noted so its holdings aren't looked for again.
+            switch error {
+            case FundError.notEquity: ListsStore.shared.markMapless(fund.symbol, .notEquity)
+            case FundError.swap: ListsStore.shared.markMapless(fund.symbol, .swap)
+            default: break
+            }
             // Old holdings are better than none; the error only shows when
             // there are none.
             if holdings[fund.symbol] == nil {

@@ -112,8 +112,9 @@ struct HeatmapView: View {
         if allowsDrillDown, let header = layout.header(at: content) {
             onFocus(header.focus)
         } else if let tile = layout.tile(at: content) {
-            // The stock page; the web is one button further, on that page.
-            AppState.shared.openStock(tile.item.symbol)
+            // The stock page (the web is one button further, on that page);
+            // a list's fund or index opens its own map.
+            AppState.shared.open(tile.item)
         }
     }
 
@@ -286,13 +287,18 @@ struct StockTooltip: View {
     @ObservedObject private var market = MarketStore.shared
 
     var body: some View {
+        if item.ref != nil {
+            RefTooltip(item: item, period: period, style: style)
+        } else {
+            stock
+        }
+    }
+
+    private var stock: some View {
         let dayChange = market.change(item.symbol, .day)
-        VStack(alignment: .leading, spacing: 5) {
+        return VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(Symbols.display(item.symbol)).font(.system(size: 16, weight: .bold))
-                if item.isFavorite {
-                    Image(systemName: "star.fill").font(.system(size: 10)).foregroundStyle(.yellow)
-                }
+                Text(item.title).font(.system(size: 16, weight: .bold))
                 Spacer(minLength: 8)
                 Text(Format.percent(item.change))
                     .font(.system(size: 15, weight: .bold).monospacedDigit())
@@ -351,6 +357,64 @@ struct StockTooltip: View {
             Text(label).foregroundStyle(.secondary)
             Text(value)
         }
+    }
+}
+
+/// A list's fund or index: its own price and change, and what a click does
+/// — or, for a fund that holds no stocks, why there is no map.
+private struct RefTooltip: View {
+    @Environment(\.heatTheme) private var theme
+    @ObservedObject private var replay = ReplayStore.shared
+    @ObservedObject private var market = MarketStore.shared
+    @ObservedObject private var funds = FundStore.shared
+    let item: HeatItem
+    let period: Period
+    let style: ColorStyle
+
+    private var fund: Fund? { item.ref.flatMap(FundStore.symbol(fromID:)).flatMap(funds.fund) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(item.title).font(.system(size: 16, weight: .bold)).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(item.percentText)
+                    .font(.system(size: 15, weight: .bold).monospacedDigit())
+                    .foregroundStyle(Heat.textColor(item.change, style: style, theme: theme))
+            }
+            Text(item.name).font(.system(size: 12, weight: .medium)).lineLimit(2)
+            Text("\(item.sector) › \(item.industry)").font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
+            Divider().padding(.vertical, 2)
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 3) {
+                GridRow {
+                    Text(replay.isReady ? tr("Kurs \(replay.timeLabel())", "Price \(replay.timeLabel())") : tr("Kurs", "Price"))
+                        .foregroundStyle(.secondary)
+                    Text(Format.price(replay.price(item.symbol) ?? market.price(item.symbol), currency: "")
+                        .trimmingCharacters(in: .whitespaces))
+                }
+                GridRow {
+                    Text(period.longName).foregroundStyle(.secondary)
+                    Text(item.percentText).foregroundStyle(Heat.textColor(item.change, style: style, theme: theme))
+                }
+            }
+            .font(.system(size: 11).monospacedDigit())
+            if item.isEstimate {
+                Text(tr("≈ Indikativ værdi ud fra beholdningen, indtil dagens indre værdi offentliggøres.",
+                        "≈ Indicative value from the holdings, until today's NAV is published."))
+                    .font(.system(size: 9.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Text(hint)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
+        }
+    }
+
+    private var hint: String {
+        if let fund, let mapless = fund.mapless { return mapless.message(fund.displaySymbol) }
+        if fund != nil { return tr("Klik for fondens beholdning · højreklik for mere", "Click for the fund's holdings · right-click for more") }
+        return tr("Klik for indekset · højreklik for mere", "Click for the index · right-click for more")
     }
 }
 
@@ -424,28 +488,28 @@ struct StockMenu: View {
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
 
-    private var shown: String { Symbols.display(item.symbol) }
+    private var shown: String { item.title }
 
     var body: some View {
+        let listItem = Items.listItem(item)
         Button(tr("Vis \(shown)", "Show \(shown)")) {
-            AppState.shared.openStock(item.symbol)
+            AppState.shared.open(item)
         }
-        Button(tr("Åbn \(shown) på \(prefs.quoteSite.label)", "Open \(shown) on \(prefs.quoteSite.label)")) {
-            prefs.openQuote(item.symbol)
+        if !FundNAV.isNAV(item.symbol) {
+            Button(tr("Åbn \(shown) på \(prefs.quoteSite.label)", "Open \(shown) on \(prefs.quoteSite.label)")) {
+                prefs.openQuote(item.symbol)
+            }
         }
-        Button(lists.isFavorite(item.symbol) ? tr("Fjern \(shown) fra favoritter", "Remove \(shown) from favorites") : tr("Føj \(shown) til favoritter", "Add \(shown) to favorites")) {
-            lists.toggleFavorite(item.symbol)
-        }
-        Menu(tr("Watchlister", "Watchlists")) {
+        Menu(tr("Lister", "Lists")) {
             ForEach(lists.watchlists) { list in
                 Toggle(list.name, isOn: Binding(
-                    get: { lists.contains(item.symbol, in: list.id) },
-                    set: { _ in lists.toggle(item.symbol, in: list.id) }
+                    get: { lists.contains(listItem, in: list.id) },
+                    set: { _ in lists.toggle(listItem, in: list.id) }
                 ))
             }
             if !lists.watchlists.isEmpty { Divider() }
-            Button(tr("Ny watchliste med \(shown) …", "New watchlist with \(shown) …")) {
-                AppState.shared.dialog = .newWatchlist(symbols: [item.symbol])
+            Button(tr("Ny liste med \(shown) …", "New list with \(shown) …")) {
+                AppState.shared.dialog = .newWatchlist(items: [listItem])
             }
         }
         if showDrillDown {
@@ -465,9 +529,11 @@ struct StockMenu: View {
             }
         }
         Divider()
-        Button(tr("Kopiér \(shown)", "Copy \(shown)")) {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(item.symbol, forType: .string)
+        if !FundNAV.isNAV(item.symbol) {
+            Button(tr("Kopiér \(Symbols.display(item.symbol))", "Copy \(Symbols.display(item.symbol))")) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(item.symbol, forType: .string)
+            }
         }
     }
 }

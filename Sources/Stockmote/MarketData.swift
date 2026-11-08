@@ -83,7 +83,8 @@ struct Figure {
             lines.append(tr("Gennemsnit vægtet efter markedsværdi (i en fond: fondens vægte).",
                             "Average weighted by market value (in a fund: the fund's weights)."))
         } else if isAverage {
-            lines.append(tr("Gennemsnit af aktierne på listen med lige vægt.", "Equal-weight average of the stocks on the list."))
+            lines.append(tr("Gennemsnit med lige vægt af listens aktier, fonde og indeks, hver med sin egen kurs. En fonds indikative værdi tæller ikke med.",
+                            "Equal-weight average of the list's stocks, funds and indices, each by its own price. A fund's indicative value is left out."))
         }
         if let date, change != nil, !isAverage {
             switch period {
@@ -92,10 +93,10 @@ struct Figure {
             }
         }
         if isAverage, period == .all || period.start() != nil {
-            lines.append(tr("Aktier uden kurs for hele perioden tæller ikke med.", "Stocks without a price for the whole range are left out."))
+            lines.append(tr("Det, der ikke har kurs for hele perioden, tæller ikke med.", "Anything without a price for the whole range is left out."))
         }
         if isAverage, period == .all {
-            lines.append(tr("Hver aktie regnes fra sin egen første kurs.", "Each stock counts from its own first price."))
+            lines.append(tr("Hver regnes fra sin egen første kurs.", "Each counts from its own first price."))
         }
         return lines.joined(separator: "\n")
     }
@@ -259,14 +260,43 @@ final class MarketStore: ObservableObject {
         case .map:
             guard let index = UniverseStore.shared.index(withID: app.indexID) else { return Figure(period: period) }
             return indexFigure(index, period)
-        case .favorites: return listFigure(ListsStore.shared.favorites, period)
-        case .watchlists: return listFigure(ListsStore.shared.watchlist(app.watchlistID)?.symbols ?? [], period)
+        case .watchlists: return listFigure(ListsStore.shared.watchlist(app.watchlistID)?.items ?? [], period)
         }
     }
 
-    /// Equal-weight average of a list's stocks, of those that have a figure.
-    func listFigure(_ symbols: [String], _ period: Period) -> Figure {
-        let changes = symbols.compactMap { change($0, period) }
+    /// A list item's own figure: the stock's change, the fund's own price
+    /// (or NAV, with the customary indicative value on the day, marked), the
+    /// index's own figure. "–" when there is none — never a stand-in.
+    func itemFigure(_ item: ListItem, _ period: Period) -> Figure {
+        switch item.kind {
+        case .stock:
+            return Figure(change: change(item.symbol, period), since: since(item.symbol, period), period: period)
+        case .fund:
+            guard let fund = item.fund else { return Figure(period: period) }
+            return indexFigure(FundStore.shared.index(for: fund), period)
+        case .index:
+            guard let index = UniverseStore.shared.index(withID: item.symbol) else { return Figure(period: period) }
+            return indexFigure(index, period)
+        }
+    }
+
+    /// The symbol whose price an item shows: the stock, the fund, the
+    /// index's benchmark ("^GSPC").
+    static func quoteSymbol(_ item: ListItem) -> String? {
+        switch item.kind {
+        case .stock, .fund: return item.symbol
+        case .index: return UniverseStore.shared.index(withID: item.symbol)?.benchmark
+        }
+    }
+
+    /// Equal-weight average of the items' own figures, of those that have
+    /// one read from a price. An indicative value (a NAV fund's day) is an
+    /// estimate and isn't averaged in.
+    func listFigure(_ items: [ListItem], _ period: Period) -> Figure {
+        let changes = items.compactMap { item -> Double? in
+            let figure = itemFigure(item, period)
+            return figure.isIndicative ? nil : figure.change
+        }
         let average = changes.isEmpty ? nil : changes.reduce(0, +) / Double(changes.count)
         return Figure(change: average, isAverage: true, period: period)
     }
@@ -402,8 +432,8 @@ final class MarketStore: ObservableObject {
         case .map:
             guard let index = UniverseStore.shared.index(withID: app.indexID) else { return }
             symbols = [index.benchmark]
-        case .favorites: symbols = Set(ListsStore.shared.favorites)
-        case .watchlists: symbols = Set(ListsStore.shared.watchlist(app.watchlistID)?.symbols ?? [])
+        case .watchlists:
+            symbols = Set((ListsStore.shared.watchlist(app.watchlistID)?.items ?? []).compactMap(Self.quoteSymbol))
         }
         if let symbol = app.stockSymbol { symbols = [symbol] }
         guard !symbols.isEmpty else { return }
@@ -484,19 +514,22 @@ final class MarketStore: ObservableObject {
     private func wantedSymbols(for period: Period) -> Set<String> {
         let universe = UniverseStore.shared
         var symbols = Set(universe.indices.map(\.benchmark))
-        // The funds' own prices, for the figure in the sidebar.
+        // The funds' own prices, for their tiles in the lists.
         symbols.formUnion(FundStore.shared.funds.map(\.symbol))
-        // Exchange rates for converting European market caps to dollars.
-        if period == .day { symbols.formUnion(Currency.yahooSymbols) }
+        if period == .day {
+            // Exchange rates for converting European market caps to dollars.
+            symbols.formUnion(Currency.yahooSymbols)
+            // A NAV fund's day is its indicative value, from its holdings.
+            symbols.formUnion(FundStore.shared.navHoldingSymbols)
+        }
         let app = AppState.shared
         if let index = universe.index(withID: app.indexID) {
             symbols.formUnion(index.symbols)
         }
-        // The overview draws every index and fund as a small map, each
-        // stock coloured by its own change.
+        // The overview draws every index as a small map, each stock coloured
+        // by its own change. A list's card has its items' own prices.
         if app.screen == .overview {
             for index in universe.indices { symbols.formUnion(index.symbols) }
-            symbols.formUnion(FundStore.shared.allSymbols)
         }
         // The stock page: the stock and its peers in the same industry.
         if let symbol = app.stockSymbol {

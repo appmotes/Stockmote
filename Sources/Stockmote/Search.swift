@@ -18,14 +18,15 @@ enum SearchItem: Identifiable {
 }
 
 /// The one search (⌘K or /): indices, stocks and funds in one list. It is
-/// also the only way to add things — a stock to favourites or to the
-/// watchlist on screen, a fund under Mine — and to make a new watchlist.
+/// also the way to add things: every row has "+ Liste" (a menu of the lists
+/// and a new one), and when a list is on screen also "+ <list>" — Return
+/// then adds to that list. "+ Ny watchliste" makes a new list.
 ///
 /// Stocks and indices are found among those the app knows (the indices'
 /// members and Nasdaq's US screener); funds through the fund search
 /// (Yahoo, iShares, Vanguard, Xtrackers, Amundi, Nordnet …). A fund's
-/// holdings are loaded before it is added, so only a fund that can be shown
-/// as a map is added.
+/// holdings are loaded before it goes in a list, so it can be opened as a
+/// map; a bond fund goes in too, with its own price and no map.
 struct SearchDialog: View {
     let listHeight: CGFloat
 
@@ -36,11 +37,11 @@ struct SearchDialog: View {
     @ObservedObject private var funds = FundStore.shared
     @ObservedObject private var app = AppState.shared
     @State private var selection = 0
-    /// The fund whose "Add" was clicked: added as soon as its holdings are in.
-    @State private var pendingAdd: String?
+    /// The row whose "+ Liste" menu is open.
+    @State private var menuFor: String?
     @FocusState private var focused: Bool
 
-    /// The watchlist on screen, if any: stocks get "+ <list>".
+    /// The list on screen, if any: every row gets "+ <list>".
     private var watchlist: Watchlist? {
         guard app.screen == .map, app.tab == .watchlists else { return nil }
         return lists.watchlist(app.watchlistID)
@@ -51,7 +52,7 @@ struct SearchDialog: View {
     private var sections: [(title: String, items: [SearchItem])] {
         var sections: [(String, [SearchItem])] = []
         let text = query.lowercased()
-        let indices = (universe.indices + funds.indices).filter { index in
+        let indices = universe.indices.filter { index in
             text.isEmpty || index.name.lowercased().contains(text) || index.id.lowercased().hasPrefix(text)
                 || Symbols.display(index.benchmark).lowercased().hasPrefix(text)
         }
@@ -128,7 +129,7 @@ struct SearchDialog: View {
             Rectangle().fill(Palette.separator).frame(height: 1)
 
             HStack(spacing: 10) {
-                Button { app.dialog = .newWatchlist(symbols: []) } label: {
+                Button { app.dialog = .newWatchlist(items: []) } label: {
                     Text(tr("+ Ny watchliste", "+ New watchlist"))
                 }
                 .buttonStyle(SearchButtonStyle())
@@ -144,7 +145,6 @@ struct SearchDialog: View {
         .shadow(color: .black.opacity(0.3), radius: 28, y: 10)
         .task(id: picker.query) { await picker.search(debounce: true) }
         .onChange(of: picker.query) { _, _ in selection = 0 }
-        .onChange(of: readyKey) { _, _ in addPendingIfReady() }
         .onAppear { focused = true }
         .onDisappear { picker.reset() }
     }
@@ -178,12 +178,13 @@ struct SearchDialog: View {
         let figure = market.indexFigure(index, market.period)
         VStack(alignment: .leading, spacing: 1) {
             Text(index.title).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
-            Text(index.isFund ? Symbols.display(index.benchmark) : tr("\(index.symbols.count) aktier", "\(index.symbols.count) stocks"))
+            Text(tr("\(index.symbols.count) aktier", "\(index.symbols.count) stocks"))
                 .font(.system(size: 10.5)).foregroundStyle(.secondary)
         }
         Spacer(minLength: 6)
         ChangeText(figure: figure)
-        Button(tr("Åbn", "Open")) { primary(.index(index)) }.buttonStyle(SearchButtonStyle())
+        addButtons(.index(index.id), label: index.name)
+        Button(tr("Åbn", "Open")) { open(.index(index)) }.buttonStyle(SearchButtonStyle())
     }
 
     @ViewBuilder
@@ -198,49 +199,27 @@ struct SearchDialog: View {
         }
         Spacer(minLength: 6)
         ChangeText(figure: figure)
-        let isFavorite = lists.isFavorite(info.symbol)
-        Button { toggleFavorite(info.symbol) } label: {
-            Image(systemName: isFavorite ? "star.fill" : "star")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(isFavorite ? Color.yellow : .secondary)
-                .frame(width: 26, height: 24)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(isFavorite ? tr("Fjern fra favoritter", "Remove from favorites") : tr("Føj til favoritter", "Add to favorites"))
-        if let watchlist {
-            let contained = lists.contains(info.symbol, in: watchlist.id)
-            Button((contained ? "✓ " : "+ ") + watchlist.name) { lists.toggle(info.symbol, in: watchlist.id) }
-                .buttonStyle(SearchButtonStyle(prominent: !contained))
-                .help(contained ? tr("Fjern fra \(watchlist.name)", "Remove from \(watchlist.name)")
-                                : tr("Føj til \(watchlist.name)", "Add to \(watchlist.name)"))
-        }
-        Button(tr("Åbn", "Open")) { open(info.symbol) }.buttonStyle(SearchButtonStyle())
+        addButtons(.stock(info.symbol), label: info.displaySymbol)
+        Button(tr("Åbn", "Open")) { open(.stock(info)) }.buttonStyle(SearchButtonStyle())
     }
 
     @ViewBuilder
     private func fundRow(_ result: FundSearchResult) -> some View {
-        let added = funds.contains(result.symbol)
         let isPicked = picker.selected == result
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 6) {
-                Text(Symbols.display(result.symbol)).font(.system(size: 12.5, weight: .bold))
+                Text(result.fund.displaySymbol).font(.system(size: 12.5, weight: .bold))
                 Text(result.name).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
             }
             fundDetail(result, isPicked: isPicked)
         }
         Spacer(minLength: 6)
-        if added {
-            // Everything that switches on also switches off: a click removes it.
-            Button(tr("Tilføjet ✓", "Added ✓")) { app.removeFund(result.symbol) }
+        addButtons(.fund(funds.fund(result.symbol) ?? result.fund), label: result.fund.displaySymbol, fund: result)
+        if funds.contains(result.symbol) {
+            Button(tr("Åbn", "Open")) { open(.fund(result)) }
                 .buttonStyle(SearchButtonStyle())
-                .help(tr("Klik for at fjerne \(Symbols.display(result.symbol))", "Click to remove \(Symbols.display(result.symbol))"))
-        } else if isPicked, case .failed = picker.phase {
-            EmptyView()
-        } else {
-            Button(tr("Tilføj", "Add")) { add(result) }
-                .buttonStyle(SearchButtonStyle(prominent: true))
-                .disabled(isPicked && pendingAdd == result.symbol)
+                .disabled(!funds.canOpen(result.symbol))
+                .help(funds.fund(result.symbol)?.mapless?.message(result.fund.displaySymbol) ?? "")
         }
     }
 
@@ -258,14 +237,43 @@ struct SearchDialog: View {
             case .ready(let loaded):
                 Text(funds.preview(loaded)).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
             case .failed(let reason):
-                Text(reason ?? tr("Kunne ikke finde beholdningen. Fonden kan ikke vises.",
-                                  "Couldn't find the holdings. The fund can't be shown."))
+                Text(reason ?? tr("Kunne ikke finde beholdningen. Fonden kan stå i en liste med sin egen kurs, men ikke åbnes som kort.",
+                                  "Couldn't find the holdings. The fund can be in a list with its own price, but not opened as a map."))
                     .font(.system(size: 10.5)).foregroundStyle(.orange).lineLimit(2)
             case .idle:
                 Text(plain).font(.system(size: 10.5)).foregroundStyle(.tertiary)
             }
         } else {
             Text(plain).font(.system(size: 10.5)).foregroundStyle(.tertiary).lineLimit(1)
+        }
+    }
+
+    /// "+ Liste" (a menu of every list and a new one) and, with a list on
+    /// screen, "+ <list>" / "✓ <list>".
+    @ViewBuilder
+    private func addButtons(_ item: ListItem, label: String, fund: FundSearchResult? = nil) -> some View {
+        let pending = fund.map { picker.isPending($0.symbol) } ?? false
+        Button(tr("+ Liste", "+ List")) { menuFor = item.key }
+            .buttonStyle(SearchButtonStyle())
+            .help(tr("Føj \(label) til en liste", "Add \(label) to a list"))
+            .popover(isPresented: Binding(get: { menuFor == item.key }, set: { if !$0 { menuFor = nil } }),
+                     arrowEdge: .bottom) {
+                ListMenu(item: item, label: label) { list in
+                    menuFor = nil
+                    toggle(item, fund: fund, in: list)
+                } onNew: {
+                    menuFor = nil
+                    if let fund { picker.keepLoaded(fund.symbol) }
+                    app.dialog = .newWatchlist(items: [item])
+                }
+            }
+        if let watchlist {
+            let contained = watchlist.contains(item)
+            Button((contained ? "✓ " : "+ ") + watchlist.name) { toggle(item, fund: fund, in: watchlist.id) }
+                .buttonStyle(SearchButtonStyle(prominent: !contained))
+                .disabled(pending)
+                .help(contained ? tr("Fjern \(label) fra \(watchlist.name)", "Remove \(label) from \(watchlist.name)")
+                                : tr("Føj \(label) til \(watchlist.name)", "Add \(label) to \(watchlist.name)"))
         }
     }
 
@@ -279,75 +287,99 @@ struct SearchDialog: View {
 
     // MARK: Actions
 
-    /// Return, or a click on the row.
+    /// Return, or a click on the row: with a list on screen, adds to it
+    /// (and never removes by accident); otherwise opens.
     private func primary(_ item: SearchItem) {
+        if let watchlist {
+            switch item {
+            case .index(let index): add(.index(index.id), fund: nil, to: watchlist.id)
+            case .stock(let info): add(.stock(info.symbol), fund: nil, to: watchlist.id)
+            case .fund(let result): add(.fund(funds.fund(result.symbol) ?? result.fund), fund: result, to: watchlist.id)
+            }
+            return
+        }
+        switch item {
+        case .fund(let result) where !funds.contains(result.symbol):
+            // Not in a list yet: show what it holds.
+            picker.select(result)
+        default:
+            open(item)
+        }
+    }
+
+    private func open(_ item: SearchItem) {
         switch item {
         case .index(let index):
             app.dialog = nil
             app.openIndex(index.id)
         case .stock(let info):
-            if let watchlist {
-                // Return adds to the list on screen (and never removes by accident).
-                if !lists.contains(info.symbol, in: watchlist.id) { lists.toggle(info.symbol, in: watchlist.id) }
-                app.show(tr("\(info.displaySymbol) er føjet til \(watchlist.name)", "\(info.displaySymbol) was added to \(watchlist.name)"))
-            } else {
-                open(info.symbol)
-            }
+            app.dialog = nil
+            app.openStock(info.symbol)
         case .fund(let result):
-            if funds.contains(result.symbol) {
-                app.dialog = nil
-                app.openIndex(FundStore.id(result.symbol))
-            } else {
-                add(result)
-            }
+            guard let fund = funds.fund(result.symbol) else { return }
+            app.dialog = nil
+            app.openIndex(fund.id)
         }
     }
 
-    private func open(_ symbol: String) {
-        app.dialog = nil
-        app.openStock(symbol)
-    }
-
-    private func toggleFavorite(_ symbol: String) {
-        let was = lists.isFavorite(symbol)
-        lists.toggleFavorite(symbol)
-        let shown = Symbols.display(symbol)
-        app.show(was ? tr("\(shown) er fjernet fra favoritter", "\(shown) was removed from favorites")
-                     : tr("\(shown) er føjet til favoritter", "\(shown) was added to favorites"))
-    }
-
-    /// Picks the fund and loads its holdings; it is added (and opened) as
-    /// soon as they are in. A bond fund, or one whose holdings can't be
-    /// found, says so and is not added.
-    private func add(_ result: FundSearchResult) {
-        pendingAdd = result.symbol
-        if picker.selected != result { picker.select(result) }
-        addPendingIfReady()
-    }
-
-    private var readyKey: String {
-        switch picker.phase {
-        case .ready: return "ready:" + (picker.selected?.symbol ?? "")
-        case .failed: return "failed"
-        case .loading: return "loading"
-        case .idle: return "idle"
+    private func toggle(_ item: ListItem, fund: FundSearchResult?, in list: UUID) {
+        if lists.contains(item, in: list) {
+            lists.remove(item, from: list)
+            let name = lists.watchlist(list)?.name ?? ""
+            app.show(tr("\(AppState.label(item)) er fjernet fra \(name)", "\(AppState.label(item)) was removed from \(name)"))
+        } else {
+            add(item, fund: fund, to: list)
         }
     }
 
-    private func addPendingIfReady() {
-        guard let pendingAdd, picker.selected?.symbol == pendingAdd else { return }
-        switch picker.phase {
-        case .ready:
-            self.pendingAdd = nil
-            picker.commit()
-        case .failed:
-            self.pendingAdd = nil
-        default:
-            break
+    /// A fund's holdings are loaded before it goes in (FundPicker); a stock
+    /// or an index goes in at once.
+    private func add(_ item: ListItem, fund: FundSearchResult?, to list: UUID) {
+        guard !lists.contains(item, in: list) else { return }
+        if let fund {
+            picker.add(fund, to: list)
+            return
         }
+        lists.add(item, to: list)
+        let name = lists.watchlist(list)?.name ?? ""
+        app.show(tr("\(AppState.label(item)) er føjet til \(name)", "\(AppState.label(item)) was added to \(name)"))
     }
 }
 
+/// "+ Liste": every list with a tick where the item is, and a new list.
+struct ListMenu: View {
+    let item: ListItem
+    let label: String
+    let onToggle: (UUID) -> Void
+    let onNew: () -> Void
+
+    @ObservedObject private var lists = ListsStore.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(lists.watchlists) { list in
+                Button { onToggle(list.id) } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark").opacity(list.contains(item) ? 1 : 0)
+                        Text(list.name)
+                        Spacer()
+                    }
+                    .padding(.vertical, 3)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            if !lists.watchlists.isEmpty { Divider() }
+            Button(action: onNew) {
+                Text(tr("Ny liste med \(label) …", "New list with \(label) …")).padding(.vertical, 3)
+            }
+            .buttonStyle(.plain)
+        }
+        .font(.system(size: 12))
+        .padding(10)
+        .frame(minWidth: 200)
+    }
+}
 /// The change in a search row.
 private struct ChangeText: View {
     let figure: Figure

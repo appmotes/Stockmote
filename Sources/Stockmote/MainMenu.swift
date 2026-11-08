@@ -94,6 +94,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
         menu.addItem(.separator())
         menu.addItem(item(tr("Vis som liste", "Show as List"), #selector(toggleList), "l"))
         menu.addItem(item(tr("Overblik", "Overview"), #selector(showOverview), "0"))
+        menu.addItem(item(tr("Handelstider på overblikket", "Trading Hours on Overview"), #selector(toggleTradingHours)))
         menu.addItem(item(tr("Tilbage", "Back"), #selector(goBack), "["))
         menu.addItem(.separator())
         menu.addItem(item(tr("Seismograf", "Seismograph"), #selector(toggleReplay), "p"))
@@ -141,6 +142,8 @@ final class MainMenu: NSObject, NSMenuItemValidation {
         switch item.action {
         case #selector(setPeriod(_:)):
             item.state = (item.representedObject as? String) == market.period.rawValue ? .on : .off
+        case #selector(toggleTradingHours):
+            item.state = Preferences.shared.showTradingHours ? .on : .off
         case #selector(toggleList):
             item.state = AppState.shared.showList ? .on : .off
         case #selector(toggleReplay):
@@ -172,7 +175,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
     @objc private func about() { showAbout() }
     @objc private func openSettings() { SettingsWindow.shared.show() }
     @objc private func openWindow() { MainWindow.shared.show() }
-    @objc private func newWatchlist() { present(.newWatchlist(symbols: [])) }
+    @objc private func newWatchlist() { present(.newWatchlist(items: [])) }
     @objc private func search() { present(.search) }
 
     /// Dialogs live inside the main window, which is opened first.
@@ -187,6 +190,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
     }
 
     @objc private func toggleList() { AppState.shared.showList.toggle() }
+    @objc private func toggleTradingHours() { Preferences.shared.showTradingHours.toggle() }
     @objc private func showOverview() { MainWindow.shared.show(); AppState.shared.showOverview() }
     @objc private func goBack() { AppState.shared.goBack() }
     @objc private func toggleReplay() { ReplayStore.shared.toggle() }

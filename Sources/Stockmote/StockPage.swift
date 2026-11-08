@@ -185,7 +185,7 @@ enum StockPeers {
 
 /// A stock: price and change for the range, candles with open, high, low
 /// and close on hover, key figures, its industry as a small map, the maps
-/// it is also in, favourite and watchlists — and one way out to the web.
+/// and lists it is also in, adding it to a list — and one way out to the web.
 struct StockPage: View {
     let symbol: String
 
@@ -417,16 +417,17 @@ private struct StockSide: View {
         let info = market.info(symbol)
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
-                let isFavorite = lists.isFavorite(symbol)
-                Button { lists.toggleFavorite(symbol) } label: {
-                    Label(tr("Favorit", "Favorite"), systemImage: isFavorite ? "star.fill" : "star")
-                }
-                .buttonStyle(SearchButtonStyle())
-                .foregroundStyle(isFavorite ? Color.yellow : .primary)
-                .help(isFavorite ? tr("Fjern fra favoritter", "Remove from favorites") : tr("Føj til favoritter", "Add to favorites"))
                 Button { showLists.toggle() } label: { Label(tr("Liste", "List"), systemImage: "plus") }
                     .buttonStyle(SearchButtonStyle())
-                    .popover(isPresented: $showLists, arrowEdge: .bottom) { listMenu }
+                    .help(tr("Føj \(shown) til en liste", "Add \(shown) to a list"))
+                    .popover(isPresented: $showLists, arrowEdge: .bottom) {
+                        ListMenu(item: .stock(symbol), label: shown) { list in
+                            lists.toggle(.stock(symbol), in: list)
+                        } onNew: {
+                            showLists = false
+                            app.dialog = .newWatchlist(items: [.stock(symbol)])
+                        }
+                    }
             }
             Button { prefs.openQuote(symbol) } label: {
                 Label(tr("Åbn på \(prefs.quoteSite.label)", "Open on \(prefs.quoteSite.label)"), systemImage: "arrow.up.right.square")
@@ -477,46 +478,22 @@ private struct StockSide: View {
         }
     }
 
-    private var listMenu: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(lists.watchlists) { list in
-                Button { lists.toggle(symbol, in: list.id) } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark").opacity(lists.contains(symbol, in: list.id) ? 1 : 0)
-                        Text(list.name)
-                        Spacer()
-                    }
-                    .padding(.vertical, 3)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-            if !lists.watchlists.isEmpty { Divider() }
-            Button {
-                showLists = false
-                app.dialog = .newWatchlist(symbols: [symbol])
-            } label: {
-                Text(tr("Ny liste med \(shown) …", "New list with \(shown) …")).padding(.vertical, 3)
-            }
-            .buttonStyle(.plain)
-        }
-        .font(.system(size: 12))
-        .padding(10)
-        .frame(minWidth: 200)
-    }
-
-    /// The indices, funds and lists the stock is in, other than the one on screen.
+    /// The indices the stock is in, the lists that hold it, and the funds
+    /// in the lists that hold it — other than the one on screen.
     private var alsoIn: [(label: String, open: () -> Void)] {
         var chips: [(String, () -> Void)] = []
         let current = app.tab == .map ? app.indexID : nil
-        for index in universe.indices + funds.indices where index.symbols.contains(symbol) && index.id != current {
-            chips.append((index.isFund ? Symbols.display(index.benchmark) : index.title, { app.openIndex(index.id) }))
-        }
-        if lists.isFavorite(symbol), app.tab != .favorites {
-            chips.append((tr("★ Favoritter", "★ Favorites"), { app.openFavorites() }))
+        for index in universe.indices where index.symbols.contains(symbol) && index.id != current {
+            chips.append((index.title, { app.openIndex(index.id) }))
         }
         for list in lists.watchlists where list.symbols.contains(symbol) && !(app.tab == .watchlists && app.watchlistID == list.id) {
             chips.append((list.name, { app.openWatchlist(list.id) }))
+        }
+        // A fund in a list opens with that list as the way back.
+        for fund in funds.funds where fund.id != current
+            && funds.holdings[fund.symbol]?.holdings.contains(where: { $0.symbol == symbol }) == true {
+            let list = lists.lists(containing: .fund(fund)).first?.id
+            chips.append((fund.displaySymbol, { app.openIndex(fund.id, from: list) }))
         }
         return chips
     }
