@@ -112,7 +112,8 @@ sector.
   week, All month by month (or by quarter for long histories), at most 400 steps. Each cell is coloured by that
   row's change at that moment. The total row is the index's or fund's own series (a list's average, marked as such);
   an index whose own history is missing gets an empty row rather than a stand-in. Sector and industry rows are the
-  members' changes weighted by market value (by the fund's weights in a fund), marked *avg.*. Drag the cursor, press
+  members' changes weighted by market value (by the fund's weights in a fund), marked *avg.*. The button and ⌘P open
+  it paused on the latest moment; space on a map opens it and plays at once. Drag the cursor, press
   ← → to step or space to play and pause, at 1×, 2× or 4×; the map, the title and the tooltip's price follow the
   moment. Click a row's name to go into it (a stock row opens the stock). Tile sizes stay put; only the colours move.
   In Map Only it plays in a loop, like a living picture of the market.

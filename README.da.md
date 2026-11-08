@@ -114,7 +114,8 @@ se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste
   ændring på det tidspunkt. Totalrækken er indeksets eller fondens eget forløb (en listes gennemsnit, mærket som
   sådan); et indeks hvis egen historik mangler, får en tom række i stedet for en erstatning. Sektor- og
   branchrækker er medlemmernes ændringer vægtet efter markedsværdi (efter fondens vægte i en fond), mærket *gns.*.
-  Træk i markøren, brug ← → til et skridt eller mellemrum til afspil/pause, i 1×, 2× eller 4×; kortet, titlen og
+  Knappen og ⌘P åbner den på pause ved det seneste tidspunkt; mellemrum på et kort åbner den og afspiller med det
+  samme. Træk i markøren, brug ← → til et skridt eller mellemrum til afspil/pause, i 1×, 2× eller 4×; kortet, titlen og
   kursen i tooltippen følger tidspunktet. Klik på en rækkes navn for at gå ind i den (en aktierække åbner aktien).
   Felternes størrelse står fast; kun farverne bevæger sig. I Kun kortet kører den i ring, som et levende billede af
   markedet.

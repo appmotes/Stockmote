@@ -60,7 +60,12 @@ final class ReplayStore: ObservableObject {
 
     func toggle() { isActive ? stop() : start() }
 
-    func start() {
+    /// Whether the next finished load starts playing. Opening the seismograph
+    /// with its button shows it paused on the latest moment; space plays.
+    private var playWhenLoaded = false
+
+    func start(playing: Bool = false) {
+        playWhenLoaded = playing
         isActive = true
         errorMessage = nil
         reload()
@@ -183,9 +188,14 @@ final class ReplayStore: ObservableObject {
             self.isLoading = false
             if self.timeline.isEmpty {
                 self.errorMessage = tr("Yahoo svarede ikke med forløb.", "Yahoo returned no history.")
-            } else {
+            } else if self.playWhenLoaded || self.loops {
+                // Space on a closed seismograph, or Map Only's living picture.
+                self.playWhenLoaded = false
                 self.frame = 0
                 self.play()
+            } else {
+                // Paused on the latest moment, so the map shows what the title says.
+                self.frame = self.timeline.count - 1
             }
         }
     }
@@ -574,7 +584,7 @@ enum ReplayKeys {
             // Space on a map opens the seismograph, which then plays.
             guard event.keyCode == 49, AppState.shared.isMap, AppState.shared.dialog == nil,
                   event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
-            replay.start()
+            replay.start(playing: true)
             return true
         }
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
