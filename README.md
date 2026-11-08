@@ -154,7 +154,7 @@ sector.
   index → overview. It never closes the window.
 - **Narrow windows.** In a narrow window long titles are shortened with … and the time-range control, with its
   figures, becomes a compact menu that lists each range with its change, so nothing is pushed out of the window.
-- **Settings** (⌘, or **Settings…** in the Stockmote menu or the menu bar icon's right-click menu opens the standard Settings window): theme, colours
+- **Settings** (the gear at the right end of the toolbar, ⌘, or **Settings…** in the Stockmote menu or the menu bar icon's right-click menu opens the standard Settings window): theme, colours
   (red/green or orange/blue for red–green colour blindness), language, Dock and/or menu bar, what the menu
   bar shows, open window at launch, launch at login, list tile size, refresh rate, which site and browser stocks
   open in.

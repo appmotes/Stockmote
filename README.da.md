@@ -160,7 +160,7 @@ se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste
   overblik. Den lukker aldrig vinduet.
 - **Smalle vinduer.** I et smalt vindue forkortes lange titler med …, og tidsvælgeren med sine tal bliver en
   kompakt menu, der viser hvert tidsrum med sin ændring, så intet skubbes ud af vinduet.
-- **Indstillinger** (⌘, eller **Indstillinger …** i Stockmote-menuen eller menubar-ikonets højrekliksmenu åbner det almindelige indstillingsvindue):
+- **Indstillinger** (tandhjulet yderst til højre i værktøjslinjen, ⌘, eller **Indstillinger …** i Stockmote-menuen eller menubar-ikonets højrekliksmenu åbner det almindelige indstillingsvindue):
   tema, farver (rød/grøn eller orange/blå ved rød-grøn farveblindhed), sprog, Dock og/eller menubar, hvad
   menubaren viser, åbn vindue ved start, start ved login, feltstørrelse i lister, opdateringsfrekvens, hvilken side og browser aktier åbnes
   i.
