@@ -4,13 +4,13 @@ import SwiftUI
 
 // MARK: - The dialog
 
-/// The open dialog (`AppState.dialog`), centred over the whole panel on a
+/// The open dialog (`AppState.dialog`), centred over the whole window on a
 /// dimmed backdrop.
 ///
-/// The panel is a borderless NSPanel hanging from the menu bar, where a
-/// sheet or an NSAlert would open as a separate window, so the dialog is a
-/// plain SwiftUI overlay inside PanelRoot. Esc is caught by the panel's key
-/// monitor (MenuBarPanel), which closes the dialog before anything else.
+/// A plain SwiftUI overlay inside PanelRoot rather than a sheet, so it
+/// looks the same in the window and in snapshots. Esc is caught by the
+/// window's key monitor (PanelKeys), which closes the dialog before
+/// anything else.
 struct DialogHost: View {
     @ObservedObject private var app = AppState.shared
     @Environment(\.colorScheme) private var scheme
@@ -25,8 +25,8 @@ struct DialogHost: View {
                     Group {
                         switch dialog {
                         case .addFund:
-                            // The result list gets what is left of the panel's
-                            // height, so the dialog fits the small panel too.
+                            // The result list gets what is left of the window's
+                            // height, so the dialog fits the smallest window too.
                             AddFundDialog(listHeight: max(110, min(250, geometry.size.height - 300)))
                         case .newWatchlist(let symbols):
                             NewWatchlistDialog(symbols: symbols)
@@ -86,8 +86,8 @@ struct DialogCard<Content: View>: View {
     }
 }
 
-/// Drawn by hand like the rest of the panel's buttons, so it looks the same
-/// whether or not the panel is the key window (and in snapshots).
+/// Drawn by hand like the rest of the window's buttons, so it looks the same
+/// whether or not the window is key (and in snapshots).
 private struct DialogButtonStyle: ButtonStyle {
     let prominent: Bool
     @Environment(\.isEnabled) private var isEnabled
@@ -226,8 +226,11 @@ private struct AddFundDialog: View {
         ) {
             DialogField(placeholder: tr("SPY, MSCI World, SEC0, C25 …", "SPY, MSCI World, SEC0, C25 …"),
                         text: $picker.query, icon: "magnifyingglass", busy: picker.searching) {
-                // Return before anything is picked picks the first result.
-                if picker.selected == nil, let first = picker.results.first { picker.select(first) }
+                // The focused field gets Return before the Add button's
+                // default-action shortcut does, so Return is handled here:
+                // it picks the first result, and once the holdings are
+                // loaded, adds the fund.
+                Task { await picker.submit() }
             }
             results
             FundPickerStatus()
@@ -429,6 +432,24 @@ final class FundPicker: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Return in the search field. With a fund picked and its holdings
+    /// loaded it adds the fund. With nothing picked it picks the first
+    /// result — searching at once, without the typing pause, if the results
+    /// for what was typed are not in yet, so a quick Return is not lost.
+    /// While the holdings are loading it does nothing: the fund isn't ready.
+    func submit() async {
+        if canCommit {
+            commit()
+            return
+        }
+        guard selected == nil else { return }
+        let text = query.trimmingCharacters(in: .whitespaces)
+        if text != searched { await search(debounce: false) }
+        guard selected == nil, query.trimmingCharacters(in: .whitespaces) == text,
+              let first = results.first else { return }
+        select(first)
     }
 
     /// Waits for the picked fund's holdings (snapshot mode).
