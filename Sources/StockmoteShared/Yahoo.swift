@@ -51,6 +51,7 @@ public enum Yahoo {
             let regularMarketPrice: Double?
             let chartPreviousClose: Double?
             let firstTradeDate: Int?
+            let regularMarketTime: Int?
         }
         struct Indicators: Decodable { let quote: [Quote]? }
         struct Quote: Decodable { let close: [Double?]? }
@@ -62,6 +63,17 @@ public enum Yahoo {
     static func listedTooLate(_ firstTradeDate: Int?, _ period: Period) -> Bool {
         guard let firstTradeDate, let start = period.start() else { return false }
         return TimeInterval(firstTradeDate) > start.timeIntervalSince1970
+    }
+
+    /// For 1D: whether the day's series is from the day Yahoo says the symbol
+    /// last traded. ^OMXC25 has come back with Friday's afternoon as Monday's
+    /// series, and a previous close a day too old with it (+0.14 % for a day
+    /// Nasdaq put at +0.81 %); such a day is not used. A series without
+    /// timestamps can't be checked and is let through.
+    static func current(lastTrade: Int?, timestamps: [Int]?, closes: [Double?]?) -> Bool {
+        guard let lastTrade, let timestamps, let closes, !timestamps.isEmpty else { return true }
+        let day = lastTrade / 86_400
+        return zip(timestamps, closes).contains { $0.0 / 86_400 == day && $0.1 != nil }
     }
 
     /// Checks Yahoo's `chartPreviousClose` against the series it came with.
@@ -131,7 +143,11 @@ public enum Yahoo {
                 }
             }
         }
-        return result.merging(navValues) { _, nav in nav }
+        result.merge(navValues) { _, nav in nav }
+        if period == .day {
+            result.merge(await NasdaqNordic.values(symbols)) { _, nasdaq in nasdaq }
+        }
+        return result
     }
 
     private static func fetchChunk(_ symbols: [String], period: Period, attempt: Int = 0) async -> [String: Value] {
@@ -172,6 +188,8 @@ public enum Yahoo {
                     base = response.indicators?.quote?.first?.close?.first(where: { $0 != nil }) ?? nil
                 }
                 guard let previous = base, previous > 0,
+                      period != .day || current(lastTrade: meta.regularMarketTime, timestamps: response.timestamp,
+                                                closes: response.indicators?.quote?.first?.close),
                       consistent(base: previous, timestamps: response.timestamp, closes: response.indicators?.quote?.first?.close,
                                  firstTradeDate: meta.firstTradeDate, period: period, interval: period.yahooInterval) else { continue }
                 let symbol = lookup[item.symbol] ?? item.symbol
@@ -233,6 +251,7 @@ extension Yahoo {
         struct Meta: Decodable {
             let chartPreviousClose: Double?
             let firstTradeDate: Int?
+            let regularMarketTime: Int?
         }
         struct Indicators: Decodable { let quote: [Quote]? }
         struct Quote: Decodable { let close: [Double?]? }
@@ -262,7 +281,11 @@ extension Yahoo {
                 }
             }
         }
-        return result.merging(navSeries) { _, nav in nav }
+        result.merge(navSeries) { _, nav in nav }
+        if period == .day {
+            result.merge(await NasdaqNordic.allSeries(symbols)) { _, nasdaq in nasdaq }
+        }
+        return result
     }
 
     private static func fetchSeriesChunk(_ symbols: [String], period: Period, interval: String, attempt: Int = 0) async -> [String: Series] {
@@ -295,6 +318,7 @@ extension Yahoo {
                     continue
                 }
                 guard let previous = response.meta?.chartPreviousClose, previous > 0,
+                      period != .day || current(lastTrade: response.meta?.regularMarketTime, timestamps: timestamps, closes: closes),
                       !listedTooLate(response.meta?.firstTradeDate, period),
                       consistent(base: previous, timestamps: timestamps, closes: closes,
                                  firstTradeDate: response.meta?.firstTradeDate, period: period, interval: interval) else { continue }

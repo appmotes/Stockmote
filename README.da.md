@@ -261,6 +261,12 @@ tidspunkt. Appen skalerer dem med dagens kurs og omregner til dollar, så et kor
 **Indekstallet** øverst, på overblikket og under hvert tidsrum er indeksets eget (`^GSPC`, `^OMXC25`, `^GDAXI` …).
 Svarer Yahoo ikke, står der –: et gennemsnit af medlemmerne ville ikke være indeksets tal.
 
+**C25's dag kommer fra Nasdaq Nordic**, børsen selv (kursen for 1D, forrige lukkekurs og kurserne minut for minut,
+samlet i 5-minutters kurser som Yahoos). Yahoos `^OMXC25` har sendt fredagens eftermiddag som mandagens forløb, med
+en forrige lukkekurs der var en dag for gammel: +0,14 % for en dag, Nasdaq satte til +0,81 %. Ethvert 1D-tal fra
+Yahoo tjekkes også: en dag, hvis forløb ikke har en kurs fra den dato, Yahoo siger der sidst blev handlet, bruges
+ikke. Svarer Nasdaq ikke, bruges Yahoo for C25 — med det tjek.
+
 **Sådan måles hvert tidsrum.** Yahoos `chartPreviousClose` er lukkekursen lige før tidsrummet begynder, for hvert
 tidsrum Yahoo navngiver (`5d`, `1mo`, `3mo`, `6mo`, `ytd`, `1y`, `5y`). Med `max` er det den første kurs Yahoo har —
 efterprøvet: 17,66 for S&P 500, kursen ved udgangen af 1927. Yahoo navngiver intet treårs-tidsrum (`3y` bliver
@@ -422,6 +428,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/StockmoteShared/Lang.swift](Sources/StockmoteShared/Lang.swift) | Dansk og engelsk |
 | [Sources/StockmoteShared/Market.swift](Sources/StockmoteShared/Market.swift) | Symboler, åbningstider, valutaer |
 | [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo-klient; daglig indre værdi fra Morningstar for unoterede fonde |
+| [Sources/StockmoteShared/NasdaqNordic.swift](Sources/StockmoteShared/NasdaqNordic.swift) | C25's dag fra Nasdaq Nordic |
 | [Sources/StockmoteShared/WidgetShare.swift](Sources/StockmoteShared/WidgetShare.swift) | Filen der deles med widget'en |
 | [Sources/StockmoteWidget/StockmoteWidget.swift](Sources/StockmoteWidget/StockmoteWidget.swift) | Widget'en og dens indstillinger |
 | [Scripts/make-app.sh](Scripts/make-app.sh) | Pakker og signerer app og widget, laver AppIntents-metadata |

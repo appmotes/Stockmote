@@ -258,6 +258,12 @@ Lilly (the stock page's *Same industry*) gets fair sizes.
 The **index figure** at the top, on the overview and under each range is the index's own (`^GSPC`, `^OMXC25`,
 `^GDAXI` …). If Yahoo does not answer, it shows –: an average of the members would not be the index's figure.
 
+**C25's day comes from Nasdaq Nordic**, the exchange itself (its 1D price, previous close and minute prices, put in
+5-minute bars like Yahoo's). Yahoo's `^OMXC25` has returned Friday's afternoon as Monday's series, with a previous
+close a day too old: +0.14 % for a day Nasdaq put at +0.81 %. Every 1D figure from Yahoo is also checked: a day
+whose series has no price from the date Yahoo says the symbol last traded is not used. If Nasdaq does not answer, C25
+falls back to Yahoo, under that check.
+
 **How each range is measured.** Yahoo's `chartPreviousClose` is the close just before the range starts, for every
 range it names (`5d`, `1mo`, `3mo`, `6mo`, `ytd`, `1y`, `5y`). With `max` it is the first price Yahoo has — checked:
 17.66 for the S&P 500, its price at the end of 1927. Yahoo names no three-year range (`3y` happens to be accepted,
@@ -421,6 +427,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/StockmoteShared/Lang.swift](Sources/StockmoteShared/Lang.swift) | Danish and English |
 | [Sources/StockmoteShared/Market.swift](Sources/StockmoteShared/Market.swift) | Symbols, opening hours, currencies |
 | [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo client; daily NAV from Morningstar for unlisted funds |
+| [Sources/StockmoteShared/NasdaqNordic.swift](Sources/StockmoteShared/NasdaqNordic.swift) | C25's day from Nasdaq Nordic |
 | [Sources/StockmoteShared/WidgetShare.swift](Sources/StockmoteShared/WidgetShare.swift) | The file shared with the widget |
 | [Sources/StockmoteWidget/StockmoteWidget.swift](Sources/StockmoteWidget/StockmoteWidget.swift) | The widget and its settings |
 | [Scripts/make-app.sh](Scripts/make-app.sh) | Packages and signs app and widget, makes the AppIntents metadata |
