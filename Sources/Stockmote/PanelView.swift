@@ -175,7 +175,10 @@ private struct Toolbar: View {
 
     private func controls(compact: Bool) -> some View {
         HStack(spacing: 8) {
-            if compact { PeriodMenu() } else { PeriodPicker() }
+            // The overview's table has every range as a column: no picker.
+            if !(app.screen == .overview && prefs.overviewMode == .table) {
+                if compact { PeriodMenu() } else { PeriodPicker() }
+            }
             if app.isMap {
                 SeismographButton()
                 ViewModePicker()
@@ -387,7 +390,7 @@ private struct TitleBlock: View {
 
     private var subtitle: String? {
         if case .stock(let symbol) = app.screen { return market.info(symbol).name }
-        if app.screen == .overview { return market.period.longName }
+        if app.screen == .overview { return prefs.overviewMode == .table ? nil : market.period.longName }
         return nil
     }
 

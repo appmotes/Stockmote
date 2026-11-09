@@ -407,8 +407,8 @@ struct OverviewTable: View {
                         Text(period.label)
                         if sortBy == period { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)) }
                     }
-                    .font(.system(size: 11.5, weight: period == market.period || sortBy == period ? .bold : .medium))
-                    .foregroundStyle(period == market.period || sortBy == period ? .primary : .secondary)
+                    .font(.system(size: 11.5, weight: sortBy == period ? .bold : .medium))
+                    .foregroundStyle(sortBy == period ? .primary : .secondary)
                     .frame(maxWidth: .infinity, minHeight: 22)
                     .contentShape(Rectangle())
                 }
@@ -475,17 +475,12 @@ private struct TableRow: View {
         let ink = change == nil ? Color.secondary
             : Heat.label(on: change, scale: period.colorScale, style: prefs.colorStyle, theme: theme)
         return Text(change == nil ? "–" : (figure.isIndicative ? "≈ " : "") + Format.percent(change, digits: 1))
-            .font(.system(size: 11.5, weight: period == market.period || period == sortBy ? .bold : .semibold).monospacedDigit())
+            .font(.system(size: 11.5, weight: period == sortBy ? .bold : .semibold).monospacedDigit())
             .foregroundStyle(ink)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .frame(maxWidth: .infinity, minHeight: 26)
             .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(fill))
-            .overlay {
-                if period == market.period {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Color.primary.opacity(0.35), lineWidth: 1)
-                }
-            }
             .help(figure.help)
     }
 }

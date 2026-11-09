@@ -73,8 +73,8 @@ an indicative value is not averaged in.
   remembered):
   - **Maps** — the cards with their small maps, as above.
   - **Table** — one row per list and index (in Mine, United States and Europe) and one column per range, 1D to All.
-    Each cell is that row's own figure — the index's, or a list's average — coloured as the map for that range;
-    the chosen range is outlined. Click a range to sort every row by it, best first; click it again for the
+    Each cell is that row's own figure — the index's, or a list's average — coloured as the map for that range.
+    The table has every range, so the period picker is hidden while it shows. Click a range to sort every row by it, best first; click it again for the
     sections. Click a row to open it. Pointing at a cell says how it is measured and where it came from.
   - **Against an index** — every card as its difference to one index you choose above them (S&P 500 until you
     pick another), in percentage points: the card's own figure minus the index's over the same range, green

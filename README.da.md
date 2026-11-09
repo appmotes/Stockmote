@@ -72,8 +72,8 @@ se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste
   det huskes):
   - **Kort** — kortene med deres små kort, som ovenfor.
   - **Tabel** — én række pr. liste og indeks (i Mine, USA og Europa) og én kolonne pr. tidsrum, 1D til Alt. Hvert
-    felt er rækkens eget tal — indeksets eller listens gennemsnit — farvet som kortet for det tidsrum; det valgte
-    tidsrum har en kant. Klik på et tidsrum for at sortere alle rækker efter det, bedst først; klik igen for
+    felt er rækkens eget tal — indeksets eller listens gennemsnit — farvet som kortet for det tidsrum.
+    Tabellen har alle tidsrum, så tidsvælgeren er skjult, mens den vises. Klik på et tidsrum for at sortere alle rækker efter det, bedst først; klik igen for
     afsnittene. Klik på en række for at åbne den. Peger man på et felt, står der hvordan det er målt, og hvor det
     kommer fra.
   - **Mod indeks** — hvert kort som forskellen til ét indeks, du vælger over dem (S&P 500 indtil du vælger et
