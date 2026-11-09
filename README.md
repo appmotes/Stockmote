@@ -76,9 +76,13 @@ an indicative value is not averaged in.
   six lines in their own colours (none green, red, blue or orange, which mean up and down) on one axis above the
   cards, all at 0 % at the start of the range and each in its own market's currency. Pointing reads every line at
   that moment; ✕ on a line's label takes it out. A line whose market is closed while another trades — a holiday,
-  or the US before New York opens — holds its last close there, drawn dotted, since no trade took place. Daily and
-  longer closes are matched by date, so a European and a US close on the same day sit at the same point. 1D is the
-  day in 5-minute closes; when one market's latest session is yesterday's, the axis gives the weekday.
+  or the US before New York opens — holds its last close there: the line goes on, flat and dashed in a lighter
+  shade, as a line drawn through rather than traded on. Daily and longer closes are matched by date, so a European
+  and a US close on the same day sit at the same point, and every line leaves from 0 % at one shared point,
+  **Start** (each market's own close before the range is on its own day). 1W is compared in daily closes — within
+  the day Europe and the US share only two hours, and the lines would mostly be held — while the cards keep their
+  half-hours. 1D is the day in 5-minute closes; when one market's latest session is yesterday's, the axis gives
+  the weekday.
 - **Trading hours** (the clock in the toolbar on the overview, or View → Trading Hours on Overview; off until you
   turn it on, and remembered): a band over the overview with today's sessions in your own time (Europe 9.00–17.30
   and the US 15.30–22.00 seen from Denmark) and a marker for now. On Saturday and Sunday — in each exchange's own

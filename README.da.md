@@ -75,10 +75,13 @@ se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste
   ⌘-klik det) for at **sammenligne** det: op til seks linjer i hver sin farve (ingen grøn, rød, blå eller orange, som
   betyder op og ned) på én akse over kortene, alle i 0 % ved tidsrummets start og hver i sit eget markeds valuta. Peg
   for at aflæse alle linjer i samme øjeblik; ✕ ved en linjes navn tager den ud. En linje hvis marked er lukket, mens
-  et andet handler — en helligdag, eller USA før New York åbner — holder sin seneste lukkekurs dér, tegnet prikket,
-  for der blev ikke handlet. Dagskurser og længere passes sammen efter dato, så en europæisk og en amerikansk
-  lukkekurs samme dag står samme sted. 1D er dagen i lukkekurser for hvert 5. minut; når et markeds seneste
-  handelsdag er i går, viser aksen ugedagen.
+  et andet handler — en helligdag, eller USA før New York åbner — holder sin seneste lukkekurs dér: linjen fortsætter,
+  vandret og stiplet i en lysere tone, som en tænkt linje, ikke en handlet. Dagskurser og længere passes sammen efter
+  dato, så en europæisk og en amerikansk lukkekurs samme dag står samme sted, og alle linjer går ud fra 0 % i ét fælles
+  punkt, **Start** (hvert markeds egen lukkekurs før tidsrummet ligger på sin egen dag). 1U sammenlignes på
+  dagslukkekurser — inden for dagen deler Europa og USA kun to timer, og linjerne ville mest stå stille — mens kortene
+  beholder halve timer. 1D er dagen i lukkekurser for hvert 5. minut; når et markeds seneste handelsdag er i går,
+  viser aksen ugedagen.
 - **Handelstider** (uret i værktøjslinjen på overblikket, eller Vis → Handelstider på overblikket; slået fra indtil
   du slår det til, og det huskes): et bånd over overblikket med dagens handelstid i din egen tid (Europa 9.00–17.30
   og USA 15.30–22.00 set fra Danmark) og en markør for nu. Lørdag og søndag — i hver børs' egen tidszone — er

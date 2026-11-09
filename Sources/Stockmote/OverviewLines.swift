@@ -62,6 +62,10 @@ final class OverviewLinesStore: ObservableObject {
     static let shared = OverviewLinesStore()
 
     @Published private(set) var lines: [OverviewKind: OverviewLine] = [:]
+    /// 1U only: the lines in daily closes, for the comparison. Europe and the
+    /// US trade at different hours, so within the day their lines would mostly
+    /// be held; a close per trading day lines them up.
+    @Published private(set) var dailyLines: [OverviewKind: OverviewLine] = [:]
     /// The range the lines are for; while another is loading, the cards say so.
     @Published private(set) var loadedPeriod: Period?
     @Published private(set) var isLoading = false
@@ -72,6 +76,13 @@ final class OverviewLinesStore: ObservableObject {
 
     func line(_ kind: OverviewKind) -> OverviewLine? {
         loadedPeriod == MarketStore.shared.period ? lines[kind] : nil
+    }
+
+    /// A card's line in the comparison: 1U in daily closes.
+    func compareLine(_ kind: OverviewKind) -> OverviewLine? {
+        let period = MarketStore.shared.period
+        guard loadedPeriod == period else { return nil }
+        return period == .week ? dailyLines[kind] : lines[kind]
     }
 
     /// Fetches the series for every card, unless they are already in and
@@ -89,26 +100,32 @@ final class OverviewLinesStore: ObservableObject {
         task?.cancel()
         isLoading = true
         task = Task { [weak self] in
-            let fetched = await Yahoo.fetchSeries(symbols, period: period)
+            async let fetched = Yahoo.fetchSeries(symbols, period: period)
+            async let daily = period == .week ? Yahoo.fetchSeries(symbols, period: period, interval: "1d") : [:]
+            let (intraday, closes) = await (fetched, daily)
             guard !Task.isCancelled, let self else { return }
             // Daily, weekly and monthly closes are stamped at each exchange's
             // own opening time; one date is one moment, so markets line up.
             let byDate = !["5m", "30m"].contains(period.replayInterval)
-            let series = fetched.mapValues { Raw($0, byDate: byDate) }
-            var lines: [OverviewKind: OverviewLine] = [:]
-            for index in indices {
-                if let s = series[index.benchmark] { lines[.index(index.id)] = Self.line(s) }
-            }
-            for list in lists {
-                let members = list.items.compactMap { MarketStore.quoteSymbol($0).flatMap { series[$0] } }
-                if let line = Self.average(members) { lines[.watchlist(list.id)] = line }
-            }
-            self.lines = lines
+            self.lines = Self.lines(intraday.mapValues { Raw($0, byDate: byDate) }, indices: indices, lists: lists)
+            self.dailyLines = Self.lines(closes.mapValues { Raw($0, byDate: true) }, indices: indices, lists: lists)
             self.loadedPeriod = period
             self.loadedAt = Date()
             self.isLoading = false
             self.task = nil
         }
+    }
+
+    private static func lines(_ series: [String: Raw], indices: [MarketIndex], lists: [Watchlist]) -> [OverviewKind: OverviewLine] {
+        var lines: [OverviewKind: OverviewLine] = [:]
+        for index in indices {
+            if let s = series[index.benchmark] { lines[.index(index.id)] = line(s) }
+        }
+        for list in lists {
+            let members = list.items.compactMap { MarketStore.quoteSymbol($0).flatMap { series[$0] } }
+            if let line = average(members) { lines[.watchlist(list.id)] = line }
+        }
+        return lines
     }
 
     /// Snapshot mode: waits until the lines are in.
@@ -123,12 +140,15 @@ final class OverviewLinesStore: ObservableObject {
         var closes: [Double?] = []
         let previousClose: Double
 
-        /// With `byDate`, each close is stamped at the start of its UTC date
-        /// (the European and US sessions share it), the latest of a date kept.
+        /// With `byDate`, each close is stamped at the start of its date, the
+        /// latest of a date kept. The date is UTC's two hours on, so a NAV
+        /// stamped at midnight in Copenhagen (22.00 or 23.00 UTC) falls on its
+        /// own day, as do Europe's and the US sessions.
         init(_ s: Yahoo.Series, byDate: Bool) {
             previousClose = s.previousClose
             for (time, close) in zip(s.timestamps, s.closes) {
-                let stamp = byDate ? time - ((time % 86_400) + 86_400) % 86_400 : time
+                let shifted = time + 7_200
+                let stamp = byDate ? shifted - ((shifted % 86_400) + 86_400) % 86_400 : time
                 if stamp == timestamps.last {
                     if close != nil { closes[closes.count - 1] = close }
                 } else {
@@ -277,8 +297,10 @@ struct SparkLine: View {
 ///
 /// The lines share one timeline: every moment any of them has a close. A
 /// line without a close at a moment (its market closed while another
-/// trades) holds its latest close there, drawn dotted, since no trade took
-/// place; before its first close it isn't drawn.
+/// trades) holds its latest close there: the line goes on, flat and dashed
+/// in a lighter shade — a line drawn through, not traded on. Before its first
+/// close it isn't drawn. 1U is compared in daily closes, and every range in
+/// days or longer starts at 0 %.
 struct CompareChart: View {
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var store = OverviewLinesStore.shared
@@ -302,8 +324,8 @@ struct CompareChart: View {
 
     var body: some View {
         let kinds = kinds
-        let (times, tracks) = Self.align(kinds.enumerated().map { n, kind in
-            Track(kind: kind, color: CompareColors.all[n % CompareColors.all.count], line: store.line(kind))
+        let (times, tracks) = Self.align(fromZero: market.period != .day, kinds.enumerated().map { n, kind in
+            Track(kind: kind, color: CompareColors.all[n % CompareColors.all.count], line: store.compareLine(kind))
         })
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 6) {
@@ -336,10 +358,13 @@ struct CompareChart: View {
 
     private func readout(_ times: [Int]) -> String {
         if let hovered, times.indices.contains(hovered) {
+            if hovered == 0, market.period != .day {
+                return tr("Start: hvert markeds lukkekurs før tidsrummet", "Start: each market's close before the range")
+            }
             return Self.label(times[hovered], times: times, period: market.period, long: true)
         }
-        return tr("0 % = kursen ved periodens start · i hvert markeds valuta",
-                  "0 % = the price at the start of the range · in each market's currency")
+        return tr("0 % = kursen ved periodens start · stiplet = markedet lukket, sidste kurs holdt · i hvert markeds valuta",
+                  "0 % = the price at the start of the range · dashed = market closed, last price held · in each market's currency")
     }
 
     private func chip(_ track: Track) -> some View {
@@ -393,7 +418,7 @@ struct CompareChart: View {
                                      at: CGPoint(x: plot.width + 6, y: y(value)), anchor: .leading)
                     }
                     for track in tracks {
-                        var solid = Path(), dotted = Path()
+                        var solid = Path(), held = Path()
                         var previous: CGPoint?
                         for (i, value) in track.values.enumerated() {
                             guard let value else { previous = nil; continue }
@@ -402,18 +427,24 @@ struct CompareChart: View {
                                 if track.own[i] {
                                     solid.move(to: previous); solid.addLine(to: point)
                                 } else {
-                                    dotted.move(to: previous); dotted.addLine(to: point)
+                                    held.move(to: previous); held.addLine(to: point)
                                 }
                             }
                             previous = point
                         }
-                        context.stroke(dotted, with: .color(track.color.opacity(0.55)), style: StrokeStyle(lineWidth: 1.2, dash: [1.5, 3]))
+                        context.stroke(held, with: .color(track.color.opacity(0.5)), style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
                         context.stroke(solid, with: .color(track.color), style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
                     }
-                    for fraction in [0.0, 0.25, 0.5, 0.75, 1.0] where times.count > 1 {
-                        let i = Int((fraction * Double(times.count - 1)).rounded())
-                        let anchor: UnitPoint = fraction == 0 ? .topLeading : (fraction == 1 ? .topTrailing : .top)
-                        context.draw(Text(Self.label(times[i], times: times, period: market.period, long: false))
+                    // Every moment when there are few (1U's days), else five.
+                    let marks = times.count <= 8 ? Array(times.indices)
+                        : [0.0, 0.25, 0.5, 0.75, 1.0].map { Int(($0 * Double(times.count - 1)).rounded()) }
+                    for i in marks where times.count > 1 {
+                        let anchor: UnitPoint = i == 0 ? .topLeading : (i == times.count - 1 ? .topTrailing : .top)
+                        // The shared 0 % moment has no one date: each market's
+                        // own close before the range is on its own day.
+                        let text = i == 0 && market.period != .day ? tr("Start", "Start")
+                            : Self.label(times[i], times: times, period: market.period, long: false)
+                        context.draw(Text(text)
                                         .font(.system(size: 10)).foregroundStyle(.secondary),
                                      at: CGPoint(x: x(i), y: plot.height + 4), anchor: anchor)
                     }
@@ -452,21 +483,27 @@ struct CompareChart: View {
     /// Puts the lines on one timeline: every moment any of them has a value
     /// (at most 500). Each line takes its latest value at or before a moment;
     /// `own` says whether it has one of its own since the moment before.
-    private static func align(_ tracks: [Track]) -> ([Int], [Track]) {
+    ///
+    /// With `fromZero` (closes by date) every line starts at 0 % at one
+    /// shared moment the day before the first close: the close the range is
+    /// measured from, so they all leave from the same point.
+    private static func align(fromZero: Bool, _ tracks: [Track]) -> ([Int], [Track]) {
         var times = Array(Set(tracks.flatMap { $0.line?.times ?? [] })).sorted()
         if times.count > 500 {
             let stride = Double(times.count - 1) / 499
             times = (0..<500).map { times[Int((Double($0) * stride).rounded())] }
         }
+        let base = fromZero ? times.first.map { $0 - 86_400 } : nil
+        if let base { times.insert(base, at: 0) }
         let aligned = tracks.map { track -> Track in
             var track = track
             guard let line = track.line else { return track }
             var values = [Double?](repeating: nil, count: times.count)
             var own = [Bool](repeating: false, count: times.count)
             var pointer = 0
-            var last: Double?
+            var last: Double? = base == nil ? nil : 0
             for (i, t) in times.enumerated() {
-                var fresh = false
+                var fresh = i == 0 && base != nil
                 while pointer < line.times.count, line.times[pointer] <= t {
                     if let value = line.values[pointer] { last = value; fresh = true }
                     pointer += 1
@@ -507,6 +544,7 @@ struct CompareChart: View {
                 return CandleChart.label(time, period: .week, long: long)
             }
         }
-        return CandleChart.label(time, period: period, long: long)
+        // 1U is compared in daily closes: dates, not times of day.
+        return CandleChart.label(time, period: period == .week ? .month : period, long: long)
     }
 }
