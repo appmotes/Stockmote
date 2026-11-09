@@ -47,6 +47,9 @@ struct Figure {
     /// The date of the price the change is measured from (3Å, Alt).
     var since: Date?
     var period: Period
+    /// Where an instrument's own figure came from: the exchange, Yahoo or
+    /// Morningstar. None for an average or an indicative value.
+    var source: DataSource?
 
     /// "+1,98%", "≈ +1,98%" or "–".
     var text: String {
@@ -97,6 +100,9 @@ struct Figure {
         }
         if isAverage, period == .all {
             lines.append(tr("Hver regnes fra sin egen første kurs.", "Each counts from its own first price."))
+        }
+        if let source, change != nil, !isAverage, !isIndicative {
+            lines.append(tr("Kilde: \(source.name)", "Source: \(source.name)"))
         }
         return lines.joined(separator: "\n")
     }
@@ -230,7 +236,8 @@ final class MarketStore: ObservableObject {
     /// indicative value from its holdings, marked as such.
     func indexFigure(_ index: MarketIndex, _ period: Period) -> Figure {
         if let value = snapshots[period]?.changes[index.benchmark] {
-            return Figure(change: value, since: since(index.benchmark, period), period: period)
+            return Figure(change: value, since: since(index.benchmark, period), period: period,
+                          source: DataSource.of(index.benchmark, period))
         }
         guard index.isFund, FundNAV.isNAV(index.benchmark), period == .day else {
             return Figure(change: nil, period: period)
@@ -244,6 +251,12 @@ final class MarketStore: ObservableObject {
         return Figure(change: weight > 0 ? sum / weight : nil, isIndicative: true, period: period)
     }
 
+    /// A stock's own figure, with where it came from.
+    func stockFigure(_ symbol: String, _ period: Period) -> Figure {
+        Figure(change: change(symbol, period), since: since(symbol, period), period: period,
+               source: DataSource.of(symbol, period))
+    }
+
     func indexChange(_ index: MarketIndex, _ period: Period) -> Double? {
         indexFigure(index, period).change
     }
@@ -254,7 +267,7 @@ final class MarketStore: ObservableObject {
     func viewFigure(_ period: Period) -> Figure {
         let app = AppState.shared
         if let symbol = app.stockSymbol {
-            return Figure(change: change(symbol, period), since: since(symbol, period), period: period)
+            return stockFigure(symbol, period)
         }
         switch app.tab {
         case .map:
@@ -270,7 +283,7 @@ final class MarketStore: ObservableObject {
     func itemFigure(_ item: ListItem, _ period: Period) -> Figure {
         switch item.kind {
         case .stock:
-            return Figure(change: change(item.symbol, period), since: since(item.symbol, period), period: period)
+            return stockFigure(item.symbol, period)
         case .fund:
             guard let fund = item.fund else { return Figure(period: period) }
             return indexFigure(FundStore.shared.index(for: fund), period)

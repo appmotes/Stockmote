@@ -233,7 +233,7 @@ struct StockPage: View {
                 Text(Format.percent(change))
                     .font(.system(size: 16, weight: .bold).monospacedDigit())
                     .foregroundStyle(Heat.textColor(change, style: prefs.colorStyle, theme: theme))
-                    .help(Figure(change: change, since: market.since(symbol, period), period: period).help)
+                    .help(market.stockFigure(symbol, period).help)
                 Text(period.longName).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
                 Spacer(minLength: 8)
                 Picker("", selection: $prefs.chartAsLine) {

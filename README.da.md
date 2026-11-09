@@ -261,11 +261,15 @@ tidspunkt. Appen skalerer dem med dagens kurs og omregner til dollar, så et kor
 **Indekstallet** øverst, på overblikket og under hvert tidsrum er indeksets eget (`^GSPC`, `^OMXC25`, `^GDAXI` …).
 Svarer Yahoo ikke, står der –: et gennemsnit af medlemmerne ville ikke være indeksets tal.
 
-**C25's dag kommer fra Nasdaq Nordic**, børsen selv (kursen for 1D, forrige lukkekurs og kurserne minut for minut,
-samlet i 5-minutters kurser som Yahoos). Yahoos `^OMXC25` har sendt fredagens eftermiddag som mandagens forløb, med
-en forrige lukkekurs der var en dag for gammel: +0,14 % for en dag, Nasdaq satte til +0,81 %. Ethvert 1D-tal fra
-Yahoo tjekkes også: en dag, hvis forløb ikke har en kurs fra den dato, Yahoo siger der sidst blev handlet, bruges
-ikke. Svarer Nasdaq ikke, bruges Yahoo for C25 — med det tjek.
+**Så tæt på børsen som muligt.** Hvor børsen selv viser et indeks' dag åbent, kommer dagen derfra: **C25, OMXS30 og
+OMXH25 fra Nasdaq Nordic** og **Nasdaq 100 fra Nasdaq** — kursen for 1D, forrige lukkekurs og kurserne minut for
+minut, samlet i 5-minutters kurser som Yahoos, og linjen ender på den seneste kurs. Yahoos `^OMXC25` havde sendt
+fredagens eftermiddag som mandagens forløb, med en forrige lukkekurs der var en dag for gammel: +0,14 % for en dag,
+Nasdaq satte til +0,81 %. De andre indeks' ejere (S&P Dow Jones Indices, Deutsche Börse og STOXX, FTSE Russell,
+Euronext, SIX) sælger deres data, så de, og alle tidsrum længere end en dag, kommer fra Yahoo. Ethvert 1D-tal fra
+Yahoo tjekkes: en dag, hvis forløb ikke har en kurs fra den dato, Yahoo siger der sidst blev handlet, bruges ikke.
+Svarer en børs ikke, bruges Yahoos tal — med det tjek. Peger man på et tal, står der hvor det kommer fra (*Kilde:
+Nasdaq Nordic*, *Yahoo Finance* eller *Morningstar*).
 
 **Sådan måles hvert tidsrum.** Yahoos `chartPreviousClose` er lukkekursen lige før tidsrummet begynder, for hvert
 tidsrum Yahoo navngiver (`5d`, `1mo`, `3mo`, `6mo`, `ytd`, `1y`, `5y`). Med `max` er det den første kurs Yahoo har —
@@ -428,7 +432,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/StockmoteShared/Lang.swift](Sources/StockmoteShared/Lang.swift) | Dansk og engelsk |
 | [Sources/StockmoteShared/Market.swift](Sources/StockmoteShared/Market.swift) | Symboler, åbningstider, valutaer |
 | [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo-klient; daglig indre værdi fra Morningstar for unoterede fonde |
-| [Sources/StockmoteShared/NasdaqNordic.swift](Sources/StockmoteShared/NasdaqNordic.swift) | C25's dag fra Nasdaq Nordic |
+| [Sources/StockmoteShared/ExchangeData.swift](Sources/StockmoteShared/ExchangeData.swift) | Dagen direkte fra børsen (Nasdaq Nordic, Nasdaq) og hvert tals kilde |
 | [Sources/StockmoteShared/WidgetShare.swift](Sources/StockmoteShared/WidgetShare.swift) | Filen der deles med widget'en |
 | [Sources/StockmoteWidget/StockmoteWidget.swift](Sources/StockmoteWidget/StockmoteWidget.swift) | Widget'en og dens indstillinger |
 | [Scripts/make-app.sh](Scripts/make-app.sh) | Pakker og signerer app og widget, laver AppIntents-metadata |
@@ -459,7 +463,7 @@ og åbn den derfra), `--search "MSCI World"` (søgningen, åben med resultater),
 valgt og beholdningen hentet — eller advarslen, hvis den ikke kunne findes), `--fund-add` (og lagt i listen på
 skærmen), `--dialog new-list|rename-list` (dialogerne til watchlister), `--trading-hours` (overblikkets bånd med
 handelstider vist), `--lines` (overblikket som linjer) med `--compare "sp500,c25,Min portefølje"` (de indeks og
-lister sammenlignet), `--window 1200x780` (vinduets indhold i en vilkårlig størrelse),
+lister sammenlignet), `--figures` (hvert indeks' tal og dets kilde, skrevet ud), `--window 1200x780` (vinduets indhold i en vilkårlig størrelse),
 `--settings` (indstillingsvinduet). Et snapshot tegner kun appens egne views: vinduets titellinje og trafiklys tegnes
 af macOS og er ikke med på billedet — deres plads øverst til venstre står tom, som i vinduet.
 

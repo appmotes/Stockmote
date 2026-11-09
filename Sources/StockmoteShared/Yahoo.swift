@@ -118,10 +118,13 @@ public enum Yahoo {
     public static func fetch(_ symbols: [String], period: Period, concurrency: Int = 4) async -> [String: Value] {
         if period.baseFromSeries {
             let series = await fetchSeries(symbols, period: period, interval: period.yahooInterval)
-            return series.compactMapValues { item in
+            let values = series.compactMapValues { item -> Value? in
                 guard let last = item.closes.last(where: { $0 != nil }) ?? nil else { return nil }
                 return Value(price: last, change: (last / item.previousClose - 1) * 100, since: item.since)
             }
+            DataSource.record(values.keys.filter { !FundNAV.isNAV($0) }, period, .yahoo)
+            DataSource.record(values.keys.filter(FundNAV.isNAV), period, .morningstar)
+            return values
         }
         let navs = symbols.filter(FundNAV.isNAV)
         let symbols = symbols.filter { !FundNAV.isNAV($0) }
@@ -143,9 +146,14 @@ public enum Yahoo {
                 }
             }
         }
+        DataSource.record(result.keys, period, .yahoo)
+        DataSource.record(navValues.keys, period, .morningstar)
         result.merge(navValues) { _, nav in nav }
         if period == .day {
-            result.merge(await NasdaqNordic.values(symbols)) { _, nasdaq in nasdaq }
+            for (symbol, value) in await ExchangeData.values(symbols) {
+                result[symbol] = value
+                if let feed = ExchangeData.feeds[symbol] { DataSource.record([symbol], period, feed.source) }
+            }
         }
         return result
     }
@@ -283,7 +291,7 @@ extension Yahoo {
         }
         result.merge(navSeries) { _, nav in nav }
         if period == .day {
-            result.merge(await NasdaqNordic.allSeries(symbols)) { _, nasdaq in nasdaq }
+            result.merge(await ExchangeData.allSeries(symbols)) { _, exchange in exchange }
         }
         return result
     }

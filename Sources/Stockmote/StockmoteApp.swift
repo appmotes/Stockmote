@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// [--theme light|dark] [--lang da|en] [--fullscreen [--notch 32]]
 /// [--seismograph 0.4] [--fund SPY] [--search "MSCI World" [--fund-pick URTH] [--fund-add]]
 /// [--dialog new-list|rename-list] [--window 1200x780] [--settings]
-/// [--trading-hours] [--lines] [--compare "sp500,c25"] [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-list "Tech:AAPL"] [--legacy-repeat]`
+/// [--trading-hours] [--lines] [--compare "sp500,c25"] [--figures] [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-list "Tech:AAPL"] [--legacy-repeat]`
 ///
 /// Fetches real data, renders the main window's content (or Map Only, or
 /// the Settings window) to a PNG and quits. Used for the images in docs/
@@ -389,6 +389,14 @@ struct Snapshot {
             return ListsStore.shared.watchlists.first { $0.name == name }.map { "list:\($0.id.uuidString)" }
         }
         if prefs.overviewAsLines { await OverviewLinesStore.shared.waitForLoad() }
+        // --figures: every index's figure for the range and where it came
+        // from, printed — to check them against the exchanges.
+        if flags.contains("figures") {
+            for index in UniverseStore.shared.indices where !index.isFund {
+                let figure = market.indexFigure(index, market.period)
+                print("\(index.id)\t\(index.benchmark)\t\(Format.percent(figure.change))\t\(figure.source?.name ?? "–")")
+            }
+        }
         // --stock NVDA: the stock page, with its chart loaded.
         if let stock = options["stock"] {
             app.openStock(stock)

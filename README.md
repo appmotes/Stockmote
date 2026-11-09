@@ -258,11 +258,15 @@ Lilly (the stock page's *Same industry*) gets fair sizes.
 The **index figure** at the top, on the overview and under each range is the index's own (`^GSPC`, `^OMXC25`,
 `^GDAXI` …). If Yahoo does not answer, it shows –: an average of the members would not be the index's figure.
 
-**C25's day comes from Nasdaq Nordic**, the exchange itself (its 1D price, previous close and minute prices, put in
-5-minute bars like Yahoo's). Yahoo's `^OMXC25` has returned Friday's afternoon as Monday's series, with a previous
-close a day too old: +0.14 % for a day Nasdaq put at +0.81 %. Every 1D figure from Yahoo is also checked: a day
-whose series has no price from the date Yahoo says the symbol last traded is not used. If Nasdaq does not answer, C25
-falls back to Yahoo, under that check.
+**As close to the exchange as possible.** Where the exchange shows an index's day openly, the day comes from there:
+**C25, OMXS30 and OMXH25 from Nasdaq Nordic**, and the **Nasdaq 100 from Nasdaq** — the 1D price, previous close and
+minute prices, put in 5-minute bars like Yahoo's, with the line ending on the latest price. Yahoo's `^OMXC25` had
+returned Friday's afternoon as Monday's series, with a previous close a day too old: +0.14 % for a day Nasdaq put at
++0.81 %. The other indices' owners (S&P Dow Jones Indices, Deutsche Börse and STOXX, FTSE Russell, Euronext, SIX)
+sell their data, so those, and every range longer than a day, are Yahoo's. Every 1D figure from Yahoo is checked: a
+day whose series has no price from the date Yahoo says the symbol last traded is not used. If an exchange does not
+answer, Yahoo's figure is used under that check. Pointing at a figure says where it came from (*Source: Nasdaq
+Nordic*, *Yahoo Finance* or *Morningstar*).
 
 **How each range is measured.** Yahoo's `chartPreviousClose` is the close just before the range starts, for every
 range it names (`5d`, `1mo`, `3mo`, `6mo`, `ytd`, `1y`, `5y`). With `max` it is the first price Yahoo has — checked:
@@ -427,7 +431,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/StockmoteShared/Lang.swift](Sources/StockmoteShared/Lang.swift) | Danish and English |
 | [Sources/StockmoteShared/Market.swift](Sources/StockmoteShared/Market.swift) | Symbols, opening hours, currencies |
 | [Sources/StockmoteShared/Yahoo.swift](Sources/StockmoteShared/Yahoo.swift) | Yahoo client; daily NAV from Morningstar for unlisted funds |
-| [Sources/StockmoteShared/NasdaqNordic.swift](Sources/StockmoteShared/NasdaqNordic.swift) | C25's day from Nasdaq Nordic |
+| [Sources/StockmoteShared/ExchangeData.swift](Sources/StockmoteShared/ExchangeData.swift) | The day straight from the exchange (Nasdaq Nordic, Nasdaq) and each figure's source |
 | [Sources/StockmoteShared/WidgetShare.swift](Sources/StockmoteShared/WidgetShare.swift) | The file shared with the widget |
 | [Sources/StockmoteWidget/StockmoteWidget.swift](Sources/StockmoteWidget/StockmoteWidget.swift) | The widget and its settings |
 | [Scripts/make-app.sh](Scripts/make-app.sh) | Packages and signs app and widget, makes the AppIntents metadata |
@@ -458,7 +462,7 @@ and open it from there), `--search "MSCI World"` (the search, open with results)
 fund picked and its holdings loaded — or the warning if none were found), `--fund-add` (and put in the list on
 screen), `--dialog new-list|rename-list` (the watchlist dialogs), `--trading-hours` (the overview's trading-hours
 band shown), `--lines` (the overview as lines) with `--compare "sp500,c25,My portfolio"` (those indices and lists
-compared), `--window 1200x780` (the window's content at any size), `--settings` (the Settings window). A snapshot
+compared), `--figures` (every index's figure and its source, printed), `--window 1200x780` (the window's content at any size), `--settings` (the Settings window). A snapshot
 draws the app's own views only: the window's title bar and traffic lights are drawn by macOS
 and are not in the picture — their space at the top left is left empty, as in the window.
 

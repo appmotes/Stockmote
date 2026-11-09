@@ -426,7 +426,7 @@ private struct TitleBlock: View {
     private var figure: Figure {
         let period = market.period
         if case .stock(let symbol) = app.screen {
-            return Figure(change: market.change(symbol, period), since: market.since(symbol, period), period: period)
+            return market.stockFigure(symbol, period)
         }
         if replay.isReady, app.tab != .map || app.focus == .all {
             return Figure(change: replay.curveValue, isIndicative: replay.curveIsIndicative,
