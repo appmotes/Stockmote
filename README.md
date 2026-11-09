@@ -148,7 +148,9 @@ an indicative value is not averaged in.
 - **Click** a tile (or a row in the list) to open the **stock page**: price and change for the range, a candlestick
   chart of the range from Yahoo's own open, high, low and close (5-minute candles for a day, half hours for a week,
   days up to the year to date, weeks for one, three and five years, months for All) with volume underneath and the
-  candle's open, high, low, close and move shown as you point; if Yahoo has no candles, the page says so. Key figures
+  candle's open, high, low, close and move shown as you point; if Yahoo has no candles, the page says so. **Lys |
+  Linje** (Candles | Line) above the chart switches to a line through the same closing prices, with the close shown as
+  you point; the choice is remembered. Key figures
   are only those the app has: market value, the weight in the fund you came from, the 52-week range of daily closes,
   the day's change, sector, industry, exchange and symbol. **Same industry** is a small map of its peers (click one
   to go to it), **Also in** lists the indices it is in, your lists that hold it and the funds in your lists that
@@ -428,7 +430,7 @@ It renders the main window's content, 940 × 600 unless told otherwise.
 Options: `--screen overview|map`, `--tab map|watchlists`, `--watchlist "AI"`, `--add-list "Min portefølje" --items
 "NVDA,fund:VWCE.DE,index:c25"` (that list, with exactly those stocks, funds and indices, opened), `--open
 fund:VWCE.DE` (a tile in the list on screen clicked: the fund's or index's map, opened from the list), `--stock NVDA`
-(the stock page), `--index <id>`, `--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt`,
+(the stock page), `--chart line` (its chart as a line), `--index <id>`, `--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt`,
 `--sector "…"`, `--industry "…"`, `--size small|medium|large|huge` (the window's content at 720 × 480, 940 × 600,
 1140 × 720 or 1400 × 860), `--list`, `--zoom 2.5`,
 `--theme light|dark`, `--lang da|en`, `--fullscreen`, `--notch 32` (full screen as on a screen

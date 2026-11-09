@@ -294,6 +294,8 @@ struct Snapshot {
         if let lang = options["lang"] { prefs.language = lang == "en" ? .english : .danish }
         // --trading-hours: the overview's trading-hours band shown.
         prefs.showTradingHours = flags.contains("trading-hours")
+        // --chart line: the stock page as a line of closes instead of candles.
+        prefs.chartAsLine = options["chart"] == "line"
         if let index = options["index"] { app.indexID = index }
         if let tab = options["tab"].flatMap(PanelTab.init(rawValue:)) { app.tab = tab }
         // The map unless told otherwise, as the images in docs/ were made.

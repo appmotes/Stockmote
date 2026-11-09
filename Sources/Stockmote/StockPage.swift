@@ -235,6 +235,16 @@ struct StockPage: View {
                     .foregroundStyle(Heat.textColor(change, style: prefs.colorStyle, theme: theme))
                     .help(Figure(change: change, since: market.since(symbol, period), period: period).help)
                 Text(period.longName).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Picker("", selection: $prefs.chartAsLine) {
+                    Text(tr("Lys", "Candles")).tag(false)
+                    Text(tr("Linje", "Line")).tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .help(tr("Vis som lys (åbning, høj, lav, luk) eller som en linje af lukkekurser",
+                         "Show as candles (open, high, low, close) or as a line of closing prices"))
             }
             readout(period, chart: chart)
                 .font(.system(size: 11).monospacedDigit())
@@ -253,14 +263,20 @@ struct StockPage: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .loaded(let chart):
-                CandleChart(candles: chart.candles, period: period, style: prefs.colorStyle, theme: theme, hovered: $hovered)
+                CandleChart(candles: chart.candles, period: period, style: prefs.colorStyle, theme: theme,
+                            asLine: prefs.chartAsLine, hovered: $hovered)
             }
         }
     }
 
     @ViewBuilder
     private func readout(_ period: Period, chart: StockChart?) -> some View {
-        if let candle = hovered {
+        if let candle = hovered, prefs.chartAsLine {
+            HStack(spacing: 8) {
+                Text(CandleChart.label(candle.time, period: period, long: true)).fontWeight(.semibold).foregroundStyle(.primary)
+                Text(tr("Luk", "Close") + " " + CandleChart.number(candle.close))
+            }
+        } else if let candle = hovered {
             let move = (candle.close / candle.open - 1) * 100
             HStack(spacing: 8) {
                 Text(CandleChart.label(candle.time, period: period, long: true)).fontWeight(.semibold).foregroundStyle(.primary)
@@ -270,6 +286,9 @@ struct StockPage: View {
                 Text(tr("Luk", "Close") + " " + CandleChart.number(candle.close))
                 Text(Format.percent(move)).foregroundStyle(Heat.textColor(move, style: prefs.colorStyle, theme: theme))
             }
+        } else if let chart, prefs.chartAsLine {
+            Text(tr("\(chart.candles.count) lukkekurser à \(CandleChart.intervalName(period)) · peg for kursen",
+                    "\(chart.candles.count) closing prices of \(CandleChart.intervalName(period)) · point for the price"))
         } else if let chart {
             Text(tr("\(chart.candles.count) lys à \(CandleChart.intervalName(period)) · peg for åbning, høj, lav og luk",
                     "\(chart.candles.count) candles of \(CandleChart.intervalName(period)) · point for open, high, low and close"))
@@ -277,13 +296,15 @@ struct StockPage: View {
     }
 }
 
-/// The candles, with volume underneath, price labels on the right and
-/// dates below. Hover picks a candle; its values are shown above the chart.
+/// The candles (or a line through their closes), with volume underneath,
+/// price labels on the right and dates below. Hover picks a candle; its
+/// values are shown above the chart.
 struct CandleChart: View {
     let candles: [Candle]
     let period: Period
     let style: ColorStyle
     let theme: Theme
+    var asLine = false
     @Binding var hovered: Candle?
     @State private var hoverX: CGFloat?
 
@@ -296,8 +317,9 @@ struct CandleChart: View {
             let plot = CGSize(width: max(size.width - axisWidth, 10), height: size.height - dateHeight)
             let volumeHeight = min(46, plot.height * 0.16)
             let priceHeight = plot.height - volumeHeight - 6
-            let low = candles.map(\.low).min() ?? 0
-            let high = candles.map(\.high).max() ?? 1
+            // A line only shows closes, so it is scaled to them.
+            let low = (asLine ? candles.map(\.close) : candles.map(\.low)).min() ?? 0
+            let high = (asLine ? candles.map(\.close) : candles.map(\.high)).max() ?? 1
             let pad = max((high - low) * 0.06, high * 0.001)
             let top = high + pad, bottom = low - pad
             // The top grid line sits low enough for its price label to fit above the plot's edge.
@@ -317,14 +339,39 @@ struct CandleChart: View {
                         context.draw(Text(Self.number(value)).font(.system(size: 10).monospacedDigit()).foregroundStyle(.secondary),
                                      at: CGPoint(x: plot.width + 6, y: y(value)), anchor: .leading)
                     }
+                    if asLine, let first = candles.first, let last = candles.last {
+                        // One colour for the whole line: up or down over the range.
+                        let color = last.close >= first.open ? up : down
+                        var line = Path()
+                        for (i, candle) in candles.enumerated() {
+                            let point = CGPoint(x: (CGFloat(i) + 0.5) * step, y: y(candle.close))
+                            if i == 0 { line.move(to: point) } else { line.addLine(to: point) }
+                        }
+                        var area = line
+                        area.addLine(to: CGPoint(x: (CGFloat(candles.count) - 0.5) * step, y: priceHeight))
+                        area.addLine(to: CGPoint(x: 0.5 * step, y: priceHeight))
+                        area.closeSubpath()
+                        context.fill(area, with: .linearGradient(Gradient(colors: [color.opacity(0.22), color.opacity(0)]),
+                                                                 startPoint: CGPoint(x: 0, y: 0),
+                                                                 endPoint: CGPoint(x: 0, y: priceHeight)))
+                        context.stroke(line, with: .color(color), style: StrokeStyle(lineWidth: 1.6, lineJoin: .round))
+                    }
                     for (i, candle) in candles.enumerated() {
                         let x = (CGFloat(i) + 0.5) * step
                         let color = candle.close >= candle.open ? up : down
+                        let bodyWidth = max(1, step * 0.62)
+                        if asLine {
+                            if let volume = candle.volume, maxVolume > 0 {
+                                let h = CGFloat(volume / maxVolume) * volumeHeight
+                                context.fill(Path(CGRect(x: x - bodyWidth / 2, y: plot.height - h, width: bodyWidth, height: h)),
+                                             with: .color(color.opacity(0.35)))
+                            }
+                            continue
+                        }
                         var wick = Path()
                         wick.move(to: CGPoint(x: x, y: y(candle.high)))
                         wick.addLine(to: CGPoint(x: x, y: y(candle.low)))
                         context.stroke(wick, with: .color(color), lineWidth: 1)
-                        let bodyWidth = max(1, step * 0.62)
                         let bodyTop = y(max(candle.open, candle.close))
                         let bodyHeight = max(1, abs(y(candle.open) - y(candle.close)))
                         context.fill(Path(CGRect(x: x - bodyWidth / 2, y: bodyTop, width: bodyWidth, height: bodyHeight)), with: .color(color))
@@ -347,6 +394,11 @@ struct CandleChart: View {
                     Rectangle().fill(Color.primary.opacity(0.35))
                         .frame(width: 1, height: plot.height)
                         .offset(x: (CGFloat(i) + 0.5) * step)
+                    if asLine {
+                        Circle().fill(Color.primary)
+                            .frame(width: 7, height: 7)
+                            .position(x: (CGFloat(i) + 0.5) * step, y: y(candle.close))
+                    }
                 }
             }
             .contentShape(Rectangle())

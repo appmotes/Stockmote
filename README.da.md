@@ -149,6 +149,8 @@ se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste
   candlestick-diagram over tidsrummet ud fra Yahoos egne åbnings-, høj-, lav- og lukkekurser (5-minutters lys for en
   dag, halve timer for en uge, dage op til år til dato, uger for et, tre og fem år, måneder for Alt) med volumen
   nedenunder og lysets åbning, høj, lav, luk og bevægelse når du peger; har Yahoo ingen lys, siger siden det.
+  **Lys | Linje** over diagrammet skifter til en linje gennem de samme lukkekurser, med lukkekursen når du peger;
+  valget huskes.
   Nøgletallene er kun dem appen har: markedsværdi, vægten i den fond du kom fra, 52-ugers spændet i daglige
   lukkekurser, dagens ændring, sektor, branche, børs og symbol. **Samme industri** er et lille kort over dens
   ligemænd (klik for at gå til en), **Også i** viser de indekser den er i, dine lister der rummer den og fondene i
@@ -427,7 +429,7 @@ Den tegner hovedvinduets indhold, 940 × 600 hvis intet andet er sagt.
 
 Valg: `--screen overview|map`, `--tab map|watchlists`, `--watchlist "AI"`, `--add-list "Min portefølje" --items
 "NVDA,fund:VWCE.DE,index:c25"` (den liste, med netop de aktier, fonde og indeks, åbnet), `--open fund:VWCE.DE` (et
-felt i listen på skærmen klikket: fondens eller indeksets kort, åbnet fra listen), `--stock NVDA` (aktiens side),
+felt i listen på skærmen klikket: fondens eller indeksets kort, åbnet fra listen), `--stock NVDA` (aktiens side), `--chart line` (diagrammet som linje),
 `--index <id>`, `--period 1D|1U|1M|3M|6M|ÅTD|1Å|3Å|5Å|Alt`,
 `--sector "…"`, `--industry "…"`, `--size small|medium|large|huge` (vinduets indhold i 720 × 480, 940 × 600,
 1140 × 720 eller 1400 × 860), `--list`, `--zoom 2.5`,

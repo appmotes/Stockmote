@@ -81,6 +81,8 @@ final class Preferences: ObservableObject {
     @Published var openWindowAtLaunch: Bool { didSet { defaults.set(openWindowAtLaunch, forKey: "openWindowAtLaunch") } }
     /// The trading-hours band on the overview. Off unless asked for: it takes room.
     @Published var showTradingHours: Bool { didSet { defaults.set(showTradingHours, forKey: "showTradingHours") } }
+    /// The stock page draws a line of closing prices instead of candles.
+    @Published var chartAsLine: Bool { didSet { defaults.set(chartAsLine, forKey: "chartAsLine") } }
 
     @Published private(set) var launchAtLogin = false
     @Published private(set) var launchAtLoginError: String?
@@ -99,6 +101,7 @@ final class Preferences: ObservableObject {
         presence = AppPresence(rawValue: defaults.string(forKey: "presence") ?? "") ?? .both
         openWindowAtLaunch = defaults.object(forKey: "openWindowAtLaunch") as? Bool ?? true
         showTradingHours = defaults.bool(forKey: "showTradingHours")
+        chartAsLine = defaults.bool(forKey: "chartAsLine")
         launchAtLogin = SMAppService.mainApp.status == .enabled
         Lang.isEnglish = language.isEnglish
     }
