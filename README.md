@@ -59,7 +59,8 @@ an indicative value is not averaged in.
   ⌘Q quits. The window opens at launch (**Open window at launch**, on by default), but not when Stockmote opens at
   login: then it waits quietly in the menu bar.
 - **Menus.** Stockmote (About, Settings… ⌘,, Hide, Quit), File (Open Window ⌘O, New Watchlist ⌘N, Search… ⌘K,
-  Close Window ⌘W), Edit, View (the ten time ranges on ⌥⌘1 … ⌥⌘9 and ⌥⌘0, Show as List ⌘L, Overview ⌘0, Trading
+  Close Window ⌘W), Edit, View (the ten time ranges on ⌥⌘1 … ⌥⌘9 and ⌥⌘0, Show as List ⌘L — Show as Lines on the
+  overview —, Overview ⌘0, Trading
   Hours on Overview, Back ⌘[,
   Seismograph ⌘P, light/dark ⇧⌘T, Refresh ⌘R, Map Only ⇧⌘F, Enter Full Screen ⌃⌘F), Window and Help (the keyboard
   shortcuts). The menus follow the app's language, not the system's.
@@ -68,6 +69,16 @@ an indicative value is not averaged in.
   marked *avg.* — and a small map: an index's largest stocks, or a list's items, each coloured by its own change.
   Click a card to open its map. Hover a list for a small ✕ to delete it (or right-click: rename, delete); a toast
   offers **Undo**. With no lists, Mine says to search (⌘K) and add with **+ List**.
+- **Maps or lines** (the two buttons beside the clock on the overview, or ⌘L there; remembered): with **lines**
+  each card shows its course over the range instead of its small map — Yahoo's closes as a percent change from the
+  price the range starts from (the dashed line), green or red by where it ends. A list's line is the equal-weight
+  average of its items' lines, marked *avg.* as its figure is. Tick a card (or ⌘-click it) to **compare** it: up to
+  six lines in their own colours (none green, red, blue or orange, which mean up and down) on one axis above the
+  cards, all at 0 % at the start of the range and each in its own market's currency. Pointing reads every line at
+  that moment; ✕ on a line's label takes it out. A line whose market is closed while another trades — a holiday,
+  or the US before New York opens — holds its last close there, drawn dotted, since no trade took place. Daily and
+  longer closes are matched by date, so a European and a US close on the same day sit at the same point. 1D is the
+  day in 5-minute closes; when one market's latest session is yesterday's, the axis gives the weekday.
 - **Trading hours** (the clock in the toolbar on the overview, or View → Trading Hours on Overview; off until you
   turn it on, and remembered): a band over the overview with today's sessions in your own time (Europe 9.00–17.30
   and the US 15.30–22.00 seen from Denmark) and a marker for now. On Saturday and Sunday — in each exchange's own
@@ -169,7 +180,7 @@ an indicative value is not averaged in.
   time range. A fund priced by its daily NAV shows – for the day. It follows the theme chosen in settings (system,
   light or dark). Clicking it opens the window on the matching view — a list widget on that list.
 - **Everything that switches on also switches off** with the same click or key: the menu bar icon closes the window
-  it brought forward (and Map Only), ⌘P the seismograph, ⌘L map/list, ⌃⌘F full screen, ⇧⌘F Map Only, the clock the
+  it brought forward (and Map Only), ⌘P the seismograph, ⌘L map/list (maps/lines on the overview), ⌃⌘F full screen, ⇧⌘F Map Only, the clock the
   trading hours, and **✓ <list>** in the search takes the stock, fund or index off the list.
 - **Esc** closes a dialog, then zooms out, then closes the seismograph, then goes up a level: stock → map → sector →
   index or fund → the list it was opened from → overview. It never closes the window.
@@ -386,6 +397,7 @@ It refreshes about every 15 minutes while a market is open and hourly otherwise;
 | [Sources/Stockmote/MenuBarItem.swift](Sources/Stockmote/MenuBarItem.swift) | Menu bar icon and coloured figure; a click brings the window forward or closes it, right-click gives a small menu |
 | [Sources/Stockmote/PanelView.swift](Sources/Stockmote/PanelView.swift) | Toolbar with breadcrumb, status line, the map, a list's tiles, list view |
 | [Sources/Stockmote/Overview.swift](Sources/Stockmote/Overview.swift) | The overview: trading hours, the cards and their small maps |
+| [Sources/Stockmote/OverviewLines.swift](Sources/Stockmote/OverviewLines.swift) | The overview's lines: the cards' courses, the comparison and its colours |
 | [Sources/Stockmote/StockPage.swift](Sources/Stockmote/StockPage.swift) | The stock page: candles from Yahoo's chart endpoint, key figures, peers, Also in |
 | [Sources/Stockmote/Search.swift](Sources/Stockmote/Search.swift) | The search: indices, stocks and funds, and **+ List** on each |
 | [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | The dialog host, new and rename watchlist, and the fund picker that loads a fund's holdings before it goes in a list |
@@ -438,7 +450,8 @@ with a notch), `--seismograph 0.4` (the seismograph paused 40 % into the range),
 and open it from there), `--search "MSCI World"` (the search, open with results), `--fund-pick SEC0.DE` (with that
 fund picked and its holdings loaded — or the warning if none were found), `--fund-add` (and put in the list on
 screen), `--dialog new-list|rename-list` (the watchlist dialogs), `--trading-hours` (the overview's trading-hours
-band shown), `--window 1200x780` (the window's content at any size), `--settings` (the Settings window). A snapshot
+band shown), `--lines` (the overview as lines) with `--compare "sp500,c25,My portfolio"` (those indices and lists
+compared), `--window 1200x780` (the window's content at any size), `--settings` (the Settings window). A snapshot
 draws the app's own views only: the window's title bar and traffic lights are drawn by macOS
 and are not in the picture — their space at the top left is left empty, as in the window.
 
@@ -453,6 +466,8 @@ again to show that nothing is added twice and that the old keys are gone.
 | A sector, after clicking its header | Nasdaq 100 over a month, light theme |
 | ![Trading hours](docs/trading-hours.png) | ![FTSE 100 in English](docs/english.png) |
 | The trading hours on the overview — here rendered on a Sunday, so both sessions are only outlined | FTSE 100, English |
+| ![The overview as lines](docs/overview-lines.png) | |
+| The overview as lines over three months, a list compared with S&P 500 and C25 | |
 
 ## Licence
 

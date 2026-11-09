@@ -83,6 +83,11 @@ final class Preferences: ObservableObject {
     @Published var showTradingHours: Bool { didSet { defaults.set(showTradingHours, forKey: "showTradingHours") } }
     /// The stock page draws a line of closing prices instead of candles.
     @Published var chartAsLine: Bool { didSet { defaults.set(chartAsLine, forKey: "chartAsLine") } }
+    /// The overview shows each card's line instead of its small map, and the
+    /// comparison above the cards.
+    @Published var overviewAsLines: Bool { didSet { defaults.set(overviewAsLines, forKey: "overviewAsLines") } }
+    /// The cards compared on the overview, in order ("index:sp500", "list:<uuid>").
+    @Published var compared: [String] { didSet { defaults.set(compared, forKey: "compared") } }
 
     @Published private(set) var launchAtLogin = false
     @Published private(set) var launchAtLoginError: String?
@@ -102,6 +107,8 @@ final class Preferences: ObservableObject {
         openWindowAtLaunch = defaults.object(forKey: "openWindowAtLaunch") as? Bool ?? true
         showTradingHours = defaults.bool(forKey: "showTradingHours")
         chartAsLine = defaults.bool(forKey: "chartAsLine")
+        overviewAsLines = defaults.bool(forKey: "overviewAsLines")
+        compared = defaults.stringArray(forKey: "compared") ?? []
         launchAtLogin = SMAppService.mainApp.status == .enabled
         Lang.isEnglish = language.isEnglish
     }

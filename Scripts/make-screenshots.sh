@@ -23,6 +23,7 @@ PORTFOLIO=(--add-list "Min portefølje" --items "NVDA,NOVO-B.CO,ASML.AS,MSFT,fun
 # Remove the old screenshots — but not the app icon, which the README shows at the top.
 find docs -name '*.png' ! -name 'app-icon.png' -delete
 "$BIN" --snapshot docs/overview.png $WIN "${PORTFOLIO[@]}" --screen overview
+"$BIN" --snapshot docs/overview-lines.png $WIN "${PORTFOLIO[@]}" --screen overview --lines --period 3M --compare "Min portefølje,sp500,c25"
 "$BIN" --snapshot docs/portfolio.png $WIN "${PORTFOLIO[@]}"
 "$BIN" --snapshot docs/portfolio-fund.png $WIN "${PORTFOLIO[@]}" --open fund:VWCE.DE --sector "Information Technology"
 "$BIN" --snapshot docs/trading-hours.png --window 1200x420 --screen overview --trading-hours --theme light

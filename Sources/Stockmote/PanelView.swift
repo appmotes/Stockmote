@@ -180,7 +180,10 @@ private struct Toolbar: View {
                 SeismographButton()
                 ViewModePicker()
             }
-            if app.screen == .overview { TradingHoursButton() }
+            if app.screen == .overview {
+                OverviewModePicker()
+                TradingHoursButton()
+            }
             SearchButton(compact: compact)
             ThemeToggleButton()
             RefreshButton()
@@ -536,6 +539,26 @@ private struct PeriodPicker: View {
     }
 }
 
+/// The overview's "Kort | Linjer": each card's small map, or its line over
+/// the range with the comparison above the cards. ⌘L switches too.
+private struct OverviewModePicker: View {
+    @ObservedObject private var prefs = Preferences.shared
+
+    var body: some View {
+        HStack(spacing: 0) {
+            segment("square.grid.2x2", selected: !prefs.overviewAsLines, help: tr("Kort (⌘L)", "Maps (⌘L)")) { prefs.overviewAsLines = false }
+            segment("chart.xyaxis.line", selected: prefs.overviewAsLines, help: tr("Linjer og sammenligning (⌘L)", "Lines and comparison (⌘L)")) { prefs.overviewAsLines = true }
+        }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.raised))
+        .fixedSize()
+    }
+
+    private func segment(_ symbol: String, selected: Bool, help: String, action: @escaping () -> Void) -> some View {
+        ViewModePicker.segment(symbol, selected: selected, help: help, action: action)
+    }
+}
+
 private struct ViewModePicker: View {
     @ObservedObject private var app = AppState.shared
 
@@ -550,6 +573,10 @@ private struct ViewModePicker: View {
     }
 
     private func segment(_ symbol: String, selected: Bool, help: String, action: @escaping () -> Void) -> some View {
+        Self.segment(symbol, selected: selected, help: help, action: action)
+    }
+
+    static func segment(_ symbol: String, selected: Bool, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 11, weight: .semibold))

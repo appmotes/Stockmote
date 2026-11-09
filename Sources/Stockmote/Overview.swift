@@ -6,6 +6,8 @@ import SwiftUI
 /// and a small map of its stocks. A click opens the map.
 ///
 /// "Mine" holds the user's lists; then the US and the European indices.
+/// With "Linjer" in the toolbar each card shows its line over the range
+/// instead, and the ticked cards are compared above them.
 /// Each card's figure is the same as the map's title: the index's own
 /// change, or a list's average (marked as such). The small map colours each
 /// stock — or a list's fund or index — by its own change; one without a
@@ -27,6 +29,11 @@ struct OverviewView: View {
                     TradingHoursBand()
                         .padding(.bottom, 6)
                         .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                if prefs.overviewAsLines {
+                    CompareChart()
+                        .padding(.bottom, 2)
                 }
 
                 section(tr("Mine", "Mine"))
@@ -57,6 +64,15 @@ struct OverviewView: View {
             }
             .padding(16)
         }
+        .onAppear(perform: loadLines)
+        .onChange(of: prefs.overviewAsLines) { loadLines() }
+        .onChange(of: market.period) { loadLines() }
+        .onChange(of: market.version) { loadLines() }
+        .onChange(of: lists.watchlists) { loadLines() }
+    }
+
+    private func loadLines() {
+        if prefs.overviewAsLines { OverviewLinesStore.shared.load() }
     }
 
     private func section(_ title: String) -> some View {
@@ -84,6 +100,7 @@ private struct OverviewCard: View {
     @ObservedObject private var market = MarketStore.shared
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
+    @ObservedObject private var lines = OverviewLinesStore.shared
     @Environment(\.heatTheme) private var theme
     @State private var isHovering = false
 
@@ -121,8 +138,10 @@ private struct OverviewCard: View {
 
     var body: some View {
         let figure = figure
+        let compareColor = prefs.overviewAsLines ? CompareColors.color(kind) : nil
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
+                if prefs.overviewAsLines { compareBox(compareColor) }
                 if case .watchlist = kind {
                     Text(tr("LISTE", "LIST"))
                         .font(.system(size: 9, weight: .bold))
@@ -130,6 +149,8 @@ private struct OverviewCard: View {
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
                         .background(RoundedRectangle(cornerRadius: 3, style: .continuous).fill(Palette.raised))
+                        .lineLimit(1)
+                        .fixedSize()
                 }
                 Text(title)
                     .font(.system(size: 12.5, weight: .semibold))
@@ -146,6 +167,8 @@ private struct OverviewCard: View {
                 Text(figure.change == nil ? "–" : Format.percent(figure.change))
                     .font(.system(size: 12, weight: .bold).monospacedDigit())
                     .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
+                    .lineLimit(1)
+                    .fixedSize()
                     .help(figure.help)
             }
             mini
@@ -155,7 +178,8 @@ private struct OverviewCard: View {
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
             .fill(isHovering ? Palette.raised : Palette.surface))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.outline))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(compareColor ?? Palette.outline, lineWidth: compareColor == nil ? 1 : 1.5))
         .overlay(alignment: .topTrailing) {
             if list != nil, isHovering {
                 Button { remove() } label: {
@@ -173,13 +197,57 @@ private struct OverviewCard: View {
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .onTapGesture { open() }
+        // ⌘-click ticks the card for the comparison (lines only).
+        .onTapGesture {
+            if prefs.overviewAsLines, NSEvent.modifierFlags.contains(.command) {
+                CompareColors.toggle(kind)
+            } else {
+                open()
+            }
+        }
         .onHover { isHovering = $0 }
         .help(help)
         .contextMenu { menu }
     }
 
+    /// The tick box for the comparison, in the card's line colour when ticked.
+    private func compareBox(_ color: Color?) -> some View {
+        Button { CompareColors.toggle(kind) } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                    .fill(color ?? Color.clear)
+                RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                    .strokeBorder(color ?? Color.secondary.opacity(0.6), lineWidth: 1)
+                if color != nil {
+                    Image(systemName: "checkmark").font(.system(size: 7.5, weight: .heavy)).foregroundStyle(.white)
+                }
+            }
+            .frame(width: 13, height: 13)
+            .contentShape(Rectangle())
+            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
+        }
+        .buttonStyle(.plain)
+        .help(color == nil ? tr("Sammenlign (⌘-klik på kortet)", "Compare (⌘-click the card)")
+                           : tr("Fjern fra sammenligningen", "Remove from the comparison"))
+    }
+
     @ViewBuilder private var mini: some View {
+        if prefs.overviewAsLines {
+            if let line = lines.line(kind), line.values.contains(where: { $0 != nil }) {
+                SparkLine(line: line, style: prefs.colorStyle, theme: theme)
+            } else {
+                Text(lines.isLoading || lines.loadedPeriod != market.period ? tr("Henter forløb …", "Loading history …")
+                     : list?.items.isEmpty == true ? tr("Tom liste", "Empty list") : tr("Intet forløb fra Yahoo", "No history from Yahoo"))
+                    .font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Palette.raised.opacity(0.5))
+            }
+        } else {
+            tileMap
+        }
+    }
+
+    @ViewBuilder private var tileMap: some View {
         let tiles = tiles
         if tiles.isEmpty {
             Text(list != nil ? tr("Tom liste", "Empty list") : tr("Henter…", "Loading…"))

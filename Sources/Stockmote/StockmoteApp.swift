@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// [--theme light|dark] [--lang da|en] [--fullscreen [--notch 32]]
 /// [--seismograph 0.4] [--fund SPY] [--search "MSCI World" [--fund-pick URTH] [--fund-add]]
 /// [--dialog new-list|rename-list] [--window 1200x780] [--settings]
-/// [--trading-hours] [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-list "Tech:AAPL"] [--legacy-repeat]`
+/// [--trading-hours] [--lines] [--compare "sp500,c25"] [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-list "Tech:AAPL"] [--legacy-repeat]`
 ///
 /// Fetches real data, renders the main window's content (or Map Only, or
 /// the Settings window) to a PNG and quits. Used for the images in docs/
@@ -296,6 +296,8 @@ struct Snapshot {
         prefs.showTradingHours = flags.contains("trading-hours")
         // --chart line: the stock page as a line of closes instead of candles.
         prefs.chartAsLine = options["chart"] == "line"
+        // --lines: the overview as lines (--compare below).
+        prefs.overviewAsLines = flags.contains("lines")
         if let index = options["index"] { app.indexID = index }
         if let tab = options["tab"].flatMap(PanelTab.init(rawValue:)) { app.tab = tab }
         // The map unless told otherwise, as the images in docs/ were made.
@@ -379,6 +381,14 @@ struct Snapshot {
         } else if let sector = options["sector"] {
             app.focus = .sector(sector)
         }
+        // --compare "sp500,c25,Name of a list": those cards compared above
+        // the lines (after --add-list, so the list exists).
+        prefs.compared = (options["compare"] ?? "").split(separator: ",").compactMap { part in
+            let name = part.trimmingCharacters(in: .whitespaces)
+            if UniverseStore.shared.index(withID: name) != nil { return "index:\(name)" }
+            return ListsStore.shared.watchlists.first { $0.name == name }.map { "list:\($0.id.uuidString)" }
+        }
+        if prefs.overviewAsLines { await OverviewLinesStore.shared.waitForLoad() }
         // --stock NVDA: the stock page, with its chart loaded.
         if let stock = options["stock"] {
             app.openStock(stock)
