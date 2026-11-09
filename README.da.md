@@ -58,7 +58,7 @@ se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste
   afslutter. Vinduet åbner ved start (**Åbn vindue ved start**, slået til som standard), men ikke når Stockmote
   starter ved login: så venter den stille i menubaren.
 - **Menuer.** Stockmote (Om, Indstillinger … ⌘,, Skjul, Afslut), Arkiv (Åbn vindue ⌘O, Ny watchliste ⌘N, Søg … ⌘K,
-  Luk vindue ⌘W), Rediger, Vis (de ti tidsrum på ⌥⌘1 … ⌥⌘9 og ⌥⌘0, Vis som liste ⌘L — Vis som linjer på
+  Luk vindue ⌘W), Rediger, Vis (de ti tidsrum på ⌥⌘1 … ⌥⌘9 og ⌥⌘0, Vis som liste ⌘L — Næste visning på
   overblikket —, Overblik ⌘0, Handelstider på
   overblikket, Tilbage ⌘[,
   Seismograf ⌘P, lyst/mørkt ⇧⌘T, Opdatér ⌘R, Kun kortet ⇧⌘F, Fuld skærm ⌃⌘F), Vindue og Hjælp (tastaturgenvejene).
@@ -68,20 +68,20 @@ se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste
   kort: et indeks' største aktier, eller en listes værdipapirer, hver farvet efter sin egen ændring. Klik på et kort
   for at åbne dets kort. Hold musen over en liste for et lille ✕ der sletter den (eller højreklik: omdøb, slet); en
   besked nederst tilbyder **Fortryd**. Uden lister siger Mine, at man søger (⌘K) og tilføjer med **+ Liste**.
-- **Kort eller linjer** (de to knapper ved siden af uret på overblikket, eller ⌘L dér; det huskes): med **linjer**
-  viser hvert kort sit forløb i tidsrummet i stedet for det lille kort — Yahoos lukkekurser som ændring i procent fra
-  kursen ved tidsrummets start (den stiplede linje), grøn eller rød efter hvor den ender. En listes linje er
-  gennemsnittet med lige vægt af dens papirers linjer, mærket *gns.* ligesom dens tal. Sæt flueben i et kort (eller
-  ⌘-klik det) for at **sammenligne** det: op til seks linjer i hver sin farve (ingen grøn, rød, blå eller orange, som
-  betyder op og ned) på én akse over kortene, alle i 0 % ved tidsrummets start og hver i sit eget markeds valuta. Peg
-  for at aflæse alle linjer i samme øjeblik; ✕ ved en linjes navn tager den ud. En linje hvis marked er lukket, mens
-  et andet handler — en helligdag, eller USA før New York åbner — holder sin seneste lukkekurs dér: linjen fortsætter,
-  vandret og stiplet i en lysere tone, som en tænkt linje, ikke en handlet. Dagskurser og længere passes sammen efter
-  dato, så en europæisk og en amerikansk lukkekurs samme dag står samme sted, og alle linjer går ud fra 0 % i ét fælles
-  punkt, **Start** (hvert markeds egen lukkekurs før tidsrummet ligger på sin egen dag). 1U sammenlignes på
-  dagslukkekurser — inden for dagen deler Europa og USA kun to timer, og linjerne ville mest stå stille — mens kortene
-  beholder halve timer. 1D er dagen i lukkekurser for hvert 5. minut; når et markeds seneste handelsdag er i går,
-  viser aksen ugedagen.
+- **Tre visninger** (de tre knapper ved siden af uret på overblikket, eller ⌘L dér for at gå videre til den næste;
+  det huskes):
+  - **Kort** — kortene med deres små kort, som ovenfor.
+  - **Tabel** — én række pr. liste og indeks (i Mine, USA og Europa) og én kolonne pr. tidsrum, 1D til Alt. Hvert
+    felt er rækkens eget tal — indeksets eller listens gennemsnit — farvet som kortet for det tidsrum; det valgte
+    tidsrum har en kant. Klik på et tidsrum for at sortere alle rækker efter det, bedst først; klik igen for
+    afsnittene. Klik på en række for at åbne den. Peger man på et felt, står der hvordan det er målt, og hvor det
+    kommer fra.
+  - **Mod indeks** — hvert kort som forskellen til ét indeks, du vælger over dem (S&P 500 indtil du vælger et
+    andet), i procentpoint: kortets eget tal minus indeksets over samme tidsrum, grønt over 0 (bedre end indekset),
+    rødt under. Linjen viser, hvordan forskellen udviklede sig i tidsrummet, ud fra lukkekurser efter dato — en
+    europæisk og en amerikansk lukkekurs samme dag er ét øjeblik — så handelstiderne ikke skal passe sammen; begge
+    starter i 0 ved den lukkekurs, tidsrummet måles fra. 1U tegnes på dagslukkekurser; 1D har kun dagens kurs, så
+    kortene giver forskellen uden linje. Hvert tal er i sit eget markeds valuta.
 - **Handelstider** (uret i værktøjslinjen på overblikket, eller Vis → Handelstider på overblikket; slået fra indtil
   du slår det til, og det huskes): et bånd over overblikket med dagens handelstid i din egen tid (Europa 9.00–17.30
   og USA 15.30–22.00 set fra Danmark) og en markør for nu. Lørdag og søndag — i hver børs' egen tidszone — er
@@ -186,7 +186,7 @@ se *Kurser for danske fonde og Nordnets fonde*) og **gennemsnittet** af en liste
   indstillingerne (som systemet, lyst eller mørkt). Et klik åbner vinduet på den rigtige visning — en listewidget på
   den liste.
 - **Alt der slår til, slår også fra** med samme klik eller tast: menubar-ikonet lukker det vindue, det
-  hentede frem (og Kun kortet), ⌘P seismografen, ⌘L kort/liste (kort/linjer på overblikket), ⌃⌘F fuld skærm, ⇧⌘F Kun kortet, uret
+  hentede frem (og Kun kortet), ⌘P seismografen, ⌘L kort/liste (næste visning på overblikket), ⌃⌘F fuld skærm, ⇧⌘F Kun kortet, uret
   handelstiderne, og **✓ <liste>** i søgningen tager aktien, fonden eller indekset af listen.
 - **Esc** lukker en dialog, zoomer så ud, lukker seismografen og går et niveau op: aktie → kort → sektor → indeks
   eller fond → den liste det blev åbnet fra → overblik. Den lukker aldrig vinduet.
@@ -411,7 +411,7 @@ Den opdaterer cirka hvert kvarter mens en børs er åben og ellers hver time; Wi
 | [Sources/Stockmote/MenuBarItem.swift](Sources/Stockmote/MenuBarItem.swift) | Menubar-ikon og farvet tal; et klik henter vinduet frem eller lukker det, højreklik giver en lille menu |
 | [Sources/Stockmote/PanelView.swift](Sources/Stockmote/PanelView.swift) | Værktøjslinje med brødkrummer, statuslinje, kortet, en listes felter, listevisning |
 | [Sources/Stockmote/Overview.swift](Sources/Stockmote/Overview.swift) | Overblikket: handelstider, kortene og deres små kort |
-| [Sources/Stockmote/OverviewLines.swift](Sources/Stockmote/OverviewLines.swift) | Overblikkets linjer: kortenes forløb, sammenligningen og dens farver |
+| [Sources/Stockmote/OverviewModes.swift](Sources/Stockmote/OverviewModes.swift) | Overblikkets visninger: tabellen over alle tidsrum og kortene mod et indeks med deres linjer |
 | [Sources/Stockmote/StockPage.swift](Sources/Stockmote/StockPage.swift) | Aktiens side: lys fra Yahoos chart-adresse, nøgletal, ligemænd, Også i |
 | [Sources/Stockmote/Search.swift](Sources/Stockmote/Search.swift) | Søgningen: indekser, aktier og fonde, og **+ Liste** ved hver |
 | [Sources/Stockmote/Dialogs.swift](Sources/Stockmote/Dialogs.swift) | Dialog-værten, ny og omdøb watchliste, og fondsvælgeren der henter en fonds beholdning, før den kommer i en liste |
@@ -465,8 +465,9 @@ notch), `--seismograph 0.4` (seismografen sat på pause 40 % inde i tidsrummet),
 og åbn den derfra), `--search "MSCI World"` (søgningen, åben med resultater), `--fund-pick SEC0.DE` (med den fond
 valgt og beholdningen hentet — eller advarslen, hvis den ikke kunne findes), `--fund-add` (og lagt i listen på
 skærmen), `--dialog new-list|rename-list` (dialogerne til watchlister), `--trading-hours` (overblikkets bånd med
-handelstider vist), `--lines` (overblikket som linjer) med `--compare "sp500,c25,Min portefølje"` (de indeks og
-lister sammenlignet), `--figures` (hvert indeks' tal og dets kilde, skrevet ud), `--window 1200x780` (vinduets indhold i en vilkårlig størrelse),
+handelstider vist), `--overview table|relative` (overblikket som tabel eller mod et indeks) med `--benchmark c25`
+(indekset), `--figures` (hvert indeks' og hver listes tal og kilde, skrevet ud — med `--overview relative` også hvor
+hver linje ender), `--window 1200x780` (vinduets indhold i en vilkårlig størrelse),
 `--settings` (indstillingsvinduet). Et snapshot tegner kun appens egne views: vinduets titellinje og trafiklys tegnes
 af macOS og er ikke med på billedet — deres plads øverst til venstre står tom, som i vinduet.
 
@@ -481,8 +482,8 @@ kører den igen for at vise, at intet tilføjes to gange, og at de gamle nøgler
 | En sektor, efter klik på dens strimmel | Nasdaq 100 over en måned, lyst tema |
 | ![Handelstider](docs/trading-hours.png) | ![FTSE 100 på engelsk](docs/english.png) |
 | Handelstiderne på overblikket — her tegnet en søndag, så begge handelstider kun står som kontur | FTSE 100, engelsk |
-| ![Overblikket som linjer](docs/overview-lines.png) | |
-| Overblikket som linjer over tre måneder, en liste sammenlignet med S&P 500 og C25 | |
+| ![Overblikket som tabel](docs/overview-table.png) | ![Overblikket mod S&P 500](docs/overview-relative.png) |
+| Overblikket som tabel: hvert tidsrum, farvet som kortet | Hvert kort mod S&P 500 over tre måneder |
 
 ## Licens
 

@@ -6,8 +6,9 @@ import SwiftUI
 /// and a small map of its stocks. A click opens the map.
 ///
 /// "Mine" holds the user's lists; then the US and the European indices.
-/// With "Linjer" in the toolbar each card shows its line over the range
-/// instead, and the ticked cards are compared above them.
+/// The toolbar switches between three ways to show them (`OverviewMode`):
+/// the cards with small maps, a table of every range, and the cards against
+/// a chosen index.
 /// Each card's figure is the same as the map's title: the index's own
 /// change, or a list's average (marked as such). The small map colours each
 /// stock — or a list's fund or index — by its own change; one without a
@@ -31,11 +32,33 @@ struct OverviewView: View {
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                if prefs.overviewAsLines {
-                    CompareChart()
-                        .padding(.bottom, 2)
+                if prefs.overviewMode == .table {
+                    OverviewTable()
+                } else {
+                    if prefs.overviewMode == .relative { BenchmarkBar() }
+                    cards
                 }
+            }
+            .padding(16)
+        }
+        .onAppear(perform: load)
+        .onChange(of: prefs.overviewMode) { load() }
+        .onChange(of: market.period) { load() }
+        .onChange(of: market.version) { load() }
+        .onChange(of: lists.watchlists) { load() }
+    }
 
+    /// What the mode needs beyond the cards' own figures: the lines against
+    /// an index, or every range's figures for the table.
+    private func load() {
+        switch prefs.overviewMode {
+        case .maps: break
+        case .relative: DailyLinesStore.shared.load()
+        case .table: Task { await market.loadHeadlines() }
+        }
+    }
+
+    @ViewBuilder private var cards: some View {
                 section(tr("Mine", "Mine"))
                 if lists.watchlists.isEmpty {
                     Text(tr("Ingen lister endnu. Søg med ⌘K og tilføj aktier, fonde eller indeks med “+ Liste”.",
@@ -61,18 +84,6 @@ struct OverviewView: View {
                 LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(universe.indices.filter(\.isEuropean)) { OverviewCard(kind: .index($0.id)) }
                 }
-            }
-            .padding(16)
-        }
-        .onAppear(perform: loadLines)
-        .onChange(of: prefs.overviewAsLines) { loadLines() }
-        .onChange(of: market.period) { loadLines() }
-        .onChange(of: market.version) { loadLines() }
-        .onChange(of: lists.watchlists) { loadLines() }
-    }
-
-    private func loadLines() {
-        if prefs.overviewAsLines { OverviewLinesStore.shared.load() }
     }
 
     private func section(_ title: String) -> some View {
@@ -100,7 +111,6 @@ private struct OverviewCard: View {
     @ObservedObject private var market = MarketStore.shared
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var app = AppState.shared
-    @ObservedObject private var lines = OverviewLinesStore.shared
     @Environment(\.heatTheme) private var theme
     @State private var isHovering = false
 
@@ -138,10 +148,9 @@ private struct OverviewCard: View {
 
     var body: some View {
         let figure = figure
-        let compareColor = prefs.overviewAsLines ? CompareColors.color(kind) : nil
+        let relative = prefs.overviewMode == .relative
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                if prefs.overviewAsLines { compareBox(compareColor) }
                 if case .watchlist = kind {
                     Text(tr("LISTE", "LIST"))
                         .font(.system(size: 9, weight: .bold))
@@ -157,19 +166,33 @@ private struct OverviewCard: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 4)
-                if let kindLabel = figure.kindLabel, figure.change != nil {
+                if relative {
+                    let difference = Relative.difference(kind, market.period)
+                    // The unit small, so the name keeps its room.
+                    (Text(Relative.number(difference))
+                        .font(.system(size: 12, weight: .bold).monospacedDigit())
+                        .foregroundColor(Heat.textColor(difference, style: prefs.colorStyle, theme: theme))
+                     + Text(difference == nil ? "" : " " + Relative.unit)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundColor(.secondary))
+                        .lineLimit(1)
+                        .fixedSize()
+                        .help(relativeHelp(figure))
+                } else if let kindLabel = figure.kindLabel, figure.change != nil {
                     // "gns." / "avg." — a list's figure is an average, not a price.
                     Text(figure.isIndicative ? "≈" : tr("gns.", "avg."))
                         .font(.system(size: 9.5, weight: .medium))
                         .foregroundStyle(.tertiary)
                         .help(kindLabel)
                 }
+                if !relative {
                 Text(figure.change == nil ? "–" : Format.percent(figure.change))
                     .font(.system(size: 12, weight: .bold).monospacedDigit())
                     .foregroundStyle(Heat.textColor(figure.change, style: prefs.colorStyle, theme: theme))
                     .lineLimit(1)
                     .fixedSize()
                     .help(figure.help)
+                }
             }
             mini
                 .frame(height: 92)
@@ -178,8 +201,7 @@ private struct OverviewCard: View {
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
             .fill(isHovering ? Palette.raised : Palette.surface))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .strokeBorder(compareColor ?? Palette.outline, lineWidth: compareColor == nil ? 1 : 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Palette.outline))
         .overlay(alignment: .topTrailing) {
             if list != nil, isHovering {
                 Button { remove() } label: {
@@ -197,51 +219,23 @@ private struct OverviewCard: View {
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        // ⌘-click ticks the card for the comparison (lines only).
-        .onTapGesture {
-            if prefs.overviewAsLines, NSEvent.modifierFlags.contains(.command) {
-                CompareColors.toggle(kind)
-            } else {
-                open()
-            }
-        }
+        .onTapGesture { open() }
         .onHover { isHovering = $0 }
         .help(help)
         .contextMenu { menu }
     }
 
-    /// The tick box for the comparison, in the card's line colour when ticked.
-    private func compareBox(_ color: Color?) -> some View {
-        Button { CompareColors.toggle(kind) } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                    .fill(color ?? Color.clear)
-                RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                    .strokeBorder(color ?? Color.secondary.opacity(0.6), lineWidth: 1)
-                if color != nil {
-                    Image(systemName: "checkmark").font(.system(size: 7.5, weight: .heavy)).foregroundStyle(.white)
-                }
-            }
-            .frame(width: 13, height: 13)
-            .contentShape(Rectangle())
-            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
-        }
-        .buttonStyle(.plain)
-        .help(color == nil ? tr("Sammenlign (⌘-klik på kortet)", "Compare (⌘-click the card)")
-                           : tr("Fjern fra sammenligningen", "Remove from the comparison"))
+    /// "+3,2 % − +0,5 % mod S&P 500": how the difference is made.
+    private func relativeHelp(_ figure: Figure) -> String {
+        guard let benchmark = Relative.benchmark else { return "" }
+        let theirs = market.indexFigure(benchmark, market.period)
+        return tr("\(title) \(Format.percent(figure.change)) minus \(benchmark.title) \(Format.percent(theirs.change)) over \(market.period.longName.lowercased()), i procentpoint.",
+                  "\(title) \(Format.percent(figure.change)) minus \(benchmark.title) \(Format.percent(theirs.change)) over \(market.period.longName.lowercased()), in percentage points.")
     }
 
     @ViewBuilder private var mini: some View {
-        if prefs.overviewAsLines {
-            if let line = lines.line(kind), line.values.contains(where: { $0 != nil }) {
-                SparkLine(line: line, style: prefs.colorStyle, theme: theme)
-            } else {
-                Text(lines.isLoading || lines.loadedPeriod != market.period ? tr("Henter forløb …", "Loading history …")
-                     : list?.items.isEmpty == true ? tr("Tom liste", "Empty list") : tr("Intet forløb fra Yahoo", "No history from Yahoo"))
-                    .font(.system(size: 10.5)).foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Palette.raised.opacity(0.5))
-            }
+        if prefs.overviewMode == .relative {
+            RelativeChart(kind: kind)
         } else {
             tileMap
         }

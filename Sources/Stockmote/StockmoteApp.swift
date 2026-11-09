@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// [--theme light|dark] [--lang da|en] [--fullscreen [--notch 32]]
 /// [--seismograph 0.4] [--fund SPY] [--search "MSCI World" [--fund-pick URTH] [--fund-add]]
 /// [--dialog new-list|rename-list] [--window 1200x780] [--settings]
-/// [--trading-hours] [--lines] [--compare "sp500,c25"] [--figures] [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-list "Tech:AAPL"] [--legacy-repeat]`
+/// [--trading-hours] [--overview table|relative] [--benchmark c25] [--figures] [--legacy-favorites "AAPL,NVDA"] [--legacy-funds "SPY"] [--legacy-list "Tech:AAPL"] [--legacy-repeat]`
 ///
 /// Fetches real data, renders the main window's content (or Map Only, or
 /// the Settings window) to a PNG and quits. Used for the images in docs/
@@ -296,8 +296,10 @@ struct Snapshot {
         prefs.showTradingHours = flags.contains("trading-hours")
         // --chart line: the stock page as a line of closes instead of candles.
         prefs.chartAsLine = options["chart"] == "line"
-        // --lines: the overview as lines (--compare below).
-        prefs.overviewAsLines = flags.contains("lines")
+        // --overview table|relative: the overview's view (maps otherwise);
+        // --benchmark c25: the index "Mod indeks" measures against.
+        prefs.overviewMode = options["overview"].flatMap(OverviewMode.init(rawValue:)) ?? .maps
+        if let benchmark = options["benchmark"] { prefs.benchmarkID = benchmark }
         if let index = options["index"] { app.indexID = index }
         if let tab = options["tab"].flatMap(PanelTab.init(rawValue:)) { app.tab = tab }
         // The map unless told otherwise, as the images in docs/ were made.
@@ -381,20 +383,25 @@ struct Snapshot {
         } else if let sector = options["sector"] {
             app.focus = .sector(sector)
         }
-        // --compare "sp500,c25,Name of a list": those cards compared above
-        // the lines (after --add-list, so the list exists).
-        prefs.compared = (options["compare"] ?? "").split(separator: ",").compactMap { part in
-            let name = part.trimmingCharacters(in: .whitespaces)
-            if UniverseStore.shared.index(withID: name) != nil { return "index:\(name)" }
-            return ListsStore.shared.watchlists.first { $0.name == name }.map { "list:\($0.id.uuidString)" }
-        }
-        if prefs.overviewAsLines { await OverviewLinesStore.shared.waitForLoad() }
+
+        if prefs.overviewMode == .relative { await DailyLinesStore.shared.waitForLoad() }
+        if prefs.overviewMode == .table { await market.loadHeadlines() }
         // --figures: every index's figure for the range and where it came
         // from, printed — to check them against the exchanges.
         if flags.contains("figures") {
+            // With --overview relative, also where each card's line ends.
+            let lines = DailyLinesStore.shared
+            func end(_ kind: OverviewKind) -> String {
+                guard let last = lines.line(kind)?.values.last(where: { $0 != nil }) ?? nil else { return "" }
+                return "\tline ends \(Format.percent(last))"
+            }
             for index in UniverseStore.shared.indices where !index.isFund {
                 let figure = market.indexFigure(index, market.period)
-                print("\(index.id)\t\(index.benchmark)\t\(Format.percent(figure.change))\t\(figure.source?.name ?? "–")")
+                print("\(index.id)\t\(index.benchmark)\t\(Format.percent(figure.change))\t\(figure.source?.name ?? "–")\(end(.index(index.id)))")
+            }
+            for list in ListsStore.shared.watchlists {
+                let figure = market.listFigure(list.items, market.period)
+                print("list\t\(list.name)\t\(Format.percent(figure.change))\taverage\(end(.watchlist(list.id)))")
             }
         }
         // --stock NVDA: the stock page, with its chart loaded.

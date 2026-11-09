@@ -449,6 +449,11 @@ final class MarketStore: ObservableObject {
             symbols = Set((ListsStore.shared.watchlist(app.watchlistID)?.items ?? []).compactMap(Self.quoteSymbol))
         }
         if let symbol = app.stockSymbol { symbols = [symbol] }
+        // The overview's table: every index and every list, for every range.
+        if app.screen == .overview, Preferences.shared.overviewMode == .table {
+            symbols = Set(UniverseStore.shared.indices.filter { !$0.isFund }.map(\.benchmark))
+            for list in ListsStore.shared.watchlists { symbols.formUnion(list.items.compactMap(Self.quoteSymbol)) }
+        }
         guard !symbols.isEmpty else { return }
         let stale = Period.allCases.filter { period in
             if let done = headlinesFetched[period], symbols.isSubset(of: done.symbols),

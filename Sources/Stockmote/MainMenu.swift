@@ -145,10 +145,10 @@ final class MainMenu: NSObject, NSMenuItemValidation {
         case #selector(toggleTradingHours):
             item.state = Preferences.shared.showTradingHours ? .on : .off
         case #selector(toggleList):
-            // On the overview ⌘L switches between maps and lines.
+            // On the overview ⌘L goes on to the next view: maps, table, against an index.
             let overview = AppState.shared.screen == .overview
-            item.title = overview ? tr("Vis som linjer", "Show as Lines") : tr("Vis som liste", "Show as List")
-            item.state = (overview ? Preferences.shared.overviewAsLines : AppState.shared.showList) ? .on : .off
+            item.title = overview ? tr("Næste visning", "Next View") : tr("Vis som liste", "Show as List")
+            item.state = !overview && AppState.shared.showList ? .on : .off
         case #selector(toggleReplay):
             item.state = ReplayStore.shared.isActive ? .on : .off
             return AppState.shared.isMap
@@ -194,7 +194,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
 
     @objc private func toggleList() {
         if AppState.shared.screen == .overview {
-            Preferences.shared.overviewAsLines.toggle()
+            Preferences.shared.overviewMode = Preferences.shared.overviewMode.next
         } else {
             AppState.shared.showList.toggle()
         }
@@ -216,7 +216,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
             ⌘0  Overblik · ⌘1 … ⌘9  Indeks
             Esc eller ⌘[  Et niveau op: aktie → kort → overblik
             ⌥⌘1 … ⌥⌘0  Tidsrum: 1D … Alt
-            ⌘L  Kort / liste · på overblikket kort / linjer
+            ⌘L  Kort / liste · på overblikket kort / tabel / mod indeks
             ⌘P  Seismograf · mellemrum afspiller, ← → et trin
             ⇧⌘T  Lyst / mørkt tema
             ⌘R  Opdatér
@@ -229,7 +229,7 @@ final class MainMenu: NSObject, NSMenuItemValidation {
             ⌘0  Overview · ⌘1 … ⌘9  Index
             Esc or ⌘[  Up one level: stock → map → overview
             ⌥⌘1 … ⌥⌘0  Time range: 1D … All
-            ⌘L  Map / list · on the overview maps / lines
+            ⌘L  Map / list · on the overview maps / table / against an index
             ⌘P  Seismograph · space plays, ← → one step
             ⇧⌘T  Light / dark theme
             ⌘R  Refresh

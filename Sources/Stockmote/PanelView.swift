@@ -539,23 +539,22 @@ private struct PeriodPicker: View {
     }
 }
 
-/// The overview's "Kort | Linjer": each card's small map, or its line over
-/// the range with the comparison above the cards. ⌘L switches too.
+/// The overview's three views: maps, the table of every range, and the
+/// cards against an index. ⌘L goes on to the next.
 private struct OverviewModePicker: View {
     @ObservedObject private var prefs = Preferences.shared
 
     var body: some View {
         HStack(spacing: 0) {
-            segment("square.grid.2x2", selected: !prefs.overviewAsLines, help: tr("Kort (⌘L)", "Maps (⌘L)")) { prefs.overviewAsLines = false }
-            segment("chart.xyaxis.line", selected: prefs.overviewAsLines, help: tr("Linjer og sammenligning (⌘L)", "Lines and comparison (⌘L)")) { prefs.overviewAsLines = true }
+            ForEach(OverviewMode.allCases, id: \.self) { mode in
+                ViewModePicker.segment(mode.symbol, selected: prefs.overviewMode == mode, help: mode.help) {
+                    prefs.overviewMode = mode
+                }
+            }
         }
         .padding(2)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.raised))
         .fixedSize()
-    }
-
-    private func segment(_ symbol: String, selected: Bool, help: String, action: @escaping () -> Void) -> some View {
-        ViewModePicker.segment(symbol, selected: selected, help: help, action: action)
     }
 }
 
