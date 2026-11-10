@@ -603,11 +603,9 @@ private struct RefreshButton: View {
     @State private var spin = false
 
     var body: some View {
-        ToolbarButton(symbol: "arrow.clockwise", help: tr("Opdatér (⌘R)", "Refresh (⌘R)")) {
+        ToolbarButton(symbol: "arrow.clockwise", help: tr("Opdatér (⌘R)", "Refresh (⌘R)"), spinning: spin) {
             Task { await market.refresh() }
         }
-        .rotationEffect(.degrees(spin ? 360 : 0))
-        .animation(spin ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: spin)
         .onChange(of: market.isLoading || market.loadingPeriod != nil) { _, loading in spin = loading }
         .onAppear { spin = market.isLoading }
     }
@@ -653,6 +651,8 @@ private struct SlidersIcon: Shape {
 struct ToolbarButton: View {
     let symbol: String
     let help: String
+    /// The symbol turns while true — only the symbol, not the hover box.
+    var spinning = false
     let action: () -> Void
 
     @State private var isHovering = false
@@ -661,6 +661,8 @@ struct ToolbarButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
+                .rotationEffect(.degrees(spinning ? 360 : 0))
+                .animation(spinning ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .default, value: spinning)
                 .frame(width: 28, height: 28)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isHovering ? Palette.raised : .clear))
                 .contentShape(Rectangle())
