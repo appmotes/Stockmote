@@ -59,10 +59,13 @@ final class StockChartStore: ObservableObject {
 
     func state(_ symbol: String, _ period: Period) -> State { charts[key(symbol, period)] ?? .loading }
 
-    func load(_ symbol: String, period: Period) {
+    /// Fetches the chart unless it is fresh. `force` fetches it anyway — after
+    /// the ⟳ button or the refresh loop — and keeps the old candles on screen
+    /// until the new ones are in.
+    func load(_ symbol: String, period: Period, force: Bool = false) {
         let key = key(symbol, period)
         if tasks[key] != nil { return }
-        if let at = fetched[key], Date().timeIntervalSince(at) < 300 { return }
+        if !force, let at = fetched[key], Date().timeIntervalSince(at) < 300 { return }
         if charts[key] == nil { charts[key] = .loading }
         tasks[key] = Task { [weak self] in
             async let chart = Self.fetch(symbol, period: period)
@@ -214,6 +217,8 @@ struct StockPage: View {
             }
         }
         .task(id: "\(symbol)|\(period.rawValue)") { charts.load(symbol, period: period) }
+        // The ⟳ button and the refresh loop update the market; the chart follows.
+        .onChange(of: market.lastUpdated) { charts.load(symbol, period: market.period, force: true) }
     }
 
     private func chart(_ period: Period) -> StockChart? {
